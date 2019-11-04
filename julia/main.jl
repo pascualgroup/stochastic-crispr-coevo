@@ -38,6 +38,7 @@ function main()
     end
     println("sim.t: ", sim.t)
     println(sim.state)
+    println(sim.state.bstrains.total_abundance)
     println("total number of events: ", n_events)
 
     wallclock_end = now()
@@ -52,12 +53,14 @@ function initialize_parameters() :: Parameters
     p.p_crispr_failure_prob = 1e-5
     p.q_spacer_acquisition_prob = 1e-5
     p.r_growth_rate = 1
-    p.K_carrying_capacity = 10^4.5
+    p.K_carrying_capacity = 10^5.5
     p.beta_burst_size = 50
     p.phi_adsorption_rate = 1e-7
     p.m_viral_decay_rate = 0.1
     p.mu_mutation_rate = 5e-7
     p.rho_c_density_cutoff = 0.1
+
+    p.d_death_rate = 0.05
 
     p
 end

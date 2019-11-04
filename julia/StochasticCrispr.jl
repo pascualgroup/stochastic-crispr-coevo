@@ -14,7 +14,7 @@ mutable struct Parameters
     "New spacer acquisition probability"
     q_spacer_acquisition_prob::Float64
 
-    "Growth rate (1/h)"
+    "Growth rate at 0 (1/h)"
     r_growth_rate::Float64
 
     "Carrying capacity (1/mL)"
@@ -34,6 +34,9 @@ mutable struct Parameters
 
     "Density cutoff: used to scale volume of system, and therefore discrete population sizes"
     rho_c_density_cutoff::Float64
+
+    "Constant death rate (not in Childs model)"
+    d_death_rate::Float64
 
     Parameters() = new()
 end
@@ -95,7 +98,7 @@ mutable struct State
     bstrains::BStrains
 #     vstrains::VStrains
 
-    State() = new(BStrains(1))
+    State() = new(BStrains(2000))
 end
 
 
@@ -185,9 +188,32 @@ function get_rate(e::Val{:BacterialGrowth}, sim::Simulator)
     p = sim.parameters
     s = sim.state
 
+    # Birth rate has a truncated logistic form:
+    # B(N) = b0 * N * (1 - N / C) [N < C]
+    # B(N) = 0 [N >= C]
+
+    # To match the Childs model, we need the birth rate at N = 0 to
+    # offset the death rate to yield a total growth rate of r:
+    #
+    # b0 = r + d
+    r = p.r_growth_rate
+    d = p.d_death_rate
+    b0 = r + d
+
+    # And we need the birth rate at N = K * V to similarly equal d:
+    #
+    # b0 * (1 - KV/C) = d
+    # =>
+    # C = KV / (1 - d / b0)
+
+    KV = p.K_carrying_capacity / p.rho_c_density_cutoff
+    C = KV / (1 - d / b0)
+
     # Assumes total_abundance is correct
     N = s.bstrains.total_abundance
-    p.r_growth_rate * N
+
+    # Birth rate is truncated to be nonnegative:
+    max(0, b0 * N * (1 - N / C))
 end
 
 function do_event!(e::Val{:BacterialGrowth}, sim::Simulator, t::Float64)
@@ -218,11 +244,9 @@ function get_rate(e::Val{:BacterialDeath}, sim::Simulator)
     s = sim.state
 
     N = s.bstrains.total_abundance
+    d = p.d_death_rate
 
-    d = p.r_growth_rate / p.K_carrying_capacity
-    V = 1.0 / p.rho_c_density_cutoff
-
-    d * N * (N / V)
+    d * N
 end
 
 function do_event!(e::Val{:BacterialDeath}, sim::Simulator, t::Float64)
