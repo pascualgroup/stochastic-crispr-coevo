@@ -4,10 +4,39 @@ using Util
 using Random
 using Logging
 using StatsBase
+using DataStructures
 
-export Parameters, validate, State, Simulator, do_next_event!
+export InitializationParameters, Parameters, validate, State, Simulator, do_next_event!
+
+mutable struct InitializationParameters
+    "Number of initial bacterial strains"
+    n_bstrains::UInt64
+
+    "Number of initial hosts per bacterial strain"
+    n_hosts_per_bstrain::UInt64
+
+    "Number of initial spacers per bacterial strain"
+    n_spacers::UInt64
+
+    "Number of initial virus strains"
+    n_vstrains::UInt64
+
+    "Number of initial particles per bacterial strain"
+    n_particles_per_vstrain::UInt64
+
+    "Number of initial protospacers per virus strain"
+    n_protospacers::UInt64
+
+    InitializationParameters() = new()
+end
 
 mutable struct Parameters
+    "Maximum number of spacers in a bacterial strain"
+    u_n_spacers_max
+
+    "Maximum number of protospacers in a virus strain"
+    v_n_protospacers_max
+
     "CRIPSR failure probability"
     p_crispr_failure_prob::Float64
 
@@ -53,52 +82,89 @@ function validate(p::Parameters)
     @assert 0.05 <= p.rho_c_density_cutoff <= 1.0
 end
 
-struct Spacer
-end
-
-struct PSpacer
-end
-
 mutable struct BStrains
     next_id::UInt64
+    ids::Vector{UInt64}
+
     abundance::Vector{Int64}
     total_abundance::Int64
 
-    function BStrains(n)
-        new(n + 1, ones(n), n)
+    n_spacers_max::UInt64
+    spacers::Vector{CircularBuffer{UInt64}}
+
+    function BStrains(n_strains, n_hosts_per_strain, n_spacers_max, n_spacers_init, spacer_id_start)
+        new(
+            n_strains + 1, 1:n_strains,
+            repeat([n_hosts_per_strain], n_strains), n_strains * n_hosts_per_strain,
+            n_spacers_max,
+            fill_id_buffers(n_strains, n_spacers_max, n_spacers_init, spacer_id_start)
+        )
     end
 end
 
-# mutable struct BStrain
-#     id::UInt64
-#     abundance::Int64
-#     spacers::Vector{Spacer}
-#
-#     BStrain(id, abundance) = new(id, abundance, [])
-# end
+mutable struct VStrains
+    next_id::UInt64
+    ids::Vector{UInt64}
 
-# mutable struct VStrains
-#     next_id::UInt64
-#     bstrains::Vector{VStrain}
-#
-#     function BStrains()
-#         new(1, [], 0)
-#     end
-# end
+    abundance::Vector{Int64}
 
-# mutable struct VStrain
-#     id::UInt64
-#     abundance::Int64
-#     pspacers::Vector{PSpacer}
-#
-#     VStrain(id, abundance) = new(id, abundance, [])
-# end
+    n_pspacers_max::UInt64
+    next_pspacer_id::UInt64
+    pspacers::Vector{CircularBuffer{UInt64}}
+
+    function VStrains(n_strains, n_particles_per_strain, n_pspacers_max, n_pspacers_init, pspacer_id_start)
+        new(
+            n_strains + 1, 1:n_strains, repeat([n_particles_per_strain], n_strains),
+            n_pspacers_max, pspacer_id_start + n_strains * n_pspacers_init,
+            fill_id_buffers(n_strains, n_pspacers_init, n_pspacers_max, pspacer_id_start)
+        )
+    end
+end
+
+"""
+Create n_buffers circular buffers with specified maximum capacity, filled with sequential IDs.
+
+E.g.:
+
+[1,2,3,4]
+[5,6,7,8]
+[9,10,11,12]
+"""
+function fill_id_buffers(n_buffers, n_max, n_init, id_start)
+    buffers = Vector{CircularBuffer{UInt64}}()
+    for i = 1:n_buffers
+        push!(buffers, CircularBuffer{UInt64}(Int64(n_max)))
+        append!(buffers[i], 1:n_init + (id_start - 1) + n_init * (i - 1))
+    end
+    buffers
+end
 
 mutable struct State
     bstrains::BStrains
-#     vstrains::VStrains
+    vstrains::VStrains
 
-    State() = new(BStrains(2000))
+    function State(
+        n_bstrains, n_hosts_per_bstrain, n_spacers_max, n_spacers_init,
+        n_vstrains, n_particles_per_vstrain, n_pspacers_max, n_pspacers_init
+    )
+        new(
+            BStrains(
+                n_bstrains, n_hosts_per_bstrain,
+                n_spacers_max, n_spacers_init, 1
+            ),
+            VStrains(
+                n_vstrains, n_particles_per_vstrain,
+                n_pspacers_max, n_pspacers_init, 1 + n_bstrains * n_spacers_init
+            )
+        )
+    end
+end
+
+function State(ip::InitializationParameters, mp::Parameters)
+    State(
+        ip.n_bstrains, ip.n_hosts_per_bstrain, mp.u_n_spacers_max, ip.n_spacers,
+        ip.n_vstrains, ip.n_particles_per_vstrain, mp.v_n_protospacers_max, ip.n_protospacers
+    )
 end
 
 
