@@ -8,6 +8,7 @@ main:
 push!(LOAD_PATH, ".")
 
 using Logging
+using Random
 using StochasticCrispr
 using Dates
 
@@ -15,14 +16,14 @@ function get_initialization_parameters() :: InitializationParameters
     p = InitializationParameters()
 
     p.n_bstrains = 1
-    p.n_hosts_per_bstrain = 1
+    p.n_hosts_per_bstrain = 100
     p.n_spacers = 8
 
 
     modelparams = get_model_parameters()
     validate(modelparams)
     p.n_vstrains = 1
-    p.n_particles_per_vstrain = 1
+    p.n_particles_per_vstrain = 100
     p.n_protospacers = 10
 
     p
@@ -50,6 +51,7 @@ function get_model_parameters() :: Parameters
     p
 end
 
+Base.show(io::IO, x::UInt64) = Base.print(io, x)
 
 function main()
     logger = SimpleLogger(stderr, Logging.Info)
@@ -65,29 +67,31 @@ function main()
 
     state = State(initparams, modelparams)
     println("Initial spacers:\n", state.bstrains.spacers)
-    println("Initial ppacers:\n", state.vstrains.pspacers)
+    println("Initial pspacers:\n", state.vstrains.pspacers)
     validate(state)
 
-    sim = Simulator(modelparams, 0.0, state)
+    rng = MersenneTwister(1)
+    sim = Simulator(modelparams, 0.0, state, rng)
     @debug "top_level_event_rates" sim.top_level_event_rates
 
     println("sim.t: ", sim.t)
-    t_final = 40.0
+    t_final = 100.0
     n_events::UInt64 = 0
     while sim.t < t_final
         n_events += 1
         do_next_event!(sim, t_final)
-        #println("sim.state.t: ", sim.t)
     end
-    println("sim.t: ", sim.t)
-    println(sim.state)
-    println(sim.state.bstrains.total_abundance)
-    println("total number of events: ", n_events)
+    @info "event counts:" sim.event_counter
+    @info "t" sim.t
+    @info "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance
+    @info "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance
 
     wallclock_end = now()
     println("ending at ", wallclock_end)
     elapsed_time = Dates.value(wallclock_end - wallclock_start) / 1000.0
     println("elapsed time: ", elapsed_time, " seconds")
+
+    validate(sim.state)
  end
 
 main()

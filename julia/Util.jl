@@ -9,7 +9,7 @@ Returns an index from 1:length(w) with probability proportional to w."
 
 s must be precomputed to be sum(w).
 """
-function sample_linear_integer_weights(rng::MersenneTwister, w::Vector{Int64}, s::Int64)
+function sample_linear_integer_weights(rng::MersenneTwister, w::Vector{UInt64}, s::UInt64)
     i = rand(rng, 1:s)
     cs = 0
     for j = 1:(length(w) - 1)
