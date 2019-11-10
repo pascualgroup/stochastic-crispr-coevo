@@ -89,15 +89,13 @@ mutable struct BStrains
     abundance::Vector{UInt64}
     total_abundance::UInt64
 
-    n_spacers_max::UInt64
-    spacers::Vector{CircularBuffer{UInt64}}
+    spacers::Vector{Vector{UInt64}}
 
-    function BStrains(n_strains, n_hosts_per_strain, n_spacers_max, n_spacers_init, spacer_id_start)
+    function BStrains(n_strains, n_hosts_per_strain, n_spacers_init, spacer_id_start)
         new(
             n_strains + 1, 1:n_strains,
             repeat([n_hosts_per_strain], n_strains), n_strains * n_hosts_per_strain,
-            n_spacers_max,
-            fill_id_buffers(n_strains, n_spacers_max, n_spacers_init, spacer_id_start)
+            fill_id_buffers(n_strains, n_spacers_init, spacer_id_start)
         )
     end
 end
@@ -109,16 +107,15 @@ mutable struct VStrains
     abundance::Vector{UInt64}
     total_abundance::UInt64
 
-    n_pspacers_max::UInt64
     next_pspacer_id::UInt64
-    pspacers::Vector{CircularBuffer{UInt64}}
+    pspacers::Vector{Vector{UInt64}}
 
-    function VStrains(n_strains, n_particles_per_strain, n_pspacers_max, n_pspacers_init, pspacer_id_start)
+    function VStrains(n_strains, n_particles_per_strain, n_pspacers_init, pspacer_id_start)
         new(
             n_strains + 1, 1:n_strains,
             repeat([n_particles_per_strain], n_strains), n_strains * n_particles_per_strain,
-            n_pspacers_max, pspacer_id_start + n_strains * n_pspacers_init,
-            fill_id_buffers(n_strains, n_pspacers_init, n_pspacers_max, pspacer_id_start)
+            pspacer_id_start + n_strains * n_pspacers_init,
+            fill_id_buffers(n_strains, n_pspacers_init, pspacer_id_start)
         )
     end
 end
@@ -132,11 +129,15 @@ E.g.:
 [5,6,7,8]
 [9,10,11,12]
 """
-function fill_id_buffers(n_buffers, n_max, n_init, id_start)
-    buffers = Vector{CircularBuffer{UInt64}}()
-    for i = 1:n_buffers
-        push!(buffers, CircularBuffer{UInt64}(Int64(n_max)))
-        append!(buffers[i], 1:n_init + (id_start - 1) + n_init * (i - 1))
+function fill_id_buffers(n_buffers, n_init, id_start)
+    @info "fill_id_buffers():" n_buffers n_init id_start
+    buffers = Vector{Vector{UInt64}}()
+    for i::UInt64 = 1:n_buffers
+        push!(buffers, Vector{UInt64}())
+        append!(
+            buffers[i],
+            Vector(1:n_init) .+ repeat([id_start - 1 + n_init * (i - 1)], n_init)
+        )
     end
     buffers
 end
@@ -146,17 +147,17 @@ mutable struct State
     vstrains::VStrains
 
     function State(
-        n_bstrains, n_hosts_per_bstrain, n_spacers_max, n_spacers_init,
-        n_vstrains, n_particles_per_vstrain, n_pspacers_max, n_pspacers_init
+        n_bstrains, n_hosts_per_bstrain, n_spacers_init,
+        n_vstrains, n_particles_per_vstrain, n_pspacers_init
     )
         new(
             BStrains(
                 n_bstrains, n_hosts_per_bstrain,
-                n_spacers_max, n_spacers_init, 1
+                n_spacers_init, 1
             ),
             VStrains(
                 n_vstrains, n_particles_per_vstrain,
-                n_pspacers_max, n_pspacers_init, 1 + n_bstrains * n_spacers_init
+                n_pspacers_init, 1 + n_bstrains * n_spacers_init
             )
         )
     end
@@ -164,8 +165,8 @@ end
 
 function State(ip::InitializationParameters, mp::Parameters)
     State(
-        ip.n_bstrains, ip.n_hosts_per_bstrain, mp.u_n_spacers_max, ip.n_spacers,
-        ip.n_vstrains, ip.n_particles_per_vstrain, mp.v_n_protospacers_max, ip.n_protospacers
+        ip.n_bstrains, ip.n_hosts_per_bstrain, ip.n_spacers,
+        ip.n_vstrains, ip.n_particles_per_vstrain, ip.n_protospacers
     )
 end
 
@@ -190,7 +191,7 @@ end
 const TOP_LEVEL_EVENTS = [
     Val(:BacterialGrowth),
     Val(:BacterialDeath),
-    Val(:ViralDeath),
+    Val(:ViralDecay),
     Val(:ViralMutation),
     Val(:Contact),
 ]
@@ -202,7 +203,7 @@ mutable struct Simulator
     rng::MersenneTwister
 
     top_level_event_rates::Vector{Float64}
-    event_counter::Vector{UInt64}
+    event_counts::Vector{UInt64}
 end
 
 function Simulator(params::Parameters, t_init::Float64, state_init::State, rng::MersenneTwister)
@@ -233,16 +234,23 @@ function do_next_event!(sim::Simulator, t_max::Float64)
 
         # Sample next top-level event proportional to event rate
         event = sample(sim.rng, TOP_LEVEL_EVENTS, Weights(sim.top_level_event_rates, R))
-        sim.event_counter[findfirst(x -> x == event, TOP_LEVEL_EVENTS)] += 1
+        sim.event_counts[findfirst(x -> x == event, TOP_LEVEL_EVENTS)] += 1
 
         @debug "begin do_event()" event=event t=t_next
         do_event!(event, sim, t_next)
+        update_all_rates!(sim)
         @debug "end do_event()"
 
         sim.t = t_next
 
         @debug "bstrains.total_abundance:" sim.state.bstrains.total_abundance
         @debug "VStrains.total_abundance:" sim.state.vstrains.total_abundance
+    end
+end
+
+function update_all_rates!(sim::Simulator)
+    for i = 1:length(TOP_LEVEL_EVENTS)
+        sim.top_level_event_rates[i] = get_rate(TOP_LEVEL_EVENTS[i], sim)
     end
 end
 
@@ -303,9 +311,9 @@ function do_event!(e::Val{:BacterialGrowth}, sim::Simulator, t::Float64)
     s.bstrains.total_abundance += 1
 
     # Update affected rates
-    update_rate!(Val(:BacterialGrowth), sim)
-    update_rate!(Val(:BacterialDeath), sim)
-    update_rate!(Val(:Contact), sim)
+#     update_rate!(Val(:BacterialGrowth), sim)
+#     update_rate!(Val(:BacterialDeath), sim)
+#     update_rate!(Val(:Contact), sim)
 end
 
 
@@ -338,21 +346,38 @@ function do_event!(e::Val{:BacterialDeath}, sim::Simulator, t::Float64)
     s.bstrains.total_abundance -= 1
 
     # Update affected rates
-    update_rate!(Val(:BacterialGrowth), sim)
-    update_rate!(Val(:BacterialDeath), sim)
-    update_rate!(Val(:Contact), sim)
+#     update_rate!(Val(:BacterialGrowth), sim)
+#     update_rate!(Val(:BacterialDeath), sim)
+#     update_rate!(Val(:Contact), sim)
 end
 
 
-### VIRAL DEATH EVENT ###
+### VIRAL DECAY EVENT ###
 
-function get_rate(e::Val{:ViralDeath}, sim::Simulator)
-    0.0
-end
-
-function do_event!(e::Val{:ViralDeath}, sim::Simulator, t::Float64)
+function get_rate(e::Val{:ViralDecay}, sim::Simulator)
     p = sim.parameters
     s = sim.state
+    m = p.m_viral_decay_rate
+    V = s.vstrains.total_abundance
+
+    m * V
+end
+
+function do_event!(e::Val{:ViralDecay}, sim::Simulator, t::Float64)
+    p = sim.parameters
+    s = sim.state
+    rng = sim.rng
+
+    V_vec = s.vstrains.abundance
+    V = s.vstrains.total_abundance
+
+    # Choose a strain proportional to abundance.
+    # This is OK since per-capita death rate is the same across all strains.
+    strain_index = sample_linear_integer_weights(rng, V_vec, V)
+
+    # Update abundance and total abundance
+    s.vstrains.abundance[strain_index] -= 1
+    s.vstrains.total_abundance -= 1
 end
 
 
@@ -407,11 +432,13 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
     should_infect = false
     should_acquire_spacer = false
     if is_immune(s.bstrains.spacers[iB], s.vstrains.pspacers[jV])
+        @debug "Immune" t
         # If immune, infect anyway with probability p
         if rand(rng) < params.p_crispr_failure_prob
             should_infect = true
         end
     else
+        @debug "Not immune" t
         # If not immune, defend (and acquire spacer) with probability q
         if rand(rng) < params.q_spacer_acquisition_prob
             should_acquire_spacer = true
@@ -421,27 +448,48 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
     end
 
     if should_infect
+        @debug "Infecting!" t
         # Reduce bacterial population
         @assert s.bstrains.abundance[iB] > 0
         s.bstrains.abundance[iB] -= 1
         s.bstrains.total_abundance -= 1
 
         # Increase viral population
-        s.vstrains.abundance[iV] += params.beta_burst_size
+        s.vstrains.abundance[jV] += params.beta_burst_size
         s.vstrains.total_abundance += params.beta_burst_size
     elseif should_acquire_spacer
+        @info "Acquiring spacer!" t
         @assert !should_infect
-        # TODO: acquire spacer
+
+        # Create new bacterial strain with modified spacers
+        s.bstrains.abundance[iB] -= 1
+
+        new_spacers = s.bstrains.spacers[iB][2:length(s.bstrains.spacers[iB])]
+        push!(new_spacers, rand(rng, s.vstrains.pspacers[jV]))
+        @info "new_spacers" t new_spacers
+
+        mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
+        if mutated_strain_index === nothing
+            @info "creating new strain"
+            id = s.bstrains.next_id
+            s.bstrains.next_id += 1
+            push!(s.bstrains.ids, id)
+            push!(s.bstrains.abundance, 1)
+            push!(s.bstrains.spacers, new_spacers)
+        else
+            @info "using old strain" mutated_strain_index
+            s.bstrains.abundance[mutated_strain_index] += 1
+        end
     end
 
     # Update affected rates
-    update_rate!(Val(:BacterialGrowth), sim)
-    update_rate!(Val(:BacterialDeath), sim)
-    update_rate!(Val(:Contact), sim)
+#     update_rate!(Val(:BacterialGrowth), sim)
+#     update_rate!(Val(:BacterialDeath), sim)
+#     update_rate!(Val(:Contact), sim)
 end
 
-function is_immune(spacers::CircularBuffer{UInt64}, pspacers::CircularBuffer{UInt64})
-    length(union(spacers, pspacers)) > 0
+function is_immune(spacers::Vector{UInt64}, pspacers::Vector{UInt64})
+    length(intersect(spacers, pspacers)) > 0
 end
 
 
@@ -462,11 +510,15 @@ end
 function validate(b::BStrains)
     @assert b.total_abundance == sum(b.abundance)
     @assert b.next_id > maximum(b.ids)
+    @assert length(b.abundance) == length(b.ids)
+    @assert length(b.spacers) == length(b.ids)
 end
 
 function validate(v::VStrains)
     @assert v.total_abundance == sum(v.abundance)
     @assert v.next_id > maximum(v.ids)
+    @assert length(v.abundance) == length(v.ids)
+    @assert length(v.pspacers) == length(v.ids)
 end
 
 # function validate(vs::VStrain)

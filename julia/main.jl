@@ -75,14 +75,23 @@ function main()
     @debug "top_level_event_rates" sim.top_level_event_rates
 
     println("sim.t: ", sim.t)
-    t_final = 100.0
+    t_final = 100
     n_events::UInt64 = 0
-    while sim.t < t_final
-        n_events += 1
-        do_next_event!(sim, t_final)
+
+    for t_period_int = 1:t_final
+        @info "t" sim.t
+        t_period = Float64(t_period_int)
+        while sim.t < t_period
+            do_next_event!(sim, t_period)
+        end
+        
+        @info "event counts:" total=n_events, breakdown=sim.event_counts
+        @info "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance
+        @info "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance
     end
-    @info "event counts:" sim.event_counter
     @info "t" sim.t
+
+    @info "event counts:" total=n_events, breakdown=sim.event_counts
     @info "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance
     @info "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance
 
