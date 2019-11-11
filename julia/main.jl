@@ -84,10 +84,10 @@ function main()
         while sim.t < t_period
             do_next_event!(sim, t_period)
         end
-        
+
         @info "event counts:" total=n_events, breakdown=sim.event_counts
-        @info "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance
-        @info "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance
+        @info "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+        @info "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.pspacers
     end
     @info "t" sim.t
 

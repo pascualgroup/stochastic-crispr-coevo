@@ -3,8 +3,8 @@ module StochasticCrispr
 using Util
 using Random
 using Logging
+using Distributions
 using StatsBase
-using DataStructures
 
 export InitializationParameters, Parameters, validate, State, Simulator, do_next_event!
 
@@ -153,7 +153,7 @@ mutable struct State
         new(
             BStrains(
                 n_bstrains, n_hosts_per_bstrain,
-                n_spacers_init, 1
+                0, 1
             ),
             VStrains(
                 n_vstrains, n_particles_per_vstrain,
@@ -192,7 +192,6 @@ const TOP_LEVEL_EVENTS = [
     Val(:BacterialGrowth),
     Val(:BacterialDeath),
     Val(:ViralDecay),
-    Val(:ViralMutation),
     Val(:Contact),
 ]
 
@@ -381,18 +380,6 @@ function do_event!(e::Val{:ViralDecay}, sim::Simulator, t::Float64)
 end
 
 
-### VIRAL MUTATION EVENT ###
-
-function get_rate(e::Val{:ViralMutation}, sim::Simulator)
-    0.0
-end
-
-function do_event!(e::Val{:ViralMutation}, sim::Simulator, t::Float64)
-    p = sim.parameters
-    s = sim.state
-end
-
-
 ### CONTACT EVENT ###
 
 function get_rate(e::Val{:Contact}, sim::Simulator)
@@ -414,6 +401,9 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
     rng = sim.rng
     params = sim.parameters
     s = sim.state
+
+    mu = params.mu_mutation_rate
+    beta = params.beta_burst_size
 
     N = s.bstrains.total_abundance
     V = s.vstrains.total_abundance
@@ -454,30 +444,64 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
         s.bstrains.abundance[iB] -= 1
         s.bstrains.total_abundance -= 1
 
-        # Increase viral population
-        s.vstrains.abundance[jV] += params.beta_burst_size
-        s.vstrains.total_abundance += params.beta_burst_size
+        # Calculate number of mutations in each virus particle
+        old_pspacers = s.vstrains.pspacers[jV]
+        n_pspacers = length(old_pspacers)
+        n_mut = filter(x -> x > 0, rand(rng, Binomial(n_pspacers, mu), beta))
+        n_with_mut = length(n_mut)
+
+        @debug "mutations: " n_mut n_with_mut
+
+        # Increment population with no mutations
+        s.vstrains.abundance[jV] += beta - n_with_mut
+        s.vstrains.total_abundance += beta - n_with_mut
+
+        # Perform mutations for mutated particles
+        for i = 1:n_with_mut
+            mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
+            new_pspacers = copy(old_pspacers)
+            for locus = mut_loci
+                new_pspacers[locus] = s.vstrains.next_pspacer_id
+                s.vstrains.next_pspacer_id += 1
+            end
+
+            @info "Mutating virus" t mut_loci old_pspacers new_pspacers
+
+            @info "creating new viral strain"
+            id = s.vstrains.next_id
+            s.vstrains.next_id += 1
+            push!(s.vstrains.ids, id)
+            push!(s.vstrains.abundance, 1)
+            s.vstrains.total_abundance += 1
+            push!(s.vstrains.pspacers, new_pspacers)
+        end
     elseif should_acquire_spacer
-        @info "Acquiring spacer!" t
+        @debug "Acquiring spacer!" t
         @assert !should_infect
 
         # Create new bacterial strain with modified spacers
         s.bstrains.abundance[iB] -= 1
 
-        new_spacers = s.bstrains.spacers[iB][2:length(s.bstrains.spacers[iB])]
+        # Add spacer, dropping the oldest one if we're at capacity
+        old_spacers = s.bstrains.spacers[iB]
+        new_spacers = if length(old_spacers) == params.u_n_spacers_max
+            old_spacers[2:length(old_spacers)]
+        else
+            copy(old_spacers)
+        end
         push!(new_spacers, rand(rng, s.vstrains.pspacers[jV]))
-        @info "new_spacers" t new_spacers
+        @debug "new_spacers" t new_spacers
 
         mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
         if mutated_strain_index === nothing
-            @info "creating new strain"
+            @debug "creating new bacterial strain"
             id = s.bstrains.next_id
             s.bstrains.next_id += 1
             push!(s.bstrains.ids, id)
             push!(s.bstrains.abundance, 1)
             push!(s.bstrains.spacers, new_spacers)
         else
-            @info "using old strain" mutated_strain_index
+            @debug "using old bacterial strain" mutated_strain_index
             s.bstrains.abundance[mutated_strain_index] += 1
         end
     end
