@@ -91,13 +91,35 @@ mutable struct BStrains
 
     spacers::Vector{Vector{UInt64}}
 
-    function BStrains(n_strains, n_hosts_per_strain, n_spacers_init, spacer_id_start)
+    function BStrains(n_strains, n_hosts_per_strain)
         new(
-            n_strains + 1, 1:n_strains,
-            repeat([n_hosts_per_strain], n_strains), n_strains * n_hosts_per_strain,
-            fill_id_buffers(n_strains, n_spacers_init, spacer_id_start)
+            # next_id
+            n_strains + 1,
+
+            # ids
+            1:n_strains,
+
+            # abundance
+            repeat([n_hosts_per_strain], n_strains),
+
+            # total_abundance
+            n_strains * n_hosts_per_strain,
+
+            # spacers
+            repeat([[]], n_strains)
         )
     end
+end
+
+function remove_bstrain!(b::BStrains, index)
+    # This is only used when a bstrain has gone extinct
+    @assert b.abundance[index] == 0
+
+    @info "Removing bstrain" id=b.ids[index] index=index
+
+    swap_with_end_and_remove!(b.ids, index)
+    swap_with_end_and_remove!(b.abundance, index)
+    swap_with_end_and_remove!(b.spacers, index)
 end
 
 mutable struct VStrains
@@ -110,36 +132,30 @@ mutable struct VStrains
     next_pspacer_id::UInt64
     pspacers::Vector{Vector{UInt64}}
 
-    function VStrains(n_strains, n_particles_per_strain, n_pspacers_init, pspacer_id_start)
-        new(
-            n_strains + 1, 1:n_strains,
-            repeat([n_particles_per_strain], n_strains), n_strains * n_particles_per_strain,
-            pspacer_id_start + n_strains * n_pspacers_init,
-            fill_id_buffers(n_strains, n_pspacers_init, pspacer_id_start)
-        )
+    function VStrains(n_strains, n_particles_per_strain, n_pspacers_init)
+        next_id = n_strains + 1
+        ids = Vector(1:n_strains)
+        abundance = repeat([n_particles_per_strain], n_strains)
+        total_abundance = n_strains * n_particles_per_strain
+        next_pspacer_id = 1 + n_strains * n_pspacers_init
+        pspacers = [
+            Vector(1:n_pspacers_init) .+ repeat([n_pspacers_init * (i - 1)], n_pspacers_init)
+            for i = 1:n_strains
+        ]
+
+        new(next_id, ids, abundance, total_abundance, next_pspacer_id, pspacers)
     end
 end
 
-"""
-Create n_buffers circular buffers with specified maximum capacity, filled with sequential ID
+function remove_vstrain!(v::VStrains, index)
+    # This is only used when a bstrain has gone extinct
+    @assert v.abundance[index] == 0
 
-E.g.:
+    @info "Removing vstrain" id=v.ids[index] index=index
 
-[1,2,3,4]
-[5,6,7,8]
-[9,10,11,12]
-"""
-function fill_id_buffers(n_buffers, n_init, id_start)
-    @info "fill_id_buffers():" n_buffers n_init id_start
-    buffers = Vector{Vector{UInt64}}()
-    for i::UInt64 = 1:n_buffers
-        push!(buffers, Vector{UInt64}())
-        append!(
-            buffers[i],
-            Vector(1:n_init) .+ repeat([id_start - 1 + n_init * (i - 1)], n_init)
-        )
-    end
-    buffers
+    swap_with_end_and_remove!(v.ids, index)
+    swap_with_end_and_remove!(v.abundance, index)
+    swap_with_end_and_remove!(v.pspacers, index)
 end
 
 mutable struct State
@@ -151,14 +167,8 @@ mutable struct State
         n_vstrains, n_particles_per_vstrain, n_pspacers_init
     )
         new(
-            BStrains(
-                n_bstrains, n_hosts_per_bstrain,
-                0, 1
-            ),
-            VStrains(
-                n_vstrains, n_particles_per_vstrain,
-                n_pspacers_init, 1 + n_bstrains * n_spacers_init
-            )
+            BStrains(n_bstrains, n_hosts_per_bstrain),
+            VStrains(n_vstrains, n_particles_per_vstrain, n_pspacers_init)
         )
     end
 end
@@ -344,6 +354,11 @@ function do_event!(e::Val{:BacterialDeath}, sim::Simulator, t::Float64)
     s.bstrains.abundance[strain_index] -= 1
     s.bstrains.total_abundance -= 1
 
+    # Remove extinct strain
+    if s.bstrains.abundance[strain_index] == 0
+        remove_bstrain!(s.bstrains, strain_index)
+    end
+
     # Update affected rates
 #     update_rate!(Val(:BacterialGrowth), sim)
 #     update_rate!(Val(:BacterialDeath), sim)
@@ -377,6 +392,11 @@ function do_event!(e::Val{:ViralDecay}, sim::Simulator, t::Float64)
     # Update abundance and total abundance
     s.vstrains.abundance[strain_index] -= 1
     s.vstrains.total_abundance -= 1
+
+    # Remove extinct strain
+    if s.vstrains.abundance[strain_index] == 0
+        remove_vstrain!(s.vstrains, strain_index)
+    end
 end
 
 
@@ -465,9 +485,9 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
                 s.vstrains.next_pspacer_id += 1
             end
 
-            @info "Mutating virus" t mut_loci old_pspacers new_pspacers
+            @debug "Mutating virus" t mut_loci old_pspacers new_pspacers
 
-            @info "creating new viral strain"
+            @debug "creating new viral strain"
             id = s.vstrains.next_id
             s.vstrains.next_id += 1
             push!(s.vstrains.ids, id)
@@ -479,30 +499,35 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
         @debug "Acquiring spacer!" t
         @assert !should_infect
 
-        # Create new bacterial strain with modified spacers
-        s.bstrains.abundance[iB] -= 1
+        # Choose among protospacers in the infecting strain not already acquired
+        # (If all have already been acquired, don't do anything.)
+        missing_spacers = setdiff(s.vstrains.pspacers[jV], s.bstrains.spacers[iB])
+        if length(missing_spacers) > 0
+            # Create new bacterial strain with modified spacers
+            s.bstrains.abundance[iB] -= 1
 
-        # Add spacer, dropping the oldest one if we're at capacity
-        old_spacers = s.bstrains.spacers[iB]
-        new_spacers = if length(old_spacers) == params.u_n_spacers_max
-            old_spacers[2:length(old_spacers)]
-        else
-            copy(old_spacers)
-        end
-        push!(new_spacers, rand(rng, s.vstrains.pspacers[jV]))
-        @debug "new_spacers" t new_spacers
+            # Add spacer, dropping the oldest one if we're at capacity
+            old_spacers = s.bstrains.spacers[iB]
+            new_spacers = if length(old_spacers) == params.u_n_spacers_max
+                old_spacers[2:length(old_spacers)]
+            else
+                copy(old_spacers)
+            end
+            push!(new_spacers, rand(rng, missing_spacers))
+            @debug "new_spacers" t new_spacers
 
-        mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
-        if mutated_strain_index === nothing
-            @debug "creating new bacterial strain"
-            id = s.bstrains.next_id
-            s.bstrains.next_id += 1
-            push!(s.bstrains.ids, id)
-            push!(s.bstrains.abundance, 1)
-            push!(s.bstrains.spacers, new_spacers)
-        else
-            @debug "using old bacterial strain" mutated_strain_index
-            s.bstrains.abundance[mutated_strain_index] += 1
+            mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
+            if mutated_strain_index === nothing
+                @debug "creating new bacterial strain"
+                id = s.bstrains.next_id
+                s.bstrains.next_id += 1
+                push!(s.bstrains.ids, id)
+                push!(s.bstrains.abundance, 1)
+                push!(s.bstrains.spacers, new_spacers)
+            else
+                @debug "using old bacterial strain" mutated_strain_index
+                s.bstrains.abundance[mutated_strain_index] += 1
+            end
         end
     end
 

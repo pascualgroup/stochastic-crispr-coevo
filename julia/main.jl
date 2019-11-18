@@ -19,7 +19,6 @@ function get_initialization_parameters() :: InitializationParameters
     p.n_hosts_per_bstrain = 100
     p.n_spacers = 8
 
-
     modelparams = get_model_parameters()
     validate(modelparams)
     p.n_vstrains = 1
