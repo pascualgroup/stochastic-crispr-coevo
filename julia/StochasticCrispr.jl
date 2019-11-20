@@ -5,8 +5,39 @@ using Random
 using Logging
 using Distributions
 using StatsBase
+using DelimitedFiles
+using Dates
 
-export InitializationParameters, Parameters, validate, State, Simulator, do_next_event!
+export run_model
+export RunParameters, InitializationParameters, Parameters
+export State, Simulator
+export validate, do_next_event!
+
+mutable struct RunParameters
+    "Simulation end time"
+    t_final::Float64
+
+    "Time between output events"
+    t_output::Float64
+
+    "Seed for random number generator"
+    rng_seed::Union{UInt64, Nothing}
+
+    "Enable output?"
+    enable_output::Bool
+
+    function RunParameters()
+        rp = new()
+        rp.rng_seed = nothing
+        rp.enable_output = true
+        rp
+    end
+end
+
+function validate(rp::RunParameters)
+    @assert 0.0 < rp.t_final <= 1000
+    @assert 0.0 < rp.t_output <= rp.t_final
+end
 
 mutable struct InitializationParameters
     "Number of initial bacterial strains"
@@ -28,6 +59,9 @@ mutable struct InitializationParameters
     n_protospacers::UInt64
 
     InitializationParameters() = new()
+end
+
+function validate(ip::InitializationParameters)
 end
 
 mutable struct Parameters
@@ -82,6 +116,108 @@ function validate(p::Parameters)
     @assert 0.05 <= p.rho_c_density_cutoff <= 1.0
 end
 
+function open_csv(prefix, header...)
+    filename = "$prefix.csv"
+    if ispath(filename)
+        error("$filename already exists. You should delete output, or run in a different directory.")
+    else
+        file = open(filename, "w")
+        write_csv(file, header...)
+        file
+    end
+end
+
+function write_csv(file, row...)
+    for i = 1:lastindex(row)
+        print(file, row[i])
+        if i < lastindex(row)
+            print(file, ",")
+        end
+    end
+    print(file, "\n")
+end
+
+function run_model(rp::RunParameters, ip::InitializationParameters, mp::Parameters)
+    validate(rp)
+    validate(ip)
+    validate(mp)
+    
+    meta_file = open_csv("meta", "key", "value")
+
+    # Use random seed if provided, or generate one
+    rng_seed = rp.rng_seed === nothing ? rand(RandomDevice(), UInt64) : rp.rng_seed
+    write_csv(meta_file, "rng_seed", rng_seed)
+
+    # Record start time
+    start_time = now()
+    write_csv(meta_file, "start_time", start_time)
+
+    # Initialize & validate model state
+    state = State(ip, mp)
+    validate(state)
+
+    # Initialize simulator
+    sim = Simulator(rp, mp, 0.0, state, MersenneTwister(rng_seed))
+    
+    # Initial output
+    if rp.enable_output
+        @info "initial output"
+        write_periodic_output(sim)
+        write_strains(
+            state.bstrains.strain_file,
+            state.bstrains.spacers_file,
+            sim.t,
+            state.bstrains.ids,
+            state.bstrains.spacers
+        )
+        write_strains(
+            state.vstrains.strain_file,
+            state.vstrains.spacers_file,
+            sim.t,
+            state.vstrains.ids,
+            state.vstrains.pspacers
+        )
+    end
+    
+    # Simulation loop
+    t_next_output = 0.0
+    
+    while sim.t < rp.t_final
+        # Simulate exactly until the next output time 
+        t_next_output = min(rp.t_final, t_next_output + rp.t_output)
+        
+        @info "Beginning period: $(sim.t) to $(t_next_output)"
+        
+        while sim.t < t_next_output
+            # Perform the next event.
+            # If the next event time is computed to be
+            # greater than t_next_output, no event will occur
+            # and time will simply advance exactly to t_next_output.
+            do_next_event!(sim, t_next_output)
+        end
+
+        @debug "event counts:" total=n_events, breakdown=sim.event_counts
+        @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+        @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.pspacers
+        
+        # Write periodic output
+        @debug "rp.enable_output" rp.enable_output
+        if rp.enable_output
+            write_periodic_output(sim)
+        end
+        
+        @assert sim.t == t_next_output
+    end
+
+    # Record end time and elapsed
+    end_time = now()
+    write_csv(meta_file, "end_time", end_time)
+    elapsed_seconds = Dates.value(end_time - start_time) / 1000.0
+    write_csv(meta_file, "elapsed_seconds", elapsed_seconds)
+
+    close(meta_file)
+end
+
 mutable struct BStrains
     next_id::UInt64
     ids::Vector{UInt64}
@@ -90,6 +226,10 @@ mutable struct BStrains
     total_abundance::UInt64
 
     spacers::Vector{Vector{UInt64}}
+    
+    strain_file::IOStream
+    spacers_file::IOStream
+    abundance_file::IOStream
 
     function BStrains(n_strains, n_hosts_per_strain)
         new(
@@ -106,7 +246,16 @@ mutable struct BStrains
             n_strains * n_hosts_per_strain,
 
             # spacers
-            repeat([[]], n_strains)
+            repeat([[]], n_strains),
+            
+            # strain_file
+            open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
+            
+            # spacers_file
+            open_csv("bspacers", "t_creation", "bstrain_id", "spacer_id"),
+            
+            # abundance_file
+            open_csv("babundance", "t", "bstrain_id", "abundance")
         )
     end
 end
@@ -115,7 +264,7 @@ function remove_bstrain!(b::BStrains, index)
     # This is only used when a bstrain has gone extinct
     @assert b.abundance[index] == 0
 
-    @info "Removing bstrain" id=b.ids[index] index=index
+    @debug "Removing bstrain" id=b.ids[index] index=index
 
     swap_with_end_and_remove!(b.ids, index)
     swap_with_end_and_remove!(b.abundance, index)
@@ -131,6 +280,10 @@ mutable struct VStrains
 
     next_pspacer_id::UInt64
     pspacers::Vector{Vector{UInt64}}
+    
+    strain_file::IOStream
+    spacers_file::IOStream
+    abundance_file::IOStream
 
     function VStrains(n_strains, n_particles_per_strain, n_pspacers_init)
         next_id = n_strains + 1
@@ -143,7 +296,17 @@ mutable struct VStrains
             for i = 1:n_strains
         ]
 
-        new(next_id, ids, abundance, total_abundance, next_pspacer_id, pspacers)
+        new(
+            next_id,
+            ids,
+            abundance,
+            total_abundance,
+            next_pspacer_id,
+            pspacers,
+            open_csv("vstrains", "t_creation", "vstrain_id", "parent_vstrain_id", "infected_bstrain_id"),
+            open_csv("vpspacers", "t_creation", "vstrain_id", "spacer_id"),
+            open_csv("vabundance", "t", "vstrain_id", "abundance")
+        )
     end
 end
 
@@ -151,7 +314,7 @@ function remove_vstrain!(v::VStrains, index)
     # This is only used when a bstrain has gone extinct
     @assert v.abundance[index] == 0
 
-    @info "Removing vstrain" id=v.ids[index] index=index
+    @debug "Removing vstrain" id=v.ids[index] index=index
 
     swap_with_end_and_remove!(v.ids, index)
     swap_with_end_and_remove!(v.abundance, index)
@@ -206,6 +369,7 @@ const TOP_LEVEL_EVENTS = [
 ]
 
 mutable struct Simulator
+    runparams::RunParameters
     parameters::Parameters
     t::Float64
     state::State
@@ -215,9 +379,9 @@ mutable struct Simulator
     event_counts::Vector{UInt64}
 end
 
-function Simulator(params::Parameters, t_init::Float64, state_init::State, rng::MersenneTwister)
+function Simulator(runparams::RunParameters, params::Parameters, t_init::Float64, state_init::State, rng::MersenneTwister)
     sim = Simulator(
-        params, t_init, state_init, rng,
+        runparams, params, t_init, state_init, rng,
         zeros(length(TOP_LEVEL_EVENTS)), zeros(length(TOP_LEVEL_EVENTS))
     )
     for e = TOP_LEVEL_EVENTS
@@ -255,6 +419,55 @@ function do_next_event!(sim::Simulator, t_max::Float64)
         @debug "bstrains.total_abundance:" sim.state.bstrains.total_abundance
         @debug "VStrains.total_abundance:" sim.state.vstrains.total_abundance
     end
+end
+
+function write_initial_output(sim)
+end
+
+function write_periodic_output(sim)
+    s = sim.state
+    
+    write_abundances(
+        s.bstrains.abundance_file, sim.t, s.bstrains.ids, s.bstrains.abundance
+    )
+    write_abundances(
+        s.vstrains.abundance_file, sim.t, s.vstrains.ids, s.vstrains.abundance
+    )
+    
+    flush(s.bstrains.strain_file)
+    flush(s.bstrains.spacers_file)
+    flush(s.vstrains.strain_file)
+    flush(s.vstrains.spacers_file)
+end
+
+function write_strains(strain_file, spacers_file, t_creation, ids, spacers)
+    @debug "write_strains" ids
+    for i = 1:lastindex(ids)
+        write_strain(strain_file, t_creation, ids[i], 0, 0)
+        write_spacers(spacers_file, ids[i], spacers[i])
+    end
+    flush(strain_file)
+    flush(spacers_file)
+end
+
+function write_strain(file, t_creation, id, parent_id, other_id)
+    write_csv(file, t_creation, id, parent_id, other_id)
+end
+
+function write_spacers(file, id, spacers)
+    for spacer_id = spacers
+        write_csv(file, id, spacer_id)
+    end
+end
+
+function write_abundances(file, t, ids, abundance)
+    @debug "write_abundances" t ids abundance
+    @debug "lastindex(ids)" lastindex(ids)
+    for i = 1:lastindex(ids)
+        @debug "lastindex(ids)" lastindex(ids)
+        write_csv(file, t, ids[i], abundance[i])
+    end
+    flush(file)
 end
 
 function update_all_rates!(sim::Simulator)
@@ -318,11 +531,6 @@ function do_event!(e::Val{:BacterialGrowth}, sim::Simulator, t::Float64)
     # Update abundance and total abundance
     s.bstrains.abundance[strain_index] += 1
     s.bstrains.total_abundance += 1
-
-    # Update affected rates
-#     update_rate!(Val(:BacterialGrowth), sim)
-#     update_rate!(Val(:BacterialDeath), sim)
-#     update_rate!(Val(:Contact), sim)
 end
 
 
@@ -358,11 +566,6 @@ function do_event!(e::Val{:BacterialDeath}, sim::Simulator, t::Float64)
     if s.bstrains.abundance[strain_index] == 0
         remove_bstrain!(s.bstrains, strain_index)
     end
-
-    # Update affected rates
-#     update_rate!(Val(:BacterialGrowth), sim)
-#     update_rate!(Val(:BacterialDeath), sim)
-#     update_rate!(Val(:Contact), sim)
 end
 
 
@@ -487,13 +690,18 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
 
             @debug "Mutating virus" t mut_loci old_pspacers new_pspacers
 
-            @debug "creating new viral strain"
+            @debug t "creating new viral strain"
             id = s.vstrains.next_id
             s.vstrains.next_id += 1
             push!(s.vstrains.ids, id)
             push!(s.vstrains.abundance, 1)
             s.vstrains.total_abundance += 1
             push!(s.vstrains.pspacers, new_pspacers)
+            
+            if sim.runparams.enable_output
+                write_strain(s.vstrains.strain_file, t, id, s.vstrains.ids[jV], s.bstrains.ids[iB])
+                write_spacers(s.vstrains.spacers_file, id, new_pspacers)
+            end
         end
     elseif should_acquire_spacer
         @debug "Acquiring spacer!" t
@@ -524,17 +732,17 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
                 push!(s.bstrains.ids, id)
                 push!(s.bstrains.abundance, 1)
                 push!(s.bstrains.spacers, new_spacers)
+                
+                if sim.runparams.enable_output
+                    write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
+                    write_spacers(s.bstrains.spacers_file, id, new_spacers)
+                end
             else
                 @debug "using old bacterial strain" mutated_strain_index
                 s.bstrains.abundance[mutated_strain_index] += 1
             end
         end
     end
-
-    # Update affected rates
-#     update_rate!(Val(:BacterialGrowth), sim)
-#     update_rate!(Val(:BacterialDeath), sim)
-#     update_rate!(Val(:Contact), sim)
 end
 
 function is_immune(spacers::Vector{UInt64}, pspacers::Vector{UInt64})
@@ -547,13 +755,6 @@ end
 function validate(s::State)
     validate(s.bstrains)
     validate(s.vstrains)
-#     if length(s.bstrains) > 0
-#         @assert next_bstrain_id >= maximum(s.bstrains.id)
-#     end
-
-#     if length(s.vstrains) > 0
-#         @assert next_vstrain_id >= maximum(s.vstrains.id)
-#     end
 end
 
 function validate(b::BStrains)
@@ -569,9 +770,6 @@ function validate(v::VStrains)
     @assert length(v.abundance) == length(v.ids)
     @assert length(v.pspacers) == length(v.ids)
 end
-
-# function validate(vs::VStrain)
-# end
 
 end # module StochasticCrispr
 
