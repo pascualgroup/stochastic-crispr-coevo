@@ -377,12 +377,15 @@ mutable struct Simulator
 
     top_level_event_rates::Vector{Float64}
     event_counts::Vector{UInt64}
+
+    summary_file::IOStream
 end
 
 function Simulator(runparams::RunParameters, params::Parameters, t_init::Float64, state_init::State, rng::MersenneTwister)
     sim = Simulator(
         runparams, params, t_init, state_init, rng,
-        zeros(length(TOP_LEVEL_EVENTS)), zeros(length(TOP_LEVEL_EVENTS))
+        zeros(length(TOP_LEVEL_EVENTS)), zeros(length(TOP_LEVEL_EVENTS)),
+        open_csv("summary", "t", "bacterial_abundance", "viral_abundance")
     )
     for e = TOP_LEVEL_EVENTS
         update_rate!(e, sim)
@@ -421,11 +424,10 @@ function do_next_event!(sim::Simulator, t_max::Float64)
     end
 end
 
-function write_initial_output(sim)
-end
-
 function write_periodic_output(sim)
     s = sim.state
+
+    write_summary(sim.summary_file, sim.t, s)
     
     write_abundances(
         s.bstrains.abundance_file, sim.t, s.bstrains.ids, s.bstrains.abundance
@@ -438,6 +440,11 @@ function write_periodic_output(sim)
     flush(s.bstrains.spacers_file)
     flush(s.vstrains.strain_file)
     flush(s.vstrains.spacers_file)
+end
+
+function write_summary(file, t, state)
+    write_csv(file, t, state.bstrains.total_abundance, state.vstrains.total_abundance)
+    flush(file)
 end
 
 function write_strains(strain_file, spacers_file, t_creation, ids, spacers)
