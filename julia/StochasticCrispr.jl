@@ -736,12 +736,12 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
 
             mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
             if mutated_strain_index === nothing
-                @info "Creating new bacterial strain"
+                @debug "Creating new bacterial strain"
                 
-                @info "Old spacers:" old_spacers
-                @info "New spacers from old spacers:" new_spacers_from_old
-                @info "Missing spacers:" missing_spacers
-                @info "All new spacers:" new_spacers
+                @debug "Old spacers:" old_spacers
+                @debug "New spacers from old spacers:" new_spacers_from_old
+                @debug "Missing spacers:" missing_spacers
+                @debug "All new spacers:" new_spacers
                 
                 id = s.bstrains.next_id
                 s.bstrains.next_id += 1
