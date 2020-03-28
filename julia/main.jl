@@ -5,12 +5,21 @@ main:
 - Date: 2019-10-01
 =#
 
-push!(LOAD_PATH, ".")
 
 using Logging
 using Random
-using StochasticCrispr
 using Dates
+
+# Uncomment this to see all debugging output:
+# Logging.global_logger(
+#     Logging.SimpleLogger(
+#         stderr,
+#         Logging.Debug
+#     )
+# )
+
+push!(LOAD_PATH, ".")
+using StochasticCrispr
 
 function make_run_parameters() :: RunParameters
     p = RunParameters()
@@ -26,7 +35,7 @@ function make_initialization_parameters() :: InitializationParameters
 
     p.n_bstrains = 1
     p.n_hosts_per_bstrain = 100
-    p.n_spacers = 8
+    # p.n_spacers = 8
     
     p.n_vstrains = 1
     p.n_particles_per_vstrain = 100

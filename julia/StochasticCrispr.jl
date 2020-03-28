@@ -46,8 +46,8 @@ mutable struct InitializationParameters
     "Number of initial hosts per bacterial strain"
     n_hosts_per_bstrain::UInt64
 
-    "Number of initial spacers per bacterial strain"
-    n_spacers::UInt64
+    # "Number of initial spacers per bacterial strain"
+    # n_spacers::UInt64
 
     "Number of initial virus strains"
     n_vstrains::UInt64
@@ -252,7 +252,7 @@ mutable struct BStrains
             open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
             
             # spacers_file
-            open_csv("bspacers", "t_creation", "bstrain_id", "spacer_id"),
+            open_csv("bspacers", "bstrain_id", "spacer_id"),
             
             # abundance_file
             open_csv("babundance", "t", "bstrain_id", "abundance")
@@ -304,7 +304,7 @@ mutable struct VStrains
             next_pspacer_id,
             pspacers,
             open_csv("vstrains", "t_creation", "vstrain_id", "parent_vstrain_id", "infected_bstrain_id"),
-            open_csv("vpspacers", "t_creation", "vstrain_id", "spacer_id"),
+            open_csv("vpspacers", "vstrain_id", "spacer_id"),
             open_csv("vabundance", "t", "vstrain_id", "abundance")
         )
     end
@@ -326,7 +326,7 @@ mutable struct State
     vstrains::VStrains
 
     function State(
-        n_bstrains, n_hosts_per_bstrain, n_spacers_init,
+        n_bstrains, n_hosts_per_bstrain, # n_spacers_init,
         n_vstrains, n_particles_per_vstrain, n_pspacers_init
     )
         new(
@@ -338,7 +338,7 @@ end
 
 function State(ip::InitializationParameters, mp::Parameters)
     State(
-        ip.n_bstrains, ip.n_hosts_per_bstrain, ip.n_spacers,
+        ip.n_bstrains, ip.n_hosts_per_bstrain, # ip.n_spacers,
         ip.n_vstrains, ip.n_particles_per_vstrain, ip.n_protospacers
     )
 end
@@ -462,6 +462,7 @@ function write_strain(file, t_creation, id, parent_id, other_id)
 end
 
 function write_spacers(file, id, spacers)
+    @debug "write_spacers" id spacers
     for spacer_id = spacers
         write_csv(file, id, spacer_id)
     end
@@ -720,20 +721,28 @@ function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
         if length(missing_spacers) > 0
             # Create new bacterial strain with modified spacers
             s.bstrains.abundance[iB] -= 1
-
+            
             # Add spacer, dropping the oldest one if we're at capacity
             old_spacers = s.bstrains.spacers[iB]
+            
             new_spacers = if length(old_spacers) == params.u_n_spacers_max
                 old_spacers[2:length(old_spacers)]
             else
                 copy(old_spacers)
             end
+            new_spacers_from_old = copy(new_spacers)
+            
             push!(new_spacers, rand(rng, missing_spacers))
-            @debug "new_spacers" t new_spacers
 
             mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
             if mutated_strain_index === nothing
-                @debug "creating new bacterial strain"
+                @info "Creating new bacterial strain"
+                
+                @info "Old spacers:" old_spacers
+                @info "New spacers from old spacers:" new_spacers_from_old
+                @info "Missing spacers:" missing_spacers
+                @info "All new spacers:" new_spacers
+                
                 id = s.bstrains.next_id
                 s.bstrains.next_id += 1
                 push!(s.bstrains.ids, id)
