@@ -1,0 +1,33 @@
+{
+    "run_parameters" : {
+        "t_final" : 100.0,
+        "t_output" : 1.0
+    },
+    
+    "initialization_parameters" : {
+        "n_bstrains" : 1,
+        "n_hosts_per_bstrain" : 100,
+        
+        "n_vstrains" : 1,
+        "n_particles_per_vstrain" : 100,
+        "n_protospacers" : 10
+    },
+    
+    "model_parameters" : {
+        "u_n_spacers_max" : 8,
+
+        "v_n_protospacers_max" : 10,
+
+        "p_crispr_failure_prob" : 1e-5,
+        "q_spacer_acquisition_prob" : 1e-5,
+        "r_growth_rate" : 1,
+        "K_carrying_capacity" : 3.16e5,
+        "beta_burst_size" : 50,
+        "phi_adsorption_rate" : 1e-7,
+        "m_viral_decay_rate" : 0.1,
+        "mu_mutation_rate" : 5e-7,
+        "rho_c_density_cutoff" : 0.1,
+
+        "d_death_rate" : 0.05
+    }
+}

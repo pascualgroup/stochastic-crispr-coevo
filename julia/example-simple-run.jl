@@ -1,3 +1,5 @@
+#!/usr/bin/env julia
+
 #=
 main:
 - Julia version: 
@@ -9,6 +11,7 @@ main:
 using Logging
 using Random
 using Dates
+using JSON2
 
 # Uncomment this to see all debugging output:
 # Logging.global_logger(
@@ -18,7 +21,10 @@ using Dates
 #     )
 # )
 
-push!(LOAD_PATH, ".")
+
+# Make sure that we can find StochasticCrispr
+push!(LOAD_PATH, abspath(dirname(PROGRAM_FILE)))
+
 using StochasticCrispr
 
 function make_run_parameters() :: RunParameters
@@ -35,7 +41,6 @@ function make_initialization_parameters() :: InitializationParameters
 
     p.n_bstrains = 1
     p.n_hosts_per_bstrain = 100
-    # p.n_spacers = 8
     
     p.n_vstrains = 1
     p.n_particles_per_vstrain = 100
@@ -66,8 +71,12 @@ function make_model_parameters() :: Parameters
     p
 end
 
-run_model(
-    make_run_parameters(),
-    make_initialization_parameters(),
-    make_model_parameters()
-)
+function main()
+    run_model(
+        make_run_parameters(),
+        make_initialization_parameters(),
+        make_model_parameters()
+    )
+end
+
+main()

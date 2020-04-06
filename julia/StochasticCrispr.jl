@@ -7,6 +7,7 @@ using Distributions
 using StatsBase
 using DelimitedFiles
 using Dates
+using JSON2
 
 export run_model
 export RunParameters, InitializationParameters, Parameters
@@ -27,16 +28,17 @@ mutable struct RunParameters
     enable_output::Bool
 
     function RunParameters()
-        rp = new()
-        rp.rng_seed = nothing
-        rp.enable_output = true
-        rp
+        p = new()
+        p.rng_seed = nothing
+        p.enable_output = true
+        p
     end
 end
+JSON2.@format RunParameters noargs
 
-function validate(rp::RunParameters)
-    @assert 0.0 < rp.t_final <= 1000
-    @assert 0.0 < rp.t_output <= rp.t_final
+function validate(p::RunParameters)
+    @assert 0.0 < p.t_final <= 1000
+    @assert 0.0 < p.t_output <= p.t_final
 end
 
 mutable struct InitializationParameters
@@ -60,8 +62,14 @@ mutable struct InitializationParameters
 
     InitializationParameters() = new()
 end
+JSON2.@format InitializationParameters noargs
 
-function validate(ip::InitializationParameters)
+function validate(p::InitializationParameters)
+    @assert p.n_bstrains >= 1
+    @assert p.n_hosts_per_bstrain >= 1
+    @assert p.n_vstrains >= 1
+    @assert p.n_particles_per_vstrain >= 1
+    @assert p.n_protospacers >= 1
 end
 
 mutable struct Parameters
@@ -103,8 +111,11 @@ mutable struct Parameters
 
     Parameters() = new()
 end
+JSON2.@format Parameters noargs
 
 function validate(p::Parameters)
+    @assert 1 <= p.u_n_spacers_max
+    @assert 1 <= p.v_n_protospacers_max
     @assert 0.0 <= p.p_crispr_failure_prob <= 1.0
     @assert 0.0 <= p.q_spacer_acquisition_prob <= 1.0
     @assert 0.1 < p.r_growth_rate <= 10
@@ -114,6 +125,7 @@ function validate(p::Parameters)
     @assert 0.0 <= p.m_viral_decay_rate <= 1.0
     @assert 0.0 <= p.mu_mutation_rate <= 1e-5
     @assert 0.05 <= p.rho_c_density_cutoff <= 1.0
+    @assert 0.0 < p.d_death_rate
 end
 
 function open_csv(prefix, header...)
