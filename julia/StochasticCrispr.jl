@@ -373,11 +373,16 @@ end
     https://docs.julialang.org/en/v1/manual/types/#Parametric-Types-1
     https://docs.julialang.org/en/v1/manual/types/#"Value-types"-1
 """
+const BACTERIAL_GROWTH = 1
+const BACTERIAL_DEATH = 2
+const VIRAL_DECAY = 3
+const CONTACT = 4
+
 const TOP_LEVEL_EVENTS = [
-    Val(:BacterialGrowth),
-    Val(:BacterialDeath),
-    Val(:ViralDecay),
-    Val(:Contact),
+    BACTERIAL_GROWTH,
+    BACTERIAL_DEATH,
+    VIRAL_DECAY,
+    CONTACT,
 ]
 
 mutable struct Simulator
@@ -399,8 +404,8 @@ function Simulator(runparams::RunParameters, params::Parameters, t_init::Float64
         zeros(length(TOP_LEVEL_EVENTS)), zeros(length(TOP_LEVEL_EVENTS)),
         open_csv("summary", "t", "bacterial_abundance", "viral_abundance")
     )
-    for e = TOP_LEVEL_EVENTS
-        update_rate!(e, sim)
+    for event_id = TOP_LEVEL_EVENTS
+        update_rate!(event_id, sim)
     end
     sim
 end
@@ -421,11 +426,11 @@ function do_next_event!(sim::Simulator, t_max::Float64)
         @debug "event_rates:" sim.top_level_event_rates
 
         # Sample next top-level event proportional to event rate
-        event = sample(sim.rng, TOP_LEVEL_EVENTS, Weights(sim.top_level_event_rates, R))
-        sim.event_counts[findfirst(x -> x == event, TOP_LEVEL_EVENTS)] += 1
+        event_id = sample(sim.rng, TOP_LEVEL_EVENTS, Weights(sim.top_level_event_rates, R))
+        sim.event_counts[event_id] += 1
 
         @debug "begin do_event()" event=event t=t_next
-        do_event!(event, sim, t_next)
+        do_event!(event_id, sim, t_next)
         update_all_rates!(sim)
         @debug "end do_event()"
 
@@ -496,16 +501,40 @@ function update_all_rates!(sim::Simulator)
     end
 end
 
-function update_rate!(e::Val, sim::Simulator)
-    event_index = findfirst(x -> x == e, TOP_LEVEL_EVENTS)
-    @debug "event_index:" event_index
-    sim.top_level_event_rates[event_index] = get_rate(e, sim)
+function update_rate!(event_id, sim::Simulator)
+    sim.top_level_event_rates[event_id] = get_rate(event_id, sim)
 end
 
 
+### EVENT DISPATCH
+
+function get_rate(event_id, sim::Simulator)
+  if event_id == BACTERIAL_GROWTH
+    get_rate_bacterial_growth(sim)
+  elseif event_id == BACTERIAL_DEATH
+    get_rate_bacterial_death(sim)
+  elseif event_id == VIRAL_DECAY
+    get_rate_viral_decay(sim)
+  elseif event_id == CONTACT
+    get_rate_contact(sim)
+  end
+end
+
+function do_event!(event_id, sim::Simulator, t::Float64)
+  if event_id == BACTERIAL_GROWTH
+    do_event_bacterial_growth!(sim, t)
+  elseif event_id == BACTERIAL_DEATH
+    do_event_bacterial_death!(sim, t)
+  elseif event_id == VIRAL_DECAY
+    do_event_viral_decay!(sim, t)
+  elseif event_id == CONTACT
+    do_event_contact!(sim, t)
+  end
+end
+
 ### BACTERIAL GROWTH EVENT
 
-function get_rate(e::Val{:BacterialGrowth}, sim::Simulator)
+function get_rate_bacterial_growth(sim::Simulator)
     p = sim.parameters
     s = sim.state
 
@@ -537,7 +566,7 @@ function get_rate(e::Val{:BacterialGrowth}, sim::Simulator)
     max(0, b0 * N * (1 - N / C))
 end
 
-function do_event!(e::Val{:BacterialGrowth}, sim::Simulator, t::Float64)
+function do_event_bacterial_growth!(sim::Simulator, t::Float64)
     p = sim.parameters
     s = sim.state
     rng = sim.rng
@@ -556,7 +585,7 @@ end
 
 ### BACTERIAL DEATH EVENT ###
 
-function get_rate(e::Val{:BacterialDeath}, sim::Simulator)
+function get_rate_bacterial_death(sim::Simulator)
     p = sim.parameters
     s = sim.state
 
@@ -566,7 +595,7 @@ function get_rate(e::Val{:BacterialDeath}, sim::Simulator)
     d * N
 end
 
-function do_event!(e::Val{:BacterialDeath}, sim::Simulator, t::Float64)
+function do_event_bacterial_death!(sim::Simulator, t::Float64)
     p = sim.parameters
     s = sim.state
     rng = sim.rng
@@ -591,7 +620,7 @@ end
 
 ### VIRAL DECAY EVENT ###
 
-function get_rate(e::Val{:ViralDecay}, sim::Simulator)
+function get_rate_viral_decay(sim::Simulator)
     p = sim.parameters
     s = sim.state
     m = p.m_viral_decay_rate
@@ -600,7 +629,7 @@ function get_rate(e::Val{:ViralDecay}, sim::Simulator)
     m * V
 end
 
-function do_event!(e::Val{:ViralDecay}, sim::Simulator, t::Float64)
+function do_event_viral_decay!(sim::Simulator, t::Float64)
     p = sim.parameters
     s = sim.state
     rng = sim.rng
@@ -625,7 +654,7 @@ end
 
 ### CONTACT EVENT ###
 
-function get_rate(e::Val{:Contact}, sim::Simulator)
+function get_rate_contact(sim::Simulator)
     p = sim.parameters
     s = sim.state
 
@@ -640,7 +669,7 @@ function get_rate(e::Val{:Contact}, sim::Simulator)
     phi * N * V * rho
 end
 
-function do_event!(e::Val{:Contact}, sim::Simulator, t::Float64)
+function do_event_contact!(sim::Simulator, t::Float64)
     rng = sim.rng
     params = sim.parameters
     s = sim.state
