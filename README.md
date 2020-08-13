@@ -65,26 +65,19 @@ There are four events:
 
 ### Bacterial growth
 
-
-
 ### Bacterial death
 
-
-
 ### Viral decay
-
-
 
 ### Contact
 
 1. Randomly select a bacterial strain and a viral strain proportional to population size
-2. Reduce the viral population by 1
-3. If immune, infect with probability p_crispr_failure_prob
-4. If not immune, defend successfully & acquire spacer with prob q_spacer_acquisition_prob
-5. If infecting:
-  a. reduce bacterial population
-  b. 
+2. If immune, infect with probability p_crispr_failure_prob
+3. If not immune, defend successfully & acquire spacer with prob q_spacer_acquisition_prob
 
+Infect:
 
-
+1. Draw the number of mutations for each of `beta` newly created virus particles; the number is `Binomial(n_pspacers, mu)`.
+2. Unmutated virus particles just increase the abundance of the existing viral strain.
+3. Mutated virus particles acquire newly created protospacers at randomly selected loci.
 

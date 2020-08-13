@@ -713,17 +713,23 @@ function infect!(sim::Simulator, t::Float64, iB, jV)
     # Calculate number of mutations in each virus particle
     old_pspacers = s.vstrains.pspacers[jV]
     n_pspacers = length(old_pspacers)
+    
+    # The number of mutations for each new virus particle is binomially distributed.
+    # n_mut is left with just the nonzero draws--that is, the number of
+    # mutations for each *mutated* virus particle.
     n_mut = filter(x -> x > 0, rand(rng, Binomial(n_pspacers, mu), beta))
     n_with_mut = length(n_mut)
 
     @debug "mutations: " n_mut n_with_mut
 
-    # Increment population with no mutations
+    # Increment population: just the virus particles that don't have mutations
     s.vstrains.abundance[jV] += beta - n_with_mut
     s.vstrains.total_abundance += beta - n_with_mut
 
     # Perform mutations for mutated particles
     for i = 1:n_with_mut
+        # Draw which loci are mutated using the previously drawn number of mutations,
+        # and create new protospacers
         mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
         new_pspacers = copy(old_pspacers)
         for locus = mut_loci
