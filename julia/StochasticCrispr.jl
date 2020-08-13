@@ -657,9 +657,6 @@ function do_event_contact!(sim::Simulator, t::Float64)
     params = sim.parameters
     s = sim.state
 
-    mu = params.mu_mutation_rate
-    beta = params.beta_burst_size
-
     N = s.bstrains.total_abundance
     V = s.vstrains.total_abundance
 
@@ -693,94 +690,112 @@ function do_event_contact!(sim::Simulator, t::Float64)
     end
 
     if should_infect
-        @debug "Infecting!" t
-        # Reduce bacterial population
-        @assert s.bstrains.abundance[iB] > 0
-        s.bstrains.abundance[iB] -= 1
-        s.bstrains.total_abundance -= 1
-
-        # Calculate number of mutations in each virus particle
-        old_pspacers = s.vstrains.pspacers[jV]
-        n_pspacers = length(old_pspacers)
-        n_mut = filter(x -> x > 0, rand(rng, Binomial(n_pspacers, mu), beta))
-        n_with_mut = length(n_mut)
-
-        @debug "mutations: " n_mut n_with_mut
-
-        # Increment population with no mutations
-        s.vstrains.abundance[jV] += beta - n_with_mut
-        s.vstrains.total_abundance += beta - n_with_mut
-
-        # Perform mutations for mutated particles
-        for i = 1:n_with_mut
-            mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
-            new_pspacers = copy(old_pspacers)
-            for locus = mut_loci
-                new_pspacers[locus] = s.vstrains.next_pspacer_id
-                s.vstrains.next_pspacer_id += 1
-            end
-
-            @debug "Mutating virus" t mut_loci old_pspacers new_pspacers
-
-            @debug t "creating new viral strain"
-            id = s.vstrains.next_id
-            s.vstrains.next_id += 1
-            push!(s.vstrains.ids, id)
-            push!(s.vstrains.abundance, 1)
-            s.vstrains.total_abundance += 1
-            push!(s.vstrains.pspacers, new_pspacers)
-            
-            if sim.runparams.enable_output
-                write_strain(s.vstrains.strain_file, t, id, s.vstrains.ids[jV], s.bstrains.ids[iB])
-                write_spacers(s.vstrains.spacers_file, id, new_pspacers)
-            end
-        end
+        infect!(sim, t, iB, jV)
     elseif should_acquire_spacer
-        @debug "Acquiring spacer!" t
-        @assert !should_infect
+        acquire_spacer!(sim, t, iB, jV)
+    end
+end
 
-        # Choose among protospacers in the infecting strain not already acquired
-        # (If all have already been acquired, don't do anything.)
-        missing_spacers = setdiff(s.vstrains.pspacers[jV], s.bstrains.spacers[iB])
-        if length(missing_spacers) > 0
-            # Create new bacterial strain with modified spacers
-            s.bstrains.abundance[iB] -= 1
-            
-            # Add spacer, dropping the oldest one if we're at capacity
-            old_spacers = s.bstrains.spacers[iB]
-            
-            new_spacers = if length(old_spacers) == params.u_n_spacers_max
-                old_spacers[2:length(old_spacers)]
-            else
-                copy(old_spacers)
-            end
-            new_spacers_from_old = copy(new_spacers)
-            
-            push!(new_spacers, rand(rng, missing_spacers))
+function infect!(sim::Simulator, t::Float64, iB, jV)
+    rng = sim.rng
+    params = sim.parameters
+    s = sim.state
 
-            mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
-            if mutated_strain_index === nothing
-                @debug "Creating new bacterial strain"
-                
-                @debug "Old spacers:" old_spacers
-                @debug "New spacers from old spacers:" new_spacers_from_old
-                @debug "Missing spacers:" missing_spacers
-                @debug "All new spacers:" new_spacers
-                
-                id = s.bstrains.next_id
-                s.bstrains.next_id += 1
-                push!(s.bstrains.ids, id)
-                push!(s.bstrains.abundance, 1)
-                push!(s.bstrains.spacers, new_spacers)
-                
-                if sim.runparams.enable_output
-                    write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
-                    write_spacers(s.bstrains.spacers_file, id, new_spacers)
-                end
-            else
-                @debug "using old bacterial strain" mutated_strain_index
-                s.bstrains.abundance[mutated_strain_index] += 1
+    mu = params.mu_mutation_rate
+    beta = params.beta_burst_size
+    
+    @debug "Infecting!" t
+    # Reduce bacterial population
+    @assert s.bstrains.abundance[iB] > 0
+    s.bstrains.abundance[iB] -= 1
+    s.bstrains.total_abundance -= 1
+
+    # Calculate number of mutations in each virus particle
+    old_pspacers = s.vstrains.pspacers[jV]
+    n_pspacers = length(old_pspacers)
+    n_mut = filter(x -> x > 0, rand(rng, Binomial(n_pspacers, mu), beta))
+    n_with_mut = length(n_mut)
+
+    @debug "mutations: " n_mut n_with_mut
+
+    # Increment population with no mutations
+    s.vstrains.abundance[jV] += beta - n_with_mut
+    s.vstrains.total_abundance += beta - n_with_mut
+
+    # Perform mutations for mutated particles
+    for i = 1:n_with_mut
+        mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
+        new_pspacers = copy(old_pspacers)
+        for locus = mut_loci
+            new_pspacers[locus] = s.vstrains.next_pspacer_id
+            s.vstrains.next_pspacer_id += 1
+        end
+
+        @debug "Mutating virus" t mut_loci old_pspacers new_pspacers
+
+        @debug t "creating new viral strain"
+        id = s.vstrains.next_id
+        s.vstrains.next_id += 1
+        push!(s.vstrains.ids, id)
+        push!(s.vstrains.abundance, 1)
+        s.vstrains.total_abundance += 1
+        push!(s.vstrains.pspacers, new_pspacers)
+    
+        if sim.runparams.enable_output
+            write_strain(s.vstrains.strain_file, t, id, s.vstrains.ids[jV], s.bstrains.ids[iB])
+            write_spacers(s.vstrains.spacers_file, id, new_pspacers)
+        end
+    end
+end
+
+function acquire_spacer!(sim::Simulator, t::Float64, iB, jV)
+    rng = sim.rng
+    params = sim.parameters
+    s = sim.state
+    
+    @debug "Acquiring spacer!" t
+
+    # Choose among protospacers in the infecting strain not already acquired
+    # (If all have already been acquired, don't do anything.)
+    missing_spacers = setdiff(s.vstrains.pspacers[jV], s.bstrains.spacers[iB])
+    if length(missing_spacers) > 0
+        # Create new bacterial strain with modified spacers
+        s.bstrains.abundance[iB] -= 1
+    
+        # Add spacer, dropping the oldest one if we're at capacity
+        old_spacers = s.bstrains.spacers[iB]
+    
+        new_spacers = if length(old_spacers) == params.u_n_spacers_max
+            old_spacers[2:length(old_spacers)]
+        else
+            copy(old_spacers)
+        end
+        new_spacers_from_old = copy(new_spacers)
+    
+        push!(new_spacers, rand(rng, missing_spacers))
+
+        mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
+        if mutated_strain_index === nothing
+            @debug "Creating new bacterial strain"
+        
+            @debug "Old spacers:" old_spacers
+            @debug "New spacers from old spacers:" new_spacers_from_old
+            @debug "Missing spacers:" missing_spacers
+            @debug "All new spacers:" new_spacers
+        
+            id = s.bstrains.next_id
+            s.bstrains.next_id += 1
+            push!(s.bstrains.ids, id)
+            push!(s.bstrains.abundance, 1)
+            push!(s.bstrains.spacers, new_spacers)
+        
+            if sim.runparams.enable_output
+                write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
+                write_spacers(s.bstrains.spacers_file, id, new_spacers)
             end
+        else
+            @debug "using old bacterial strain" mutated_strain_index
+            s.bstrains.abundance[mutated_strain_index] += 1
         end
     end
 end
