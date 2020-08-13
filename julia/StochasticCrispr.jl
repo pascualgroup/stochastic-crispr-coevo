@@ -356,23 +356,6 @@ function State(ip::InitializationParameters, mp::Parameters)
 end
 
 
-"""
-    List of top-level events. Each of these are instances of a different *type*, which allows
-    dispatch to call a different function for each value.
-
-    That is, Val(:BacterialGrowth) is an instance of type Val{:BacterialGrowth},
-    and Val(:ViralExtinction) is an instance of type Val{:ViralExtinction}.
-
-    Therefore, if the chosen event is Val(:BacterialGrowth), the do_event function that will be
-    called is the one with signature
-
-    function do_event(event::Val{:BacterialGrowth})
-
-    See:
-
-    https://docs.julialang.org/en/v1/manual/types/#Parametric-Types-1
-    https://docs.julialang.org/en/v1/manual/types/#"Value-types"-1
-"""
 const BACTERIAL_GROWTH = 1
 const BACTERIAL_DEATH = 2
 const VIRAL_DECAY = 3

@@ -27,3 +27,64 @@ An example parameters file is in `example-parameters.json`.
 To sweep across many parameter values, you'll want to write a script to generate a working directory for each simulation, containing a parameters file for that simulation and perhaps also a script that submits the simulation to the cluster.
 
 A full example of this is provided in the `example-sweep` directory; see `README.md` in that directory for documentation.
+
+## Model structure and simulation algorithm
+
+The model is a stochastic, continuous-time, discrete-event simulation (Gillespie-style) that steps from event to event, with a random amount of time, real-valued, between events.
+
+## Model state
+
+Model state is represented by the `State` struct, which contains two fields, `bstrains`, of type `BStrains`, and `vstrains`, of type `VStrains`.
+
+The `BStrains` and `VStrains` structs are very similar.
+Conceptually, they represent a collection of bacterial/viral strains, and although it would make conceptual sense to just have `bstrains::Vector{BStrain}`, for efficiency of memory layout they are implemented using parallel arrays.
+
+(That is, they are "column-oriented" rather than "row-oriented".)
+
+(Possibly they should be the same type, but it seemed premature to assume that.)
+
+
+
+## Initialization
+
+## Event loop
+
+Each step follows this algorithm:
+
+1. The time to the next event is computed by drawing a waiting time from a Poisson process whose rate is the total rate of all possible events in the system.
+2. The type of event is chosen proportional to the total rate of all events of that type (e.g., all possible bacterial growth events).
+3. For each event type, the specific event is chosen by sampling proportional to the rates of the individual events. For example, for bacterial growth events, since bacterial cells grow at the same rate, the growth rate of particular strain is proportional to the abundance of that strain, and therefore a strain is chosen proportional to its abundance.
+4. The event is executed.
+
+There are four events:
+
+1. Bacterial growth: `const BACTERIAL_GROWTH = 1`
+2. Bacterial death: `const BACTERIAL_DEATH = 2`
+3. Viral decay: `const VIRAL_DECAY = 3`
+4. Contact: `const CONTACT = 4`
+
+### Bacterial growth
+
+
+
+### Bacterial death
+
+
+
+### Viral decay
+
+
+
+### Contact
+
+1. Randomly select a bacterial strain and a viral strain proportional to population size
+2. Reduce the viral population by 1
+3. If immune, infect with probability p_crispr_failure_prob
+4. If not immune, defend successfully & acquire spacer with prob q_spacer_acquisition_prob
+5. If infecting:
+  a. reduce bacterial population
+  b. 
+
+
+
+

@@ -45,11 +45,17 @@ SBATCH_TEMPLATE = \
 '''#!/bin/bash
 
 #SBATCH --job-name={job_name}
-#SBATCH --output=StochasticCRISPR.out
-#SBATCH --error=StochasticCRISPR.err
+#SBATCH --chdir={job_dir}
+#SBATCH --account=pi-pascualmm
+#SBATCH --output=stdout.txt
+#SBATCH --error=stderr.txt
 #SBATCH --partition=broadwl
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
+#SBATCH --time=02:00:00
+
+module purge
+module load julia
 
 julia {julia_script_path} parameters.json
 '''
@@ -123,6 +129,7 @@ def set_up_replicates(n_protospacers, u_n_spacers_max):
                 job_name = 'SC-nps={0}-u={1}-{2}'.format(
                     n_protospacers, u_n_spacers_max, i
                 ),
+                job_dir = run_path,
                 julia_script_path = JULIA_SCRIPT_PATH
             ))
         
