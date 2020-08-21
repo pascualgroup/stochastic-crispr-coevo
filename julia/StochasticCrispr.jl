@@ -16,6 +16,8 @@ export RunParameters, InitializationParameters, Parameters
 export State, Simulator
 export validate, do_next_event!
 
+## this is a commit test.
+
 mutable struct RunParameters
     "Simulation end time"
     t_final::Float64
@@ -155,7 +157,7 @@ function run_model(rp::RunParameters, ip::InitializationParameters, mp::Paramete
     validate(rp)
     validate(ip)
     validate(mp)
-    
+
     meta_file = open_csv("meta", "key", "value")
 
     # Use random seed if provided, or generate one
@@ -172,7 +174,7 @@ function run_model(rp::RunParameters, ip::InitializationParameters, mp::Paramete
 
     # Initialize simulator
     sim = Simulator(rp, mp, 0.0, state, MersenneTwister(rng_seed))
-    
+
     # Initial output
     if rp.enable_output
         @info "initial output"
@@ -192,16 +194,16 @@ function run_model(rp::RunParameters, ip::InitializationParameters, mp::Paramete
             state.vstrains.pspacers
         )
     end
-    
+
     # Simulation loop
     t_next_output = 0.0
-    
+
     while sim.t < rp.t_final
-        # Simulate exactly until the next output time 
+        # Simulate exactly until the next output time
         t_next_output = min(rp.t_final, t_next_output + rp.t_output)
-        
+
         @info "Beginning period: $(sim.t) to $(t_next_output)"
-        
+
         while sim.t < t_next_output
             # Perform the next event.
             # If the next event time is computed to be
@@ -213,13 +215,13 @@ function run_model(rp::RunParameters, ip::InitializationParameters, mp::Paramete
         @debug "event counts:" total=n_events, breakdown=sim.event_counts
         @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
         @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.pspacers
-        
+
         # Write periodic output
         @debug "rp.enable_output" rp.enable_output
         if rp.enable_output
             write_periodic_output(sim)
         end
-        
+
         @assert sim.t == t_next_output
     end
 
@@ -240,7 +242,7 @@ mutable struct BStrains
     total_abundance::UInt64
 
     spacers::Vector{Vector{UInt64}}
-    
+
     strain_file::IOStream
     spacers_file::IOStream
     abundance_file::IOStream
@@ -261,13 +263,13 @@ mutable struct BStrains
 
             # spacers
             repeat([[]], n_strains),
-            
+
             # strain_file
             open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
-            
+
             # spacers_file
             open_csv("bspacers", "bstrain_id", "spacer_id"),
-            
+
             # abundance_file
             open_csv("babundance", "t", "bstrain_id", "abundance")
         )
@@ -294,7 +296,7 @@ mutable struct VStrains
 
     next_pspacer_id::UInt64
     pspacers::Vector{Vector{UInt64}}
-    
+
     strain_file::IOStream
     spacers_file::IOStream
     abundance_file::IOStream
@@ -430,14 +432,14 @@ function write_periodic_output(sim)
     s = sim.state
 
     write_summary(sim.summary_file, sim.t, s)
-    
+
     write_abundances(
         s.bstrains.abundance_file, sim.t, s.bstrains.ids, s.bstrains.abundance
     )
     write_abundances(
         s.vstrains.abundance_file, sim.t, s.vstrains.ids, s.vstrains.abundance
     )
-    
+
     flush(s.bstrains.strain_file)
     flush(s.bstrains.spacers_file)
     flush(s.vstrains.strain_file)
@@ -705,7 +707,7 @@ function infect!(sim::Simulator, t::Float64, iB, jV)
 
     mu = params.mu_mutation_rate
     beta = params.beta_burst_size
-    
+
     @debug "Infecting!" t
     # Reduce bacterial population
     @assert s.bstrains.abundance[iB] > 0
@@ -715,7 +717,7 @@ function infect!(sim::Simulator, t::Float64, iB, jV)
     # Calculate number of mutations in each virus particle
     old_pspacers = s.vstrains.pspacers[jV]
     n_pspacers = length(old_pspacers)
-    
+
     # The number of mutations for each new virus particle is binomially distributed.
     # n_mut is left with just the nonzero draws--that is, the number of
     # mutations for each *mutated* virus particle.
@@ -748,7 +750,7 @@ function infect!(sim::Simulator, t::Float64, iB, jV)
         push!(s.vstrains.abundance, 1)
         s.vstrains.total_abundance += 1
         push!(s.vstrains.pspacers, new_pspacers)
-    
+
         if sim.runparams.enable_output
             write_strain(s.vstrains.strain_file, t, id, s.vstrains.ids[jV], s.bstrains.ids[iB])
             write_spacers(s.vstrains.spacers_file, id, new_pspacers)
@@ -760,7 +762,7 @@ function acquire_spacer!(sim::Simulator, t::Float64, iB, jV)
     rng = sim.rng
     params = sim.parameters
     s = sim.state
-    
+
     @debug "Acquiring spacer!" t
 
     # Choose among protospacers in the infecting strain not already acquired
@@ -769,34 +771,34 @@ function acquire_spacer!(sim::Simulator, t::Float64, iB, jV)
     if length(missing_spacers) > 0
         # Create new bacterial strain with modified spacers
         s.bstrains.abundance[iB] -= 1
-    
+
         # Add spacer, dropping the oldest one if we're at capacity
         old_spacers = s.bstrains.spacers[iB]
-    
+
         new_spacers = if length(old_spacers) == params.u_n_spacers_max
             old_spacers[2:length(old_spacers)]
         else
             copy(old_spacers)
         end
         new_spacers_from_old = copy(new_spacers)
-    
+
         push!(new_spacers, rand(rng, missing_spacers))
 
         mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
         if mutated_strain_index === nothing
             @debug "Creating new bacterial strain"
-        
+
             @debug "Old spacers:" old_spacers
             @debug "New spacers from old spacers:" new_spacers_from_old
             @debug "Missing spacers:" missing_spacers
             @debug "All new spacers:" new_spacers
-        
+
             id = s.bstrains.next_id
             s.bstrains.next_id += 1
             push!(s.bstrains.ids, id)
             push!(s.bstrains.abundance, 1)
             push!(s.bstrains.spacers, new_spacers)
-        
+
             if sim.runparams.enable_output
                 write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
                 write_spacers(s.bstrains.spacers_file, id, new_spacers)
@@ -835,5 +837,3 @@ function validate(v::VStrains)
 end
 
 end # module StochasticCrispr
-
-
