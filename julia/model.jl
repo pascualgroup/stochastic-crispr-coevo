@@ -7,7 +7,7 @@ using Dates
 using JSON2
 
 
-### PARAMETERS
+### PARAMETERS ###
 
 mutable struct RunParameters
     "Simulation end time"
@@ -146,7 +146,7 @@ function load_parameters_from_json(filename) :: AllParameters
 end
 
 
-### CONSTANTS
+### CONSTANTS ###
 
 const BACTERIAL_GROWTH = 1
 const BACTERIAL_DEATH = 2
@@ -161,7 +161,7 @@ const EVENTS = [
 ]
 
 
-### SIMULATION STATE
+### SIMULATION STATE ###
 
 mutable struct BStrains
     next_id::UInt64
@@ -373,7 +373,7 @@ end
 
 
 
-### SIMULATION LOOP
+### SIMULATION LOOP ###
 
 function simulate(sim::Simulation)
     state = sim.state
@@ -476,7 +476,7 @@ function update_rates!(sim::Simulation)
 end
 
 
-### EVENT DISPATCH
+### EVENT DISPATCH ###
 
 function get_rate(event_id, sim::Simulation)
   if event_id == BACTERIAL_GROWTH
@@ -503,7 +503,7 @@ function do_event!(event_id, sim::Simulation, t::Float64)
 end
 
 
-### BACTERIAL GROWTH EVENT
+### BACTERIAL GROWTH EVENT ###
 
 function get_rate_bacterial_growth(sim::Simulation)
     p = sim.parameters
@@ -821,7 +821,7 @@ function validate(v::VStrains)
 end
 
 
-### RNG UTILITY FUNCTIONS
+### RNG UTILITY FUNCTIONS ##
 
 """
 Returns an index from 1:length(w) with probability proportional to w.
@@ -855,7 +855,7 @@ function swap_with_end_and_remove!(a, index)
 end
 
 
-### OUTPUT FUNCTIONS
+### OUTPUT FUNCTIONS ###
 
 function open_csv(prefix, header...)
     filename = "$prefix.csv"
