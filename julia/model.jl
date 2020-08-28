@@ -163,7 +163,7 @@ const EVENTS = [
 
 ### SIMULATION STATE ###
 
-mutable struct BStrains
+mutable struct Strains
     next_id::UInt64
     ids::Vector{UInt64}
 
@@ -175,150 +175,68 @@ mutable struct BStrains
     strain_file::IOStream
     spacers_file::IOStream
     abundance_file::IOStream
-
-    function BStrains(n_strains, n_hosts_per_strain)
-        new(
-            # next_id
-            n_strains + 1,
-
-            # ids
-            1:n_strains,
-
-            # abundance
-            repeat([n_hosts_per_strain], n_strains),
-
-            # total_abundance
-            n_strains * n_hosts_per_strain,
-
-            # spacers
-            repeat([[]], n_strains),
-
-            # strain_file
-            open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
-
-            # spacers_file
-            open_csv("bspacers", "bstrain_id", "spacer_id"),
-
-            # abundance_file
-            open_csv("babundance", "t", "bstrain_id", "abundance")
-        )
-    end
 end
 
-mutable struct BStrains
-    next_id::UInt64
-    ids::Vector{UInt64}
-
-    abundance::Vector{UInt64}
-    total_abundance::UInt64
-
-    spacers::Vector{Vector{UInt64}}
-
-    strain_file::IOStream
-    spacers_file::IOStream
-    abundance_file::IOStream
-
-    function BStrains(n_strains, n_hosts_per_strain)
-        new(
-            # next_id
-            n_strains + 1,
-
-            # ids
-            1:n_strains,
-
-            # abundance
-            repeat([n_hosts_per_strain], n_strains),
-
-            # total_abundance
-            n_strains * n_hosts_per_strain,
-
-            # spacers
-            repeat([[]], n_strains),
-
-            # strain_file
-            open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
-
-            # spacers_file
-            open_csv("bspacers", "bstrain_id", "spacer_id"),
-
-            # abundance_file
-            open_csv("babundance", "t", "bstrain_id", "abundance")
-        )
-    end
+function make_bstrains(n_strains, n_hosts_per_strain)
+    Strains(
+        n_strains + 1,
+        1:n_strains,
+        repeat([n_hosts_per_strain], n_strains),
+        n_strains * n_hosts_per_strain,
+        repeat([[]], n_strains),
+        open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
+        open_csv("bspacers", "bstrain_id", "spacer_id"),
+        open_csv("babundance", "t", "bstrain_id", "abundance")
+    )
 end
 
-mutable struct VStrains
-    next_id::UInt64
-    ids::Vector{UInt64}
+function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
+    next_id = n_strains + 1
+    ids = Vector(1:n_strains)
+    abundance = repeat([n_particles_per_strain], n_strains)
+    total_abundance = n_strains * n_particles_per_strain
+    pspacers = [
+        Vector(1:n_pspacers_init) .+ repeat([n_pspacers_init * (i - 1)], n_pspacers_init)
+        for i = 1:n_strains
+    ]
 
-    abundance::Vector{UInt64}
-    total_abundance::UInt64
-
-    next_pspacer_id::UInt64
-    pspacers::Vector{Vector{UInt64}}
-
-    strain_file::IOStream
-    spacers_file::IOStream
-    abundance_file::IOStream
-
-    function VStrains(n_strains, n_particles_per_strain, n_pspacers_init)
-        next_id = n_strains + 1
-        ids = Vector(1:n_strains)
-        abundance = repeat([n_particles_per_strain], n_strains)
-        total_abundance = n_strains * n_particles_per_strain
-        next_pspacer_id = 1 + n_strains * n_pspacers_init
-        pspacers = [
-            Vector(1:n_pspacers_init) .+ repeat([n_pspacers_init * (i - 1)], n_pspacers_init)
-            for i = 1:n_strains
-        ]
-
-        new(
-            next_id,
-            ids,
-            abundance,
-            total_abundance,
-            next_pspacer_id,
-            pspacers,
-            open_csv("vstrains", "t_creation", "vstrain_id", "parent_vstrain_id", "infected_bstrain_id"),
-            open_csv("vpspacers", "vstrain_id", "spacer_id"),
-            open_csv("vabundance", "t", "vstrain_id", "abundance")
-        )
-    end
+    Strains(
+        next_id,
+        ids,
+        abundance,
+        total_abundance,
+        pspacers,
+        open_csv("vstrains", "t_creation", "vstrain_id", "parent_vstrain_id", "infected_bstrain_id"),
+        open_csv("vpspacers", "vstrain_id", "spacer_id"),
+        open_csv("vabundance", "t", "vstrain_id", "abundance")
+    )
 end
 
-function remove_bstrain!(b::BStrains, index)
-    # This is only used when a bstrain has gone extinct
-    @assert b.abundance[index] == 0
+function remove_strain!(strains, index)
+    # This is only used when a strain has gone extinct
+    @assert strains.abundance[index] == 0
 
-    @debug "Removing bstrain" id=b.ids[index] index=index
+    @debug "Removing strain" id=strains.ids[index] index=index
 
-    swap_with_end_and_remove!(b.ids, index)
-    swap_with_end_and_remove!(b.abundance, index)
-    swap_with_end_and_remove!(b.spacers, index)
-end
-
-function remove_vstrain!(v::VStrains, index)
-    # This is only used when a bstrain has gone extinct
-    @assert v.abundance[index] == 0
-
-    @debug "Removing vstrain" id=v.ids[index] index=index
-
-    swap_with_end_and_remove!(v.ids, index)
-    swap_with_end_and_remove!(v.abundance, index)
-    swap_with_end_and_remove!(v.pspacers, index)
+    swap_with_end_and_remove!(strains.ids, index)
+    swap_with_end_and_remove!(strains.abundance, index)
+    swap_with_end_and_remove!(strains.spacers, index)
 end
 
 mutable struct State
-    bstrains::BStrains
-    vstrains::VStrains
+    bstrains::Strains
+    vstrains::Strains
+    next_pspacer_id::UInt64
 
     function State(
         n_bstrains, n_hosts_per_bstrain, # n_spacers_init,
         n_vstrains, n_particles_per_vstrain, n_pspacers_init
     )
+        next_pspacer_id = 1 + n_vstrains * n_pspacers_init
         new(
-            BStrains(n_bstrains, n_hosts_per_bstrain),
-            VStrains(n_vstrains, n_particles_per_vstrain, n_pspacers_init)
+            make_bstrains(n_bstrains, n_hosts_per_bstrain),
+            make_vstrains(n_vstrains, n_particles_per_vstrain, n_pspacers_init),
+            next_pspacer_id
         )
     end
 end
@@ -395,7 +313,7 @@ function simulate(sim::Simulation)
             state.vstrains.spacers_file,
             sim.t,
             state.vstrains.ids,
-            state.vstrains.pspacers
+            state.vstrains.spacers
         )
     end
 
@@ -418,7 +336,7 @@ function simulate(sim::Simulation)
 
         @debug "event counts:" total=n_events, breakdown=sim.event_counts
         @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-        @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.pspacers
+        @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
 
         # Write periodic output
         @debug "rp.enable_output" rp.enable_output
@@ -584,7 +502,7 @@ function do_event_bacterial_death!(sim::Simulation, t::Float64)
 
     # Remove extinct strain
     if s.bstrains.abundance[strain_index] == 0
-        remove_bstrain!(s.bstrains, strain_index)
+        remove_strain!(s.bstrains, strain_index)
     end
 end
 
@@ -618,7 +536,7 @@ function do_event_viral_decay!(sim::Simulation, t::Float64)
 
     # Remove extinct strain
     if s.vstrains.abundance[strain_index] == 0
-        remove_vstrain!(s.vstrains, strain_index)
+        remove_strain!(s.vstrains, strain_index)
     end
 end
 
@@ -661,7 +579,7 @@ function do_event_contact!(sim::Simulation, t::Float64)
 
     should_infect = false
     should_acquire_spacer = false
-    if is_immune(s.bstrains.spacers[iB], s.vstrains.pspacers[jV])
+    if is_immune(s.bstrains.spacers[iB], s.vstrains.spacers[jV])
         @debug "Immune" t
         # If immune, infect anyway with probability p
         if rand(rng) < params.p_crispr_failure_prob
@@ -699,7 +617,7 @@ function infect!(sim::Simulation, t::Float64, iB, jV)
     s.bstrains.total_abundance -= 1
 
     # Calculate number of mutations in each virus particle
-    old_pspacers = s.vstrains.pspacers[jV]
+    old_pspacers = s.vstrains.spacers[jV]
     n_pspacers = length(old_pspacers)
 
     # The number of mutations for each new virus particle is binomially distributed.
@@ -721,8 +639,8 @@ function infect!(sim::Simulation, t::Float64, iB, jV)
         mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
         new_pspacers = copy(old_pspacers)
         for locus = mut_loci
-            new_pspacers[locus] = s.vstrains.next_pspacer_id
-            s.vstrains.next_pspacer_id += 1
+            new_pspacers[locus] = s.next_pspacer_id
+            s.next_pspacer_id += 1
         end
 
         @debug "Mutating virus" t mut_loci old_pspacers new_pspacers
@@ -733,7 +651,7 @@ function infect!(sim::Simulation, t::Float64, iB, jV)
         push!(s.vstrains.ids, id)
         push!(s.vstrains.abundance, 1)
         s.vstrains.total_abundance += 1
-        push!(s.vstrains.pspacers, new_pspacers)
+        push!(s.vstrains.spacers, new_pspacers)
 
         if sim.runparams.enable_output
             write_strain(s.vstrains.strain_file, t, id, s.vstrains.ids[jV], s.bstrains.ids[iB])
@@ -751,7 +669,7 @@ function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
 
     # Choose among protospacers in the infecting strain not already acquired
     # (If all have already been acquired, don't do anything.)
-    missing_spacers = setdiff(s.vstrains.pspacers[jV], s.bstrains.spacers[iB])
+    missing_spacers = setdiff(s.vstrains.spacers[jV], s.bstrains.spacers[iB])
     if length(missing_spacers) > 0
         # Create new bacterial strain with modified spacers
         s.bstrains.abundance[iB] -= 1
@@ -806,18 +724,11 @@ function validate(s::State)
     validate(s.vstrains)
 end
 
-function validate(b::BStrains)
-    @assert b.total_abundance == sum(b.abundance)
-    @assert b.next_id > maximum(b.ids)
-    @assert length(b.abundance) == length(b.ids)
-    @assert length(b.spacers) == length(b.ids)
-end
-
-function validate(v::VStrains)
-    @assert v.total_abundance == sum(v.abundance)
-    @assert v.next_id > maximum(v.ids)
-    @assert length(v.abundance) == length(v.ids)
-    @assert length(v.pspacers) == length(v.ids)
+function validate(strains::Strains)
+    @assert strains.total_abundance == sum(strains.abundance)
+    @assert strains.next_id > maximum(strains.ids)
+    @assert length(strains.abundance) == length(strains.ids)
+    @assert length(strains.spacers) == length(strains.ids)
 end
 
 
