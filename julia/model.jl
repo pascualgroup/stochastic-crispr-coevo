@@ -11,16 +11,16 @@ using JSON2
 
 mutable struct RunParameters
     "Simulation end time"
-    t_final::Float64
+    t_final::Union{Float64, Nothing}
     
     "Time between output events"
-    t_output::Float64
+    t_output::Union{Float64, Nothing}
     
     "Seed for random number generator"
     rng_seed::Union{UInt64, Nothing}
     
     "Enable output?"
-    enable_output::Bool
+    enable_output::Union{Bool, Nothing}
     
     function RunParameters()
         p = new()
@@ -32,106 +32,120 @@ end
 JSON2.@format RunParameters noargs
 
 function validate(p::RunParameters)
-    @assert 0.0 < p.t_final <= 1000
-    @assert 0.0 < p.t_output <= p.t_final
+    @assert p.t_final !== nothing
+    @assert p.t_output !== nothing
 end
 
 mutable struct InitializationParameters
     "Number of initial bacterial strains"
-    n_bstrains::UInt64
+    n_bstrains::Union{UInt64, Nothing}
     
     "Number of initial hosts per bacterial strain"
-    n_hosts_per_bstrain::UInt64
+    n_hosts_per_bstrain::Union{UInt64, Nothing}
     
     # "Number of initial spacers per bacterial strain"
     # n_spacers::UInt64
     
     "Number of initial virus strains"
-    n_vstrains::UInt64
+    n_vstrains::Union{UInt64, Nothing}
     
     "Number of initial particles per bacterial strain"
-    n_particles_per_vstrain::UInt64
+    n_particles_per_vstrain::Union{UInt64, Nothing}
     
     "Number of initial protospacers per virus strain"
-    n_protospacers::UInt64
+    n_protospacers::Union{UInt64, Nothing}
     
     InitializationParameters() = new()
 end
 JSON2.@format InitializationParameters noargs
 
 function validate(p::InitializationParameters)
-    @assert p.n_bstrains >= 1
-    @assert p.n_hosts_per_bstrain >= 1
-    @assert p.n_vstrains >= 1
-    @assert p.n_particles_per_vstrain >= 1
-    @assert p.n_protospacers >= 1
+    @assert p.n_bstrains !== nothing
+    @assert p.n_hosts_per_bstrain !== nothing
+    @assert p.n_vstrains !== nothing
+    @assert p.n_particles_per_vstrain !== nothing
+    @assert p.n_protospacers !== nothing
 end
 
 mutable struct Parameters
     "Maximum number of spacers in a bacterial strain"
-    u_n_spacers_max
+    u_n_spacers_max::Union{UInt64, Nothing}
     
     "Maximum number of protospacers in a virus strain"
-    v_n_protospacers_max
+    v_n_protospacers_max::Union{UInt64, Nothing}
     
     "CRIPSR failure probability"
-    p_crispr_failure_prob::Float64
+    p_crispr_failure_prob::Union{Float64, Nothing}
     
     "New spacer acquisition probability"
-    q_spacer_acquisition_prob::Float64
+    q_spacer_acquisition_prob::Union{Float64, Nothing}
     
     "Growth rate at 0 (1/h)"
-    r_growth_rate::Float64
+    r_growth_rate::Union{Float64, Nothing}
     
     "Carrying capacity (1/mL)"
-    K_carrying_capacity::Float64
+    K_carrying_capacity::Union{Float64, Nothing}
     
     "Burst size"
-    beta_burst_size::UInt64
+    beta_burst_size::Union{UInt64, Nothing}
     
     "Adsorption rate"
-    phi_adsorption_rate::Float64
+    phi_adsorption_rate::Union{Float64, Nothing}
     
     "Viral decay rate"
-    m_viral_decay_rate::Float64
+    m_viral_decay_rate::Union{Float64, Nothing}
     
-    "Mutation rate"
-    mu_mutation_rate::Float64
+    "Mutation rate for contact-coupled viral mutations"
+    mu1_viral_mutation_rate_coupled::Union{Float64, Nothing}
+    
+    "Mutation rate for contact-decoupled viral mutations"
+    mu2_viral_mutation_rate_decoupled::Union{Float64, Nothing}
     
     "Density cutoff: used to scale volume of system, and therefore discrete population sizes"
-    rho_c_density_cutoff::Float64
+    rho_c_density_cutoff::Union{Float64, Nothing}
     
     "Constant death rate (not in Childs model)"
-    d_death_rate::Float64
+    d_death_rate::Union{Float64, Nothing}
+    
+    "If true, decouple viral mutation events from contact process as a separate event"
+    decouple_viral_mutation::Union{Bool, Nothing}
 
     Parameters() = new()
 end
 JSON2.@format Parameters noargs
 
 function validate(p::Parameters)
-    @assert 1 <= p.u_n_spacers_max
-    @assert 1 <= p.v_n_protospacers_max
-    @assert 0.0 <= p.p_crispr_failure_prob <= 1.0
-    @assert 0.0 <= p.q_spacer_acquisition_prob <= 1.0
-    @assert 0.1 < p.r_growth_rate <= 10
-    @assert 0.0 < p.K_carrying_capacity <= 1e7
-    @assert 0 <= p.beta_burst_size <= 1000
-    @assert 0.0 <= p.phi_adsorption_rate <= 1e-6
-    @assert 0.0 <= p.m_viral_decay_rate <= 1.0
-    @assert 0.0 <= p.mu_mutation_rate <= 1e-5
-    @assert 0.05 <= p.rho_c_density_cutoff <= 1.0
-    @assert 0.0 < p.d_death_rate
+    @assert p.u_n_spacers_max !== nothing
+    @assert p.v_n_protospacers_max !== nothing
+    @assert p.p_crispr_failure_prob !== nothing
+    @assert p.q_spacer_acquisition_prob !== nothing
+    @assert p.r_growth_rate !== nothing
+    @assert p.K_carrying_capacity !== nothing
+    @assert p.beta_burst_size !== nothing
+    @assert p.phi_adsorption_rate !== nothing
+    @assert p.m_viral_decay_rate !== nothing
+    @assert p.rho_c_density_cutoff !== nothing
+    @assert p.d_death_rate !== nothing
+    
+    @assert p.decouple_viral_mutation !== nothing
+    @assert (p.decouple_viral_mutation || p.mu1_viral_mutation_rate_coupled !== nothing)
+    @assert (!p.decouple_viral_mutation || p.mu2_viral_mutation_rate_decoupled !== nothing)
 end
 
 mutable struct AllParameters
     run_parameters::RunParameters
     initialization_parameters::InitializationParameters
     model_parameters::Parameters
-
+    
     function AllParameters()
         new(RunParameters(), InitializationParameters(), Parameters())
     end
+    
+    function AllParameters(rp, ip, mp)
+        new(rp, ip, mp)
+    end
 end
+
 JSON2.@format AllParameters noargs
 
 function load_parameters_from_json(filename) :: AllParameters
@@ -146,19 +160,18 @@ function load_parameters_from_json(filename) :: AllParameters
 end
 
 
-### CONSTANTS ###
+### EVENT CONSTANTS ###
 
-const BACTERIAL_GROWTH = 1
-const BACTERIAL_DEATH = 2
-const VIRAL_DECAY = 3
-const CONTACT = 4
+const N_EVENTS = 5
+const EVENTS = 1:N_EVENTS
 
-const EVENTS = [
+const (
     BACTERIAL_GROWTH,
     BACTERIAL_DEATH,
     VIRAL_DECAY,
     CONTACT,
-]
+    VIRAL_MUTATION,
+) = EVENTS
 
 
 ### SIMULATION STATE ###
@@ -250,14 +263,15 @@ end
 
 mutable struct Simulation
     runparams::RunParameters
-    parameters::Parameters
+    params::Parameters
     t::Float64
     state::State
     rng::MersenneTwister
 
     event_rates::Vector{Float64}
     event_counts::Vector{UInt64}
-
+    
+    meta_file::IOStream
     summary_file::IOStream
     
     function Simulation(params::AllParameters)
@@ -269,7 +283,11 @@ mutable struct Simulation
 
         # Use random seed if provided, or generate one
         rng_seed = rp.rng_seed === nothing ? UInt64(rand(RandomDevice(), UInt32)) : rp.rng_seed
+        rp.rng_seed = rng_seed
         write_csv(meta_file, "rng_seed", rng_seed)
+        
+        # Save parameters as loaded
+        write_json_to_file(AllParameters(rp, ip, mp), "parameters_out.json")
 
         # Record start time
         start_time = now()
@@ -282,6 +300,7 @@ mutable struct Simulation
         sim = new(
             rp, mp, 0.0, state, MersenneTwister(rng_seed),
             zeros(length(EVENTS)), zeros(length(EVENTS)),
+            meta_file,
             open_csv("summary", "t", "bacterial_abundance", "viral_abundance")
         )
         update_rates!(sim)
@@ -349,15 +368,15 @@ function simulate(sim::Simulation)
 
     # Record end time and elapsed
     end_time = now()
-    write_csv(meta_file, "end_time", end_time)
+    write_csv(sim.meta_file, "end_time", end_time)
     elapsed_seconds = Dates.value(end_time - start_time) / 1000.0
-    write_csv(meta_file, "elapsed_seconds", elapsed_seconds)
+    write_csv(sim.meta_file, "elapsed_seconds", elapsed_seconds)
 
-    close(meta_file)
+    close(sim.meta_file)
 end
 
 function do_next_event!(sim::Simulation, t_max::Float64)
-    p = sim.parameters
+    p = sim.params
     s = sim.state
 
     @assert length(sim.event_rates) == length(EVENTS)
@@ -396,35 +415,46 @@ end
 
 ### EVENT DISPATCH ###
 
+# This used to be done using Val/multiple dispatch,
+# but this is easier to understand for Julia newbies.
+
 function get_rate(event_id, sim::Simulation)
-  if event_id == BACTERIAL_GROWTH
-    get_rate_bacterial_growth(sim)
-  elseif event_id == BACTERIAL_DEATH
-    get_rate_bacterial_death(sim)
-  elseif event_id == VIRAL_DECAY
-    get_rate_viral_decay(sim)
-  elseif event_id == CONTACT
-    get_rate_contact(sim)
-  end
+    if event_id == BACTERIAL_GROWTH
+        get_rate_bacterial_growth(sim)
+    elseif event_id == BACTERIAL_DEATH
+        get_rate_bacterial_death(sim)
+    elseif event_id == VIRAL_DECAY
+        get_rate_viral_decay(sim)
+    elseif event_id == CONTACT
+        get_rate_contact(sim)
+    elseif event_id == VIRAL_MUTATION
+        get_rate_viral_mutation(sim)
+    else
+        error("unknown event")
+    end
 end
 
 function do_event!(event_id, sim::Simulation, t::Float64)
-  if event_id == BACTERIAL_GROWTH
-    do_event_bacterial_growth!(sim, t)
-  elseif event_id == BACTERIAL_DEATH
-    do_event_bacterial_death!(sim, t)
-  elseif event_id == VIRAL_DECAY
-    do_event_viral_decay!(sim, t)
-  elseif event_id == CONTACT
-    do_event_contact!(sim, t)
-  end
+    if event_id == BACTERIAL_GROWTH
+        do_event_bacterial_growth!(sim, t)
+    elseif event_id == BACTERIAL_DEATH
+        do_event_bacterial_death!(sim, t)
+    elseif event_id == VIRAL_DECAY
+        do_event_viral_decay!(sim, t)
+    elseif event_id == CONTACT
+        do_event_contact!(sim, t)
+    elseif event_id == VIRAL_MUTATION
+        do_event_viral_mutation!(sim, t)
+    else
+        error("unknown event")
+    end
 end
 
 
 ### BACTERIAL GROWTH EVENT ###
 
 function get_rate_bacterial_growth(sim::Simulation)
-    p = sim.parameters
+    p = sim.params
     s = sim.state
 
     # Birth rate has a truncated logistic form:
@@ -456,7 +486,7 @@ function get_rate_bacterial_growth(sim::Simulation)
 end
 
 function do_event_bacterial_growth!(sim::Simulation, t::Float64)
-    p = sim.parameters
+    p = sim.params
     s = sim.state
     rng = sim.rng
 
@@ -475,7 +505,7 @@ end
 ### BACTERIAL DEATH EVENT ###
 
 function get_rate_bacterial_death(sim::Simulation)
-    p = sim.parameters
+    p = sim.params
     s = sim.state
 
     N = s.bstrains.total_abundance
@@ -485,7 +515,7 @@ function get_rate_bacterial_death(sim::Simulation)
 end
 
 function do_event_bacterial_death!(sim::Simulation, t::Float64)
-    p = sim.parameters
+    p = sim.params
     s = sim.state
     rng = sim.rng
 
@@ -510,7 +540,7 @@ end
 ### VIRAL DECAY EVENT ###
 
 function get_rate_viral_decay(sim::Simulation)
-    p = sim.parameters
+    p = sim.params
     s = sim.state
     m = p.m_viral_decay_rate
     V = s.vstrains.total_abundance
@@ -519,7 +549,7 @@ function get_rate_viral_decay(sim::Simulation)
 end
 
 function do_event_viral_decay!(sim::Simulation, t::Float64)
-    p = sim.parameters
+    p = sim.params
     s = sim.state
     rng = sim.rng
 
@@ -544,7 +574,7 @@ end
 ### CONTACT EVENT ###
 
 function get_rate_contact(sim::Simulation)
-    p = sim.parameters
+    p = sim.params
     s = sim.state
 
     phi = p.phi_adsorption_rate
@@ -560,7 +590,7 @@ end
 
 function do_event_contact!(sim::Simulation, t::Float64)
     rng = sim.rng
-    params = sim.parameters
+    params = sim.params
     s = sim.state
 
     N = s.bstrains.total_abundance
@@ -604,11 +634,10 @@ end
 
 function infect!(sim::Simulation, t::Float64, iB, jV)
     rng = sim.rng
-    params = sim.parameters
+    p = sim.params
     s = sim.state
-
-    mu = params.mu_mutation_rate
-    beta = params.beta_burst_size
+    
+    beta = p.beta_burst_size
 
     @debug "Infecting!" t
     # Reduce bacterial population
@@ -619,50 +648,40 @@ function infect!(sim::Simulation, t::Float64, iB, jV)
     # Calculate number of mutations in each virus particle
     old_pspacers = s.vstrains.spacers[jV]
     n_pspacers = length(old_pspacers)
+    
+    # Just adjust viral population upward with the burst size
+    s.vstrains.abundance[jV] += beta
+    s.vstrains.total_abundance += beta
+    
+    # Perform mutations if we're in coupled mutation mode
+    if !p.decouple_viral_mutation
+        mu1 = p.mu1_viral_mutation_rate_coupled
+        
+        # The number of mutations for each new virus particle is binomially distributed.
+        # n_mut is left with just the nonzero draws--that is, the number of
+        # mutations for each *mutated* virus particle.
+        n_mut = filter(x -> x > 0, rand(rng, Binomial(n_pspacers, mu1), beta))
+        n_with_mut = length(n_mut)
 
-    # The number of mutations for each new virus particle is binomially distributed.
-    # n_mut is left with just the nonzero draws--that is, the number of
-    # mutations for each *mutated* virus particle.
-    n_mut = filter(x -> x > 0, rand(rng, Binomial(n_pspacers, mu), beta))
-    n_with_mut = length(n_mut)
+        @debug "mutations: " n_mut n_with_mut
 
-    @debug "mutations: " n_mut n_with_mut
-
-    # Increment population: just the virus particles that don't have mutations
-    s.vstrains.abundance[jV] += beta - n_with_mut
-    s.vstrains.total_abundance += beta - n_with_mut
-
-    # Perform mutations for mutated particles
-    for i = 1:n_with_mut
-        # Draw which loci are mutated using the previously drawn number of mutations,
-        # and create new protospacers
-        mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
-        new_pspacers = copy(old_pspacers)
-        for locus = mut_loci
-            new_pspacers[locus] = s.next_pspacer_id
-            s.next_pspacer_id += 1
-        end
-
-        @debug "Mutating virus" t mut_loci old_pspacers new_pspacers
-
-        @debug t "creating new viral strain"
-        id = s.vstrains.next_id
-        s.vstrains.next_id += 1
-        push!(s.vstrains.ids, id)
-        push!(s.vstrains.abundance, 1)
-        s.vstrains.total_abundance += 1
-        push!(s.vstrains.spacers, new_pspacers)
-
-        if sim.runparams.enable_output
-            write_strain(s.vstrains.strain_file, t, id, s.vstrains.ids[jV], s.bstrains.ids[iB])
-            write_spacers(s.vstrains.spacers_file, id, new_pspacers)
+        # Increment population: just the virus particles that don't have mutations
+        s.vstrains.abundance[jV] += beta - n_with_mut
+        s.vstrains.total_abundance += beta - n_with_mut
+    
+        # Perform mutations for mutated particles
+        for i = 1:n_with_mut
+            # Draw which loci are mutated using the previously drawn number of mutations,
+            # and create new protospacers
+            mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
+            mutate_virus!(sim, jV, mut_loci, iB)
         end
     end
 end
 
 function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
     rng = sim.rng
-    params = sim.parameters
+    p = sim.params
     s = sim.state
 
     @debug "Acquiring spacer!" t
@@ -677,7 +696,7 @@ function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
         # Add spacer, dropping the oldest one if we're at capacity
         old_spacers = s.bstrains.spacers[iB]
 
-        new_spacers = if length(old_spacers) == params.u_n_spacers_max
+        new_spacers = if length(old_spacers) == p.u_n_spacers_max
             old_spacers[2:length(old_spacers)]
         else
             copy(old_spacers)
@@ -714,6 +733,76 @@ end
 
 function is_immune(spacers::Vector{UInt64}, pspacers::Vector{UInt64})
     length(intersect(spacers, pspacers)) > 0
+end
+
+
+### VIRAL MUTATION EVENT (used only if decouple_viral_mutation == true) ###
+
+function get_rate_viral_mutation(sim::Simulation)
+    p = sim.params
+    if p.decouple_viral_mutation
+        s = sim.state
+        mu2 = p.mu2_viral_mutation_rate_decoupled
+        V = s.vstrains.total_abundance
+        
+        # NB: mu2 rate is per-virion, not per-locus
+        mu2 * V
+    else
+        0.0
+    end
+end
+
+function do_event_viral_mutation!(sim::Simulation, t::Float64)
+    @assert sim.params.decouple_viral_mutation
+    
+    rng = sim.rng
+    p = sim.params
+    s = sim.state
+    
+    V = s.vstrains.total_abundance
+
+    N_vec = s.bstrains.abundance
+    V_vec = s.vstrains.abundance
+
+    jV = sample_linear_integer_weights(rng, V_vec, V)
+
+    old_pspacers = s.vstrains.spacers[jV]
+    n_pspacers = length(old_pspacers)
+    mut_loci = [rand(rng, 1:n_pspacers)]
+    
+    mutate_virus!(sim, jV, mut_loci, 0)
+end
+
+
+### VIRAL MUTATION FUNCTION (shared by contact-coupled and contact-decoupled mutation) ###
+
+function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
+    s = sim.state
+    rng = sim.rng
+    
+    s.vstrains.abundance[virus_id] -= 1
+    s.vstrains.total_abundance -= 1
+    
+    old_pspacers = s.vstrains.spacers[virus_id]
+    new_pspacers = copy(old_pspacers)
+    for locus = mut_loci
+        new_pspacers[locus] = s.next_pspacer_id
+        s.next_pspacer_id += 1
+    end
+    
+    @debug "Mutating virus" t mut_loci old_pspacers new_pspacers
+    
+    id = s.vstrains.next_id
+    s.vstrains.next_id += 1
+    push!(s.vstrains.ids, id)
+    push!(s.vstrains.abundance, 1)
+    s.vstrains.total_abundance += 1
+    push!(s.vstrains.spacers, new_pspacers)
+    
+    if sim.runparams.enable_output
+        write_strain(s.vstrains.strain_file, sim.t, id, s.vstrains.ids[virus_id], contact_b_id)
+        write_spacers(s.vstrains.spacers_file, id, new_pspacers)
+    end
 end
 
 
@@ -767,6 +856,16 @@ end
 
 
 ### OUTPUT FUNCTIONS ###
+
+function write_json_to_file(x, filename)
+    if ispath(filename)
+        error("$filename already exists. You should delete output, or run in a different directory.")
+    else
+        file = open(filename, "w")
+        print(file, JSON2.write(x))
+        file
+    end
+end
 
 function open_csv(prefix, header...)
     filename = "$prefix.csv"
