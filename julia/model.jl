@@ -9,7 +9,7 @@ using JSON2
 
 ### PARAMETERS ###
 
-mutable struct RunParameters
+mutable struct Parameters
     "Simulation end time"
     t_final::Union{Float64, Nothing}
     
@@ -28,15 +28,6 @@ mutable struct RunParameters
         p.enable_output = true
         p
     end
-end
-JSON2.@format RunParameters noargs
-
-function validate(p::RunParameters)
-    @assert p.t_final !== nothing
-    @assert p.t_output !== nothing
-end
-
-mutable struct InitializationParameters
     "Number of initial bacterial strains"
     n_bstrains::Union{UInt64, Nothing}
     
@@ -56,23 +47,9 @@ mutable struct InitializationParameters
     n_protospacers::Union{UInt64, Nothing}
     
     InitializationParameters() = new()
-end
-JSON2.@format InitializationParameters noargs
-
-function validate(p::InitializationParameters)
-    @assert p.n_bstrains !== nothing
-    @assert p.n_hosts_per_bstrain !== nothing
-    @assert p.n_vstrains !== nothing
-    @assert p.n_particles_per_vstrain !== nothing
-    @assert p.n_protospacers !== nothing
-end
-
-mutable struct Parameters
+    
     "Maximum number of spacers in a bacterial strain"
     u_n_spacers_max::Union{UInt64, Nothing}
-    
-    "Maximum number of protospacers in a virus strain"
-    v_n_protospacers_max::Union{UInt64, Nothing}
     
     "CRIPSR failure probability"
     p_crispr_failure_prob::Union{Float64, Nothing}
@@ -110,13 +87,26 @@ mutable struct Parameters
     "If true, decouple viral mutation events from contact process as a separate event"
     decouple_viral_mutation::Union{Bool, Nothing}
 
-    Parameters() = new()
+    function Parameters()
+        p = new()
+        p.rng_seed = nothing
+        p.enable_output = true
+        p
+    end
 end
 JSON2.@format Parameters noargs
 
 function validate(p::Parameters)
+    @assert p.t_final !== nothing
+    @assert p.t_output !== nothing
+    
+    @assert p.n_bstrains !== nothing
+    @assert p.n_hosts_per_bstrain !== nothing
+    @assert p.n_vstrains !== nothing
+    @assert p.n_particles_per_vstrain !== nothing
+    @assert p.n_protospacers !== nothing
+    
     @assert p.u_n_spacers_max !== nothing
-    @assert p.v_n_protospacers_max !== nothing
     @assert p.p_crispr_failure_prob !== nothing
     @assert p.q_spacer_acquisition_prob !== nothing
     @assert p.r_growth_rate !== nothing
@@ -132,30 +122,10 @@ function validate(p::Parameters)
     @assert (!p.decouple_viral_mutation || p.mu2_viral_mutation_rate_decoupled !== nothing)
 end
 
-mutable struct AllParameters
-    run_parameters::RunParameters
-    initialization_parameters::InitializationParameters
-    model_parameters::Parameters
-    
-    function AllParameters()
-        new(RunParameters(), InitializationParameters(), Parameters())
-    end
-    
-    function AllParameters(rp, ip, mp)
-        new(rp, ip, mp)
-    end
-end
-
-JSON2.@format AllParameters noargs
-
-function load_parameters_from_json(filename) :: AllParameters
+function load_parameters_from_json(filename) :: Parameters
     str = open(f -> read(f, String), filename)
-    params = JSON2.read(str, AllParameters)
-    
-    validate(params.run_parameters)
-    validate(params.initialization_parameters)
-    validate(params.model_parameters)
-    
+    params = JSON2.read(str, Parameters)
+    validate(params)
     params
 end
 
@@ -254,15 +224,14 @@ mutable struct State
     end
 end
 
-function State(ip::InitializationParameters, mp::Parameters)
+function State(p::Parameters)
     State(
-        ip.n_bstrains, ip.n_hosts_per_bstrain, # ip.n_spacers,
-        ip.n_vstrains, ip.n_particles_per_vstrain, ip.n_protospacers
+        p.n_bstrains, p.n_hosts_per_bstrain,
+        p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers
     )
 end
 
 mutable struct Simulation
-    runparams::RunParameters
     params::Parameters
     t::Float64
     state::State
@@ -274,31 +243,27 @@ mutable struct Simulation
     meta_file::IOStream
     summary_file::IOStream
     
-    function Simulation(params::AllParameters)
-        rp = params.run_parameters
-        ip = params.initialization_parameters
-        mp = params.model_parameters
-    
+    function Simulation(p::Parameters)
         meta_file = open_csv("meta", "key", "value")
 
         # Use random seed if provided, or generate one
-        rng_seed = rp.rng_seed === nothing ? UInt64(rand(RandomDevice(), UInt32)) : rp.rng_seed
-        rp.rng_seed = rng_seed
+        rng_seed = p.rng_seed === nothing ? UInt64(rand(RandomDevice(), UInt32)) : p.rng_seed
+        p.rng_seed = rng_seed
         write_csv(meta_file, "rng_seed", rng_seed)
         
         # Save parameters as loaded
-        write_json_to_file(AllParameters(rp, ip, mp), "parameters_out.json")
+        write_json_to_file(p, "parameters_out.json")
 
         # Record start time
         start_time = now()
         write_csv(meta_file, "start_time", start_time)
 
         # Initialize & validate model state
-        state = State(ip, mp)
+        state = State(p)
         validate(state)
 
         sim = new(
-            rp, mp, 0.0, state, MersenneTwister(rng_seed),
+            p, 0.0, state, MersenneTwister(rng_seed),
             zeros(length(EVENTS)), zeros(length(EVENTS)),
             meta_file,
             open_csv("summary", "t", "bacterial_abundance", "viral_abundance")
@@ -314,10 +279,10 @@ end
 
 function simulate(sim::Simulation)
     state = sim.state
-    rp = sim.runparams
+    p = sim.params
     
     # Initial output
-    if rp.enable_output
+    if p.enable_output
         @info "initial output"
         write_periodic_output(sim)
         write_strains(
@@ -339,9 +304,9 @@ function simulate(sim::Simulation)
     # Simulation loop
     t_next_output = 0.0
 
-    while sim.t < rp.t_final
+    while sim.t < p.t_final
         # Simulate exactly until the next output time
-        t_next_output = min(rp.t_final, t_next_output + rp.t_output)
+        t_next_output = min(p.t_final, t_next_output + p.t_output)
 
         @info "Beginning period: $(sim.t) to $(t_next_output)"
 
@@ -358,8 +323,8 @@ function simulate(sim::Simulation)
         @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
 
         # Write periodic output
-        @debug "rp.enable_output" rp.enable_output
-        if rp.enable_output
+        @debug "p.enable_output" p.enable_output
+        if p.enable_output
             write_periodic_output(sim)
         end
 
@@ -720,7 +685,7 @@ function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
             push!(s.bstrains.abundance, 1)
             push!(s.bstrains.spacers, new_spacers)
 
-            if sim.runparams.enable_output
+            if p.enable_output
                 write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
                 write_spacers(s.bstrains.spacers_file, id, new_spacers)
             end
@@ -745,8 +710,8 @@ function get_rate_viral_mutation(sim::Simulation)
         mu2 = p.mu2_viral_mutation_rate_decoupled
         V = s.vstrains.total_abundance
         
-        # NB: mu2 rate is per-virion, not per-locus
-        mu2 * V
+        # NB: mu2 rate is per-protospacer
+        mu2 * p.n_protospacers * V
     else
         0.0
     end
@@ -777,6 +742,7 @@ end
 ### VIRAL MUTATION FUNCTION (shared by contact-coupled and contact-decoupled mutation) ###
 
 function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
+    p = sim.params
     s = sim.state
     rng = sim.rng
     
@@ -799,7 +765,7 @@ function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
     s.vstrains.total_abundance += 1
     push!(s.vstrains.spacers, new_pspacers)
     
-    if sim.runparams.enable_output
+    if p.enable_output
         write_strain(s.vstrains.strain_file, sim.t, id, s.vstrains.ids[virus_id], contact_b_id)
         write_spacers(s.vstrains.spacers_file, id, new_pspacers)
     end
