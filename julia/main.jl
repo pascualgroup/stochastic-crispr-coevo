@@ -23,12 +23,6 @@ function main()
     sim = Simulation(params)
     
     simulate(sim)
-
-    run_model(
-        all_params.run_parameters,
-        all_params.initialization_parameters,
-        all_params.model_parameters
-    )
 end
 
 main()
