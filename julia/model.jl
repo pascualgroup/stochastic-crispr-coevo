@@ -119,6 +119,7 @@ function validate(p::Parameters)
     @assert p.m_viral_decay_rate !== nothing
     @assert p.rho_c_density_cutoff !== nothing
     @assert p.d_death_rate !== nothing
+    @assert p.g_immigration_rate !== nothing
 
     @assert p.decouple_viral_mutation !== nothing
     @assert (p.decouple_viral_mutation || p.mu1_viral_mutation_rate_coupled !== nothing)
