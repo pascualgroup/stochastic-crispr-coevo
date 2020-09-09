@@ -504,9 +504,14 @@ function do_event_bacterial_death!(sim::Simulation, t::Float64)
     s.bstrains.abundance[strain_index] -= 1
     s.bstrains.total_abundance -= 1
 
-    # Remove extinct strain
-    if s.bstrains.abundance[strain_index] == 0
+    # Remove extinct strain but keep first index that is reserved
+    ## for memoryless immigrants
+    if s.bstrains.abundance[strain_index] == 0 && strain_index != 1
         remove_strain!(s.bstrains, strain_index)
+    end
+
+    if s.bstrains.abundance[1] < 0
+        s.bstrains.abundance[1] = 0
     end
 end
 
