@@ -136,7 +136,7 @@ end
 
 ### EVENT CONSTANTS ###
 
-const N_EVENTS = 5
+const N_EVENTS = 6
 const EVENTS = 1:N_EVENTS
 
 const (
@@ -399,6 +399,8 @@ function get_rate(event_id, sim::Simulation)
         get_rate_contact(sim)
     elseif event_id == VIRAL_MUTATION
         get_rate_viral_mutation(sim)
+    elseif event_id == BACTERIAL_IMMIGRATION
+        get_rate_bacterial_immigration(sim)
     else
         error("unknown event")
     end
@@ -415,6 +417,8 @@ function do_event!(event_id, sim::Simulation, t::Float64)
         do_event_contact!(sim, t)
     elseif event_id == VIRAL_MUTATION
         do_event_viral_mutation!(sim, t)
+    elseif event_id == BACTERIAL_IMMIGRATION
+        do_event_bacterial_immigration!(sim, t)
     else
         error("unknown event")
     end
