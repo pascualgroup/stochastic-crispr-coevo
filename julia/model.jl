@@ -518,7 +518,7 @@ end
 ### BACTERIAL IMMIGRATION EVENT ###
 
 function get_rate_bacterial_immigration(sim::Simulation)
-    p = sim.parameters
+    p = sim.params
 
     g = p.g_immigration_rate
 

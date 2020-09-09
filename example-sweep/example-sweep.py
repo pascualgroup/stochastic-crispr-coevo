@@ -15,20 +15,19 @@ N_REPLICATES = 20
 
 RUN_PARAMETERS = {
     "t_final" : 100.0,
-    "t_output" : 1.0
-}
-
-INITIALIZATION_PARAMETERS = {
+    "t_output" : 1.0,
+    
     "n_bstrains" : 1,
     "n_hosts_per_bstrain" : 100,
+    
     "n_vstrains" : 1,
     "n_particles_per_vstrain" : 100,
-    "n_protospacers" : 10
-}
-
-MODEL_PARAMETERS = {
+    "n_protospacers" : 10,
+    
     "u_n_spacers_max" : 8,
+
     "v_n_protospacers_max" : 10,
+
     "p_crispr_failure_prob" : 1e-5,
     "q_spacer_acquisition_prob" : 1e-5,
     "r_growth_rate" : 1,
@@ -36,9 +35,13 @@ MODEL_PARAMETERS = {
     "beta_burst_size" : 50,
     "phi_adsorption_rate" : 1e-7,
     "m_viral_decay_rate" : 0.1,
-    "mu_mutation_rate" : 5e-7,
+    "mu1_viral_mutation_rate_coupled" : 5e-7,
+    "mu2_viral_mutation_rate_decoupled" : 5e-7,
     "rho_c_density_cutoff" : 0.1,
-    "d_death_rate" : 0.05
+
+    "d_death_rate" : 0.05,
+    
+    "decouple_viral_mutation" : false
 }
 
 SBATCH_TEMPLATE = \
