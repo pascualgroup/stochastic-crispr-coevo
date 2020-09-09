@@ -515,6 +515,22 @@ function do_event_bacterial_death!(sim::Simulation, t::Float64)
     end
 end
 
+### BACTERIAL IMMIGRATION EVENT ###
+
+function get_rate_bacterial_immigration(sim::Simulation)
+    p = sim.parameters
+
+    g = p.g_immigration_rate
+
+    g
+end
+
+
+function do_event_bacterial_immigration!(sim::Simulator, t::Float64)
+    s.bstrains.abundance[1] += 1
+    s.bstrains.total_abundance += 1
+end
+
 
 ### VIRAL DECAY EVENT ###
 
