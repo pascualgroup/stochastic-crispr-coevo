@@ -1,5 +1,13 @@
 #!/usr/bin/env julia
 
+using Pkg
+
+Pkg.add("JSON2")
+Pkg.add("StatsBase")
+Pkg.add("JSON2")
+Pkg.add("Distributions")
+
+
 using Logging
 using Random
 using Dates
@@ -21,7 +29,7 @@ include("model.jl")
 function main()
     params = load_parameters_from_json(ARGS[1])
     sim = Simulation(params)
-    
+
     simulate(sim)
 end
 
