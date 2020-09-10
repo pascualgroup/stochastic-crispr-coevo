@@ -1,7 +1,7 @@
-#!/usr/bin/env julia
+#!/software/julia-1.4.2-el7-x86_64/bin/julia
 
 using Pkg
 
-import Pkg; Pkg.add("JSON2")
-import Pkg; Pkg.add("StatsBase")
-import Pkg; Pkg.add("JSON2")Pkg.add("Distributions")
+Pkg.add("JSON2")
+Pkg.add("StatsBase")
+Pkg.add("Distributions")
