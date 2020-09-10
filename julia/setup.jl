@@ -2,6 +2,8 @@
 
 using Pkg
 
+import Pkg
+
 Pkg.add("JSON2")
 Pkg.add("StatsBase")
-Pkg.add("Distributions")
+Pkg.add("JSON2")Pkg.add("Distributions")
