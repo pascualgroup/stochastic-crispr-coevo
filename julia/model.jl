@@ -340,8 +340,8 @@ function simulate(sim::Simulation)
     # Record end time and elapsed
     end_time = now()
     write_csv(sim.meta_file, "end_time", end_time)
-    elapsed_seconds = Dates.value(end_time - start_time) / 1000.0
-    write_csv(sim.meta_file, "elapsed_seconds", elapsed_seconds)
+    #elapsed_seconds = Dates.value(end_time - start_time) / 1000.0
+    #write_csv(sim.meta_file, "elapsed_seconds", elapsed_seconds)
 
     close(sim.meta_file)
 end
