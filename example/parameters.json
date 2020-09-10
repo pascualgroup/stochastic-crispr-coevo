@@ -7,9 +7,9 @@
     
     "n_vstrains" : 1,
     "n_particles_per_vstrain" : 100,
-    "n_protospacers" : 10,
+    "n_protospacers" : 6,
     
-    "u_n_spacers_max" : 8,
+    "u_n_spacers_max" : 4,
 
     "p_crispr_failure_prob" : 1e-5,
     "q_spacer_acquisition_prob" : 1e-5,

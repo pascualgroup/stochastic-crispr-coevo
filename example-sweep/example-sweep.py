@@ -40,7 +40,7 @@ MODEL_PARAMETERS = {
     "beta_burst_size" : 50,
     "phi_adsorption_rate" : 1e-7,
     "m_viral_decay_rate" : 0.1,
-    "mu1_viral_mutation_rate_coupled" : 5e-7,
+    "mu1_viral_mutation_rate_coupled" : 1-5e-7,
     "mu2_viral_mutation_rate_decoupled" : 5e-7,
     "rho_c_density_cutoff" : 0.1,
     
