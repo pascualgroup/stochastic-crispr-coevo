@@ -11,8 +11,6 @@
     
     "u_n_spacers_max" : 8,
 
-    "v_n_protospacers_max" : 10,
-
     "p_crispr_failure_prob" : 1e-5,
     "q_spacer_acquisition_prob" : 1e-5,
     "r_growth_rate" : 1,
@@ -24,7 +22,9 @@
     "mu2_viral_mutation_rate_decoupled" : 5e-7,
     "rho_c_density_cutoff" : 0.1,
 
-    "d_death_rate" : 0.05,
+    "d_death_rate" : 1e-18,
     
-    "decouple_viral_mutation" : false
+    "decouple_viral_mutation" : false,
+    
+    "g_immigration_rate" : 1e-18
 }
