@@ -1,3 +1,5 @@
+using Pkg
+
 using Random
 using Logging
 using Distributions
@@ -6,6 +8,10 @@ using DelimitedFiles
 using Dates
 using JSON2
 
+Pkg.add("JSON2")
+Pkg.add("StatsBase")
+Pkg.add("JSON2")
+Pkg.add("Distributions")
 
 ### PARAMETERS ###
 
