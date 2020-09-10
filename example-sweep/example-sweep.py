@@ -46,7 +46,7 @@ MODEL_PARAMETERS = {
     
     "d_death_rate" : 1e-18,
     
-    "decouple_viral_mutation" : false,
+    #"decouple_viral_mutation" : false,
     
     "g_immigration_rate" : 1e-18
 }

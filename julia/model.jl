@@ -94,6 +94,7 @@ mutable struct Parameters
         p = new()
         p.rng_seed = nothing
         p.enable_output = true
+        p.decouple_viral_mutation = false
         p
     end
 end
