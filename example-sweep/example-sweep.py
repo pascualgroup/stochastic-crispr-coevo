@@ -19,7 +19,7 @@ random.seed(metaseed)
 seedList = [random.randrange(1, 2**63 - 1) for i in range(N_REPLICATES)]
 
 RUN_PARAMETERS = {
-    "t_final" : 5000.0,
+    "t_final" : 10.0,
     "t_output" : 1.0
 }
 
