@@ -1,4 +1,4 @@
-#!/software/julia-1.4.2-el7-x86_64/bin/julia
+
 
 using Pkg
 
