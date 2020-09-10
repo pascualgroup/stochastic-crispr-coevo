@@ -6,7 +6,7 @@ import json
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 JULIA_SCRIPT_PATH = os.path.abspath(
-    os.path.join(SCRIPT_DIR, '..', 'julia', 'main.jl')
+    os.path.join(SCRIPT_DIR, '..', 'crispr-sim', 'julia', 'main.jl')
 )
 
 RUNS_PATH = os.path.join(SCRIPT_DIR, 'runs')
