@@ -527,7 +527,7 @@ function get_rate_bacterial_immigration(sim::Simulation)
 end
 
 
-function do_event_bacterial_immigration!(sim::Simulator, t::Float64)
+function do_event_bacterial_immigration!(sim::Simulation, t::Float64)
     s.bstrains.abundance[1] += 1
     s.bstrains.total_abundance += 1
 end
