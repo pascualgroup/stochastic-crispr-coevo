@@ -1,16 +1,6 @@
-
-
-using Pkg
-
-Pkg.add("JSON2")
-Pkg.add("StatsBase")
-Pkg.add("Distributions")
-
+#!/usr/bin/env julia
 
 using Logging
-using Random
-using Dates
-using JSON2
 
 # Uncomment this to see all debugging output:
 # Logging.global_logger(

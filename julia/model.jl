@@ -1,6 +1,4 @@
-
 using Random
-using Logging
 using Distributions
 using StatsBase
 using DelimitedFiles
