@@ -70,20 +70,14 @@ mutable struct Parameters
     "Viral decay rate"
     m_viral_decay_rate::Union{Float64, Nothing}
 
-    "Mutation rate for contact-coupled viral mutations"
-    mu1_viral_mutation_rate_coupled::Union{Float64, Nothing}
-
-    "Mutation rate for contact-decoupled viral mutations"
-    mu2_viral_mutation_rate_decoupled::Union{Float64, Nothing}
+    "Mutation rate"
+    mu_viral_mutation_rate::Union{Float64, Nothing}
 
     "Density cutoff: used to scale volume of system, and therefore discrete population sizes"
     rho_c_density_cutoff::Union{Float64, Nothing}
 
     "Constant death rate (not in Childs model)"
     d_death_rate::Union{Float64, Nothing}
-
-    "If true, decouple viral mutation events from contact process as a separate event"
-    decouple_viral_mutation::Union{Bool, Nothing}
 
     "Constant immigration rate (not in Childs model)"
     g_immigration_rate::Float64
@@ -92,7 +86,6 @@ mutable struct Parameters
         p = new()
         p.rng_seed = nothing
         p.enable_output = true
-        p.decouple_viral_mutation = false
         p
     end
 end
@@ -116,13 +109,10 @@ function validate(p::Parameters)
     @assert p.beta_burst_size !== nothing
     @assert p.phi_adsorption_rate !== nothing
     @assert p.m_viral_decay_rate !== nothing
+    @assert p.mu_viral_mutation_rate !== nothing
     @assert p.rho_c_density_cutoff !== nothing
     @assert p.d_death_rate !== nothing
     @assert p.g_immigration_rate !== nothing
-
-    @assert p.decouple_viral_mutation !== nothing
-    @assert (p.decouple_viral_mutation || p.mu1_viral_mutation_rate_coupled !== nothing)
-    @assert (!p.decouple_viral_mutation || p.mu2_viral_mutation_rate_decoupled !== nothing)
 end
 
 function load_parameters_from_json(filename) :: Parameters
@@ -135,7 +125,7 @@ end
 
 ### EVENT CONSTANTS ###
 
-const N_EVENTS = 6
+const N_EVENTS = 5
 const EVENTS = 1:N_EVENTS
 
 const (
@@ -143,7 +133,6 @@ const (
     BACTERIAL_DEATH,
     VIRAL_DECAY,
     CONTACT,
-    VIRAL_MUTATION,
     BACTERIAL_IMMIGRATION
 ) = EVENTS
 
@@ -396,8 +385,6 @@ function get_rate(event_id, sim::Simulation)
         get_rate_viral_decay(sim)
     elseif event_id == CONTACT
         get_rate_contact(sim)
-    elseif event_id == VIRAL_MUTATION
-        get_rate_viral_mutation(sim)
     elseif event_id == BACTERIAL_IMMIGRATION
         get_rate_bacterial_immigration(sim)
     else
@@ -414,8 +401,6 @@ function do_event!(event_id, sim::Simulation, t::Float64)
         do_event_viral_decay!(sim, t)
     elseif event_id == CONTACT
         do_event_contact!(sim, t)
-    elseif event_id == VIRAL_MUTATION
-        do_event_viral_mutation!(sim, t)
     elseif event_id == BACTERIAL_IMMIGRATION
         do_event_bacterial_immigration!(sim, t)
     else
@@ -647,29 +632,27 @@ function infect!(sim::Simulation, t::Float64, iB, jV)
     s.vstrains.abundance[jV] += beta
     s.vstrains.total_abundance += beta
 
-    # Perform mutations if we're in coupled mutation mode
-    if !p.decouple_viral_mutation
-        mu1 = p.mu1_viral_mutation_rate_coupled
+    # Perform mutations
+    mu = p.mu_viral_mutation_rate
 
-        # The number of mutations for each new virus particle is binomially distributed.
-        # n_mut is left with just the nonzero draws--that is, the number of
-        # mutations for each *mutated* virus particle.
-        n_mut = filter(x -> x > 0, rand(rng, Binomial(n_pspacers, mu1), beta))
-        n_with_mut = length(n_mut)
+    # The number of mutations for each new virus particle is binomially distributed.
+    # n_mut is left with just the nonzero draws--that is, the number of
+    # mutations for each *mutated* virus particle.
+    n_mut = filter(x -> x > 0, rand(rng, Binomial(n_pspacers, mu), beta))
+    n_with_mut = length(n_mut)
 
-        @debug "mutations: " n_mut n_with_mut
+    @debug "mutations: " n_mut n_with_mut
 
-        # Increment population: just the virus particles that don't have mutations
-        s.vstrains.abundance[jV] += beta - n_with_mut
-        s.vstrains.total_abundance += beta - n_with_mut
+    # Increment population: just the virus particles that don't have mutations
+    s.vstrains.abundance[jV] += beta - n_with_mut
+    s.vstrains.total_abundance += beta - n_with_mut
 
-        # Perform mutations for mutated particles
-        for i = 1:n_with_mut
-            # Draw which loci are mutated using the previously drawn number of mutations,
-            # and create new protospacers
-            mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
-            mutate_virus!(sim, jV, mut_loci, iB)
-        end
+    # Perform mutations for mutated particles
+    for i = 1:n_with_mut
+        # Draw which loci are mutated using the previously drawn number of mutations,
+        # and create new protospacers
+        mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
+        mutate_virus!(sim, jV, mut_loci, iB)
     end
 end
 
@@ -730,45 +713,7 @@ function is_immune(spacers::Vector{UInt64}, pspacers::Vector{UInt64})
 end
 
 
-### VIRAL MUTATION EVENT (used only if decouple_viral_mutation == true) ###
-
-function get_rate_viral_mutation(sim::Simulation)
-    p = sim.params
-    if p.decouple_viral_mutation
-        s = sim.state
-        mu2 = p.mu2_viral_mutation_rate_decoupled
-        V = s.vstrains.total_abundance
-
-        # NB: mu2 rate is per-protospacer
-        mu2 * p.n_protospacers * V
-    else
-        0.0
-    end
-end
-
-function do_event_viral_mutation!(sim::Simulation, t::Float64)
-    @assert sim.params.decouple_viral_mutation
-
-    rng = sim.rng
-    p = sim.params
-    s = sim.state
-
-    V = s.vstrains.total_abundance
-
-    N_vec = s.bstrains.abundance
-    V_vec = s.vstrains.abundance
-
-    jV = sample_linear_integer_weights(rng, V_vec, V)
-
-    old_pspacers = s.vstrains.spacers[jV]
-    n_pspacers = length(old_pspacers)
-    mut_loci = [rand(rng, 1:n_pspacers)]
-
-    mutate_virus!(sim, jV, mut_loci, 0)
-end
-
-
-### VIRAL MUTATION FUNCTION (shared by contact-coupled and contact-decoupled mutation) ###
+### VIRAL MUTATION FUNCTION (was shared by coupled/uncoupled mutation code) ###
 
 function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
     p = sim.params
