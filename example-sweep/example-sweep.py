@@ -13,16 +13,6 @@ RUNS_PATH = os.path.join(SCRIPT_DIR, 'runs')
 
 N_REPLICATES = 1
 
-# Seed for seed generator, for reproducible sweeps
-# If set to None, then the random.SystemRandom() device will be used to generate
-# seeds.
-# Otherwise, random.Random(META_SEED) will be used.
-# WARNING: both Python and Julia use Mersenne Twister, and it's statistically
-# dangerous to use the same RNG to generate seeds, so setting META_SEED could
-# create some weird correlations.
-# (But unlikely to make a real difference in simulation analyses, I suspect.)
-META_SEED = None
-
 PARAMETERS = {
     "t_final" : 5000.0,
     "t_output" : 1.0,
@@ -82,10 +72,7 @@ def main():
     os.makedirs(RUNS_PATH)
     
     # Seed RNG
-    if META_SEED is None:
-        seed_rng = random.SystemRandom()
-    else:
-        seed_rng = random.Random(META_SEED)
+    seed_rng = random.SystemRandom()
     
     # Set up all directories
     run_paths = []
