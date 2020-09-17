@@ -54,9 +54,10 @@ def StackedPlotDF(data,tp):
 
 # ######################################
 
+SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
-bact = pd.read_csv('babundance.csv', delimiter=',')
-phage = pd.read_csv('vabundance.csv', delimiter=',')
+bact = pd.read_csv(os.path.join(SCRIPT_DIR, 'babundance.csv'), delimiter=',')
+phage = pd.read_csv(os.path.join(SCRIPT_DIR, 'vabundance.csv'), delimiter=',')
 #data = pd.read_csv(path+'time-series-data.txt', delimiter=' ')
 
 
