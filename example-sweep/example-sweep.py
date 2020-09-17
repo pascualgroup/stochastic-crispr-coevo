@@ -176,7 +176,7 @@ plt.title('Viral Abundances: ' + sim_dir )
 plt.xlabel('Time t')
 plt.ylabel('Abundances V_i')
 plt.tight_layout()
-plt.savefig(os.path.join(SCRIPT_DIR,'..','..','..','plots',sim_dir,'Virus-Abundance_stacked_plot.png'),dpi=500)
+plt.savefig(os.path.join(SCRIPT_PATH,'..','..','..','plots',sim_dir,'Virus-Abundance_stacked_plot.png'),dpi=500)
 plt.close()
     
 '''
