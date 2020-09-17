@@ -182,7 +182,7 @@ STACKED_PLOTS = \
 '''
 
 
-SBATCH_TEMP_PY = \
+SBATCH_TEMPLATE_PY = \
 '''#!/bin/bash
 
 #SBATCH --job-name={job_name}
