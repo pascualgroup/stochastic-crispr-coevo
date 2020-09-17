@@ -77,7 +77,6 @@ STACKED_DF = \
     import matplotlib.pyplot as plt
     import sys
     import os
-    # import mpld3
 
 
     import seaborn as sns
@@ -123,12 +122,10 @@ STACKED_DF = \
 
     # ######################################
 
-    SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+    SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
 
-    bact = pd.read_csv(os.path.join(SCRIPT_DIR, 'babundance.csv'), delimiter=',')
-    phage = pd.read_csv(os.path.join(SCRIPT_DIR, 'vabundance.csv'), delimiter=',')
-    #data = pd.read_csv(path+'time-series-data.txt', delimiter=' ')
-
+    bact = pd.read_csv(os.path.join(SCRIPT_PATH, 'babundance.csv'), delimiter=',')
+    phage = pd.read_csv(os.path.join(SCRIPT_PATH, 'vabundance.csv'), delimiter=',')
 
 
     stacked_plot = StackedPlotDF(bact,"bact")
@@ -136,10 +133,11 @@ STACKED_DF = \
 
     stacked_plot.to_csv(r'Bacteria_Abundance-StackedPlot-DataFrame.csv')
     Vstacked_plot.to_csv(r'Virus_Abundance-StackedPlot-DataFrame.csv')
+    
 '''
 
 STACKED_PLOTS = \
-'''
+'''#!/usr/bin/env python3
 
     import pandas as pd
     import numpy as np
@@ -148,18 +146,17 @@ STACKED_PLOTS = \
     import matplotlib.pyplot as plt
     import sys
     import os
-    # import mpld3
 
     import seaborn as sns
     from scipy import stats
 
 
-    SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
-    stacked_plot = pd.read_csv(os.path.join(SCRIPT_DIR, 'Bacteria_Abundance-StackedPlot-DataFrame.csv'), delimiter=',')
-    Vstacked_plot = pd.read_csv(os.path.join(SCRIPT_DIR, 'Virus_Abundance-StackedPlot-DataFrame.csv'), delimiter=',')
+    SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
+    stacked_plot = pd.read_csv(os.path.join(SCRIPT_PATH, 'Bacteria_Abundance-StackedPlot-DataFrame.csv'), delimiter=',')
+    Vstacked_plot = pd.read_csv(os.path.join(SCRIPT_PATH, 'Virus_Abundance-StackedPlot-DataFrame.csv'), delimiter=',')
 
     #this is the relative path of a particular simulation
-    sim_dir = os.path.relpath(SCRIPT_DIR,   os.path.join(SCRIPT_DIR,'..','..'));
+    sim_dir = os.path.relpath(SCRIPT_PATH,   os.path.join(SCRIPT_PATH,'..','..'));
 
     #plt.figure(figsize=(10, 10), dpi= 80)
     stacked_plot.plot.area(stacked=True, legend=False, linewidth=0);
@@ -168,7 +165,7 @@ STACKED_PLOTS = \
     plt.xlabel('Time t')
     plt.ylabel('Abundances N_i')
     plt.tight_layout()
-    plt.savefig(os.path.join(SCRIPT_DIR,'..','..','..','plots',sim_dir,'Bacteria-Abundance_stacked_plot.png'),dpi=500)
+    plt.savefig(os.path.join(SCRIPT_PATH,'..','..','..','plots',sim_dir,'Bacteria-Abundance_stacked_plot.png'),dpi=500)
     plt.close()
 
 
@@ -185,6 +182,34 @@ STACKED_PLOTS = \
 '''
 
 
+SBATCH_TEMP_PY = \
+'''#!/bin/bash
+
+#SBATCH --job-name={job_name}
+#SBATCH --chdir={job_dir}
+#SBATCH --account=pi-pascualmm
+#SBATCH --output=stdout.txt
+#SBATCH --error=stderr.txt
+#SBATCH --partition=broadwl
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=02:00:00
+
+module purge
+module load python
+
+python {python_script_path}
+'''
+
+SUBMIT_HEADER_PY = \
+'''#!/bin/bash
+
+module load python
+
+'''
+
+
+
 
 def main():
     # Create root output directory
@@ -197,8 +222,8 @@ def main():
     run_paths = []
     for n_protospacers in [15]:
         for u_n_spacers_max in [10]:
-            for g_X_1e18 in [0, 1, 2, 4]:
-                for run_path in set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_X_1e18):
+            for g_X in [0]:
+                for run_path in set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_X):
                     run_paths.append(run_path)
     
     # Create a shell script to submit everything
@@ -208,9 +233,25 @@ def main():
         for run_path in run_paths:
             f.write('cd {}\n'.format(run_path))
             f.write('sbatch run.sbatch\n')
+            
+    # Create a shell script to submit dataframe makers
+    with open(os.path.join(SCRIPT_DIR, 'submitDF.sh'), 'w') as f:
+        f.write(SUBMIT_HEADER_PY)
+          
+        for run_path in run_paths:
+            f.write('cd {}\n'.format(run_path))
+            f.write('sbatch runDF.sbatch\n')
+              
+    # Create a shell script to submit plot makers
+    with open(os.path.join(SCRIPT_DIR, 'submitPlots.sh'), 'w') as f:
+        f.write(SUBMIT_HEADER_PY)
+             
+        for run_path in run_paths:
+            f.write('cd {}\n'.format(run_path))
+            f.write('sbatch runPLOTS.sbatch\n')
 
-def set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_immigration_rate_X_1e18):
-    g_immigration_rate = g_immigration_rate_X_1e18 * 1e-18
+def set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_immigration_rate_X):
+    g_immigration_rate = g_immigration_rate_X * 1 # second factor holds the place of the order of magnitude
     
     # Create a parameters file for each replicate
     for i in range(N_REPLICATES):
@@ -233,9 +274,10 @@ def set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_immigration_r
             ),
             '{0}'.format(i)
         )
+        
         os.makedirs(run_path)
         
-        # Create plot directory for replicate
+        # Create plot directory for replicate. makeStackedPlot.py will save into this directory
         plots_path = os.path.join(
                  SCRIPT_DIR, 'plots',
                  'nps={0}-u={1}-g={2}'.format(
@@ -245,7 +287,10 @@ def set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_immigration_r
                  ),
                  '{0}'.format(i)
              )
-             os.makedirs(plots_path)
+        
+        os.makedirs(plots_path)
+        
+        
         
         # Save parameters file for replicate
         params_path = os.path.join(run_path, 'parameters.json')
@@ -262,6 +307,40 @@ def set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_immigration_r
                 job_dir = run_path,
                 julia_script_path = JULIA_SCRIPT_PATH
             ))
+            
+            
+            
+        df_path = os.path.join(run_path,'makeStackedDFs.py')
+        with open(df_path, 'w') as f:
+            f.write(STACKED_DF)
+        
+        sbatchDF_path = os.path.join(run_path, 'runDF.sbatch')
+        with open(sbatchDF_path, 'w') as f:
+            f.write(SBATCH_TEMPLATE_PY.format(
+                job_name = 'SC-nps={0}-u={1}-{2}'.format(
+                    n_protospacers, u_n_spacers_max, i
+                ) + '-DF',
+                job_dir = run_path,
+                python_script_path = df_path
+            ))
+        
+        
+        
+        stackedplot_path = os.path.join(run_path,'makeStackedPlots.py')
+        with open(plots_path, 'w') as f:
+            f.write(STACKED_PLOTS)
+        
+        sbatchPLOTS_path = os.path.join(run_path, 'runPLOTS.sbatch')
+        with open(sbatchPLOTS_path, 'w') as f:
+            f.write(SBATCH_TEMPLATE_PY.format(
+                    job_name = 'SC-nps={0}-u={1}-{2}'.format(
+                        n_protospacers, u_n_spacers_max, i
+                    ) + '-PLOTS',
+                    job_dir = run_path,
+                    python_script_path = stackedplot_path
+                ))
+                
+                
         
         yield run_path
 
