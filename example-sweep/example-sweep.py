@@ -283,7 +283,7 @@ def set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_immigration_r
                  'nps={0}-u={1}-g={2}'.format(
                      n_protospacers,
                      u_n_spacers_max,
-                     g_immigration_rate_X_1e18
+                     g_immigration_rate_X
                  ),
                  '{0}'.format(i)
              )
