@@ -327,7 +327,7 @@ def set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_immigration_r
         
         
         stackedplot_path = os.path.join(run_path,'makeStackedPlots.py')
-        with open(plots_path, 'w') as f:
+        with open(stackedplot_path, 'w') as f:
             f.write(STACKED_PLOTS)
         
         sbatchPLOTS_path = os.path.join(run_path, 'runPLOTS.sbatch')
