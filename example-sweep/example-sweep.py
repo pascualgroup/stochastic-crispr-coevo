@@ -31,7 +31,7 @@ PARAMETERS = {
     "beta_burst_size" : 50,
     "phi_adsorption_rate" : 1e-7,
     "m_viral_decay_rate" : 0.1,
-    "mu_viral_mutation_rate" : 1-5e-7,
+    "mu_viral_mutation_rate" : 5e-7,
     "rho_c_density_cutoff" : 0.1,
     
     "d_death_rate" : 1e-18,
@@ -70,47 +70,47 @@ module load julia
 STACKED_DF = \
 '''#!/usr/bin/env python3
 
-    import pandas as pd
-    import numpy as np
-    import scipy as sp
-    import math
-    import matplotlib.pyplot as plt
-    import sys
-    import os
+import pandas as pd
+import numpy as np
+import scipy as sp
+import math
+import matplotlib.pyplot as plt
+import sys
+import os
 
 
-    import seaborn as sns
-    from scipy import stats
+import seaborn as sns
+from scipy import stats
 
 
 
-    def StackedPlotDF(data,tp):
+def StackedPlotDF(data,tp):
+
+    stacked_plot = pd.DataFrame()
+    ID = "bact"
+
+    if (tp=="bact"):
+        ID = "bstrain_id"
+    elif (tp=="vir"):
+        ID = "vstrain_id"
         
-        stacked_plot = pd.DataFrame()
-        ID = "bact"
-
-        if (tp=="bact"):
-            ID = "bstrain_id"
-        elif (tp=="vir"):
-            ID = "vstrain_id"
         
+    #strains = data['bstrain_id'].unique()
+    strains = data[ID].unique()
+    tl = len(data["t"].unique())
         
-        #strains = data['bstrain_id'].unique()
-        strains = data[ID].unique()
-        tl = len(data["t"].unique())
-        
-        stacked_plot["t"] = data["t"].unique()
+    stacked_plot["t"] = data["t"].unique()
 
-        for s in strains:
+    for s in strains:
 
-            Abs = np.zeros(tl)
+        Abs = np.zeros(tl)
             
-            #tmp = data[data["bstrain_id"]==s]
-            tmp = data[data[ID]==s]
+        #tmp = data[data["bstrain_id"]==s]
+        tmp = data[data[ID]==s]
             
-            for i in tmp["t"].values:
-                abun = tmp[tmp["t"]==i]["abundance"].values
-                Abs[int(i)] = abun
+        for i in tmp["t"].values:
+            abun = tmp[tmp["t"]==i]["abundance"].values
+            Abs[int(i)] = abun
             
             stacked_plot[s] = Abs
             
@@ -139,8 +139,8 @@ STACKED_DF = \
 STACKED_PLOTS = \
 '''#!/usr/bin/env python3
 
-    import pandas as pd
-    import numpy as np
+import pandas as pd
+import numpy as np
     import scipy as sp
     import math
     import matplotlib.pyplot as plt
