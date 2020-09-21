@@ -208,14 +208,7 @@ def main():
         for run_path in run_paths:
             f.write('cd {}\n'.format(run_path))
             f.write('sbatch run.sbatch\n')
-            
-    # Create a shell script to submit dataframe makers
-    with open(os.path.join(SCRIPT_DIR, 'submitDF.sh'), 'w') as f:
-        f.write(SUBMIT_HEADER_PY)
-          
-        for run_path in run_paths:
-            f.write('cd {}\n'.format(run_path))
-            f.write('sbatch runDF.sbatch\n')
+
               
     # Create a shell script to submit plot makers
     with open(os.path.join(SCRIPT_DIR, 'submitPlots.sh'), 'w') as f:
