@@ -11,7 +11,7 @@ JULIA_SCRIPT_PATH = os.path.abspath(
 
 RUNS_PATH = os.path.join(SCRIPT_DIR, 'runs')
 
-N_REPLICATES = 1
+N_REPLICATES = 35
 
 PARAMETERS = {
     "t_final" : 5000.0,
@@ -34,9 +34,9 @@ PARAMETERS = {
     "mu_viral_mutation_rate" : 5e-7,
     "rho_c_density_cutoff" : 0.1,
     
-    "d_death_rate" : 1e-18,
+    "d_death_rate" : 0,
     
-    "g_immigration_rate" : 1e-18
+    "g_immigration_rate" : 0
 }
 
 
@@ -67,75 +67,6 @@ module load julia
 '''
 
 
-STACKED_DF = \
-'''#!/usr/bin/env python3
-
-import pandas as pd
-import numpy as np
-import scipy as sp
-import math
-import matplotlib.pyplot as plt
-import sys
-import os
-
-
-import seaborn as sns
-from scipy import stats
-
-
-
-def StackedPlotDF(data,tp):
-
-    stacked_plot = pd.DataFrame()
-    ID = "bact"
-
-    if (tp=="bact"):
-        ID = "bstrain_id"
-    elif (tp=="vir"):
-        ID = "vstrain_id"
-        
-        
-    #strains = data['bstrain_id'].unique()
-    strains = data[ID].unique()
-    tl = len(data["t"].unique())
-        
-    stacked_plot["t"] = data["t"].unique()
-
-    for s in strains:
-
-        Abs = np.zeros(tl)
-            
-        #tmp = data[data["bstrain_id"]==s]
-        tmp = data[data[ID]==s]
-            
-        for i in tmp["t"].values:
-            abun = tmp[tmp["t"]==i]["abundance"].values
-            Abs[int(i)] = abun
-            
-            stacked_plot[s] = Abs
-            
-        
-        return stacked_plot
-
-
-
-
-    # ######################################
-
-SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
-
-bact = pd.read_csv(os.path.join(SCRIPT_PATH, 'babundance.csv'), delimiter=',')
-phage = pd.read_csv(os.path.join(SCRIPT_PATH, 'vabundance.csv'), delimiter=',')
-
-
-stacked_plot = StackedPlotDF(bact,"bact")
-Vstacked_plot = StackedPlotDF(phage,"vir")
-
-stacked_plot.to_csv(r'Bacteria_Abundance-StackedPlot-DataFrame.csv')
-Vstacked_plot.to_csv(r'Virus_Abundance-StackedPlot-DataFrame.csv')
-    
-'''
-
 STACKED_PLOTS = \
 '''#!/usr/bin/env python3
 
@@ -150,10 +81,54 @@ import os
 import seaborn as sns
 from scipy import stats
 
+def StackedPlotDF(data,tp):
+    
+    stacked_plot = pd.DataFrame()
+    ID = "bact"
 
-SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
-stacked_plot = pd.read_csv(os.path.join(SCRIPT_PATH, 'Bacteria_Abundance-StackedPlot-DataFrame.csv'), delimiter=',')
-Vstacked_plot = pd.read_csv(os.path.join(SCRIPT_PATH, 'Virus_Abundance-StackedPlot-DataFrame.csv'), delimiter=',')
+    if (tp=="bact"):
+        ID = "bstrain_id"
+    elif (tp=="vir"):
+        ID = "vstrain_id"
+    
+    
+    #strains = data['bstrain_id'].unique()
+    strains = data[ID].unique()
+    tl = len(data["t"].unique())
+    
+    stacked_plot["t"] = data["t"].unique()
+
+    for s in strains:
+
+        Abs = np.zeros(tl)
+        
+        #tmp = data[data["bstrain_id"]==s]
+        tmp = data[data[ID]==s]
+        
+        for i in tmp["t"].values:
+            abun = tmp[tmp["t"]==i]["abundance"].values
+            Abs[int(i)] = abun
+        
+        stacked_plot[s] = Abs
+        
+    
+    return stacked_plot
+
+
+
+
+# ######################################
+SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+
+bact = pd.read_csv(os.path.join(SCRIPT_DIR, 'babundance.csv'), delimiter=',')
+phage = pd.read_csv(os.path.join(SCRIPT_DIR, 'vabundance.csv'), delimiter=',')
+#data = pd.read_csv(path+'time-series-data.txt', delimiter=' ')
+
+
+
+stacked_plot = StackedPlotDF(bact,"bact")
+Vstacked_plot = StackedPlotDF(phage,"vir")
+
 
 #this is the relative path of a particular simulation
 sim_dir = os.path.relpath(SCRIPT_PATH,   os.path.join(SCRIPT_PATH,'..','..'));
@@ -307,23 +282,7 @@ def set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_immigration_r
                 job_dir = run_path,
                 julia_script_path = JULIA_SCRIPT_PATH
             ))
-            
-            
-            
-        df_path = os.path.join(run_path,'makeStackedDFs.py')
-        with open(df_path, 'w') as f:
-            f.write(STACKED_DF)
-        
-        sbatchDF_path = os.path.join(run_path, 'runDF.sbatch')
-        with open(sbatchDF_path, 'w') as f:
-            f.write(SBATCH_TEMPLATE_PY.format(
-                job_name = 'SC-nps={0}-u={1}-{2}'.format(
-                    n_protospacers, u_n_spacers_max, i
-                ) + '-DF',
-                job_dir = run_path,
-                python_script_path = df_path
-            ))
-        
+    
         
         
         stackedplot_path = os.path.join(run_path,'makeStackedPlots.py')
