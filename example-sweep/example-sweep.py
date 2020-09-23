@@ -14,7 +14,7 @@ RUNS_PATH = os.path.join(SCRIPT_DIR, 'runs')
 N_REPLICATES = 35
 
 PARAMETERS = {
-    "t_final" : 5000.0,
+    "t_final" : 2500.0,
     "t_output" : 1.0,
     
     "n_bstrains" : 1,
