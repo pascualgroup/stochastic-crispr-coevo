@@ -48,10 +48,10 @@ SBATCH_TEMPLATE = \
 #SBATCH --account=pi-pascualmm
 #SBATCH --output=stdout.txt
 #SBATCH --error=stderr.txt
-#SBATCH --partition=broadwl
+#SBATCH --partition=bigmem2
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=02:00:00
+#SBATCH --time=06:00:00
 
 module purge
 module load julia
@@ -118,10 +118,10 @@ def StackedPlotDF(data,tp):
 
 
 # ######################################
-SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
 
-bact = pd.read_csv(os.path.join(SCRIPT_DIR, 'babundance.csv'), delimiter=',')
-phage = pd.read_csv(os.path.join(SCRIPT_DIR, 'vabundance.csv'), delimiter=',')
+bact = pd.read_csv(os.path.join(SCRIPT_PATH, 'babundance.csv'), delimiter=',')
+phage = pd.read_csv(os.path.join(SCRIPT_PATH, 'vabundance.csv'), delimiter=',')
 #data = pd.read_csv(path+'time-series-data.txt', delimiter=' ')
 
 
@@ -182,7 +182,6 @@ SUBMIT_HEADER_PY = \
 module load python
 
 '''
-
 
 
 
