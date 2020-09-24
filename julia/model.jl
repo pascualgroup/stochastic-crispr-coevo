@@ -80,7 +80,7 @@ mutable struct Parameters
     d_death_rate::Union{Float64, Nothing}
 
     "Constant immigration rate (not in Childs model)"
-    g_immigration_rate::Float64
+    g_immigration_rate::Union{Float64, Nothing}
 
     function Parameters()
         p = new()

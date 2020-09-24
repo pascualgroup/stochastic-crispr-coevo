@@ -51,7 +51,7 @@ SBATCH_TEMPLATE = \
 #SBATCH --partition=bigmem2
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=06:00:00
+#SBATCH --time=14:00:00
 
 module purge
 module load julia
@@ -165,10 +165,10 @@ SBATCH_TEMPLATE_PY = \
 #SBATCH --account=pi-pascualmm
 #SBATCH --output=stdout.txt
 #SBATCH --error=stderr.txt
-#SBATCH --partition=broadwl
+#SBATCH --partition=bigmem2
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=02:00:00
+#SBATCH --time=14:00:00
 
 module purge
 module load python
