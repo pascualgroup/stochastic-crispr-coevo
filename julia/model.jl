@@ -27,27 +27,27 @@ mutable struct Parameters
         p
     end
     "Number of initial bacterial strains"
-    n_bstrains::Union{UInt16, Nothing}
+    n_bstrains::Union{UInt32, Nothing}
 
     "Number of initial hosts per bacterial strain"
-    n_hosts_per_bstrain::Union{UInt16, Nothing}
+    n_hosts_per_bstrain::Union{UInt32, Nothing}
 
     # "Number of initial spacers per bacterial strain"
     # n_spacers::UInt64
 
     "Number of initial virus strains"
-    n_vstrains::Union{UInt16, Nothing}
+    n_vstrains::Union{UInt32, Nothing}
 
     "Number of initial particles per bacterial strain"
-    n_particles_per_vstrain::Union{UInt16, Nothing}
+    n_particles_per_vstrain::Union{UInt32, Nothing}
 
     "Number of initial protospacers per virus strain"
-    n_protospacers::Union{UInt16, Nothing}
+    n_protospacers::Union{UInt32, Nothing}
 
     InitializationParameters() = new()
 
     "Maximum number of spacers in a bacterial strain"
-    u_n_spacers_max::Union{UInt16, Nothing}
+    u_n_spacers_max::Union{UInt32, Nothing}
 
     "CRIPSR failure probability"
     p_crispr_failure_prob::Union{Float64, Nothing}
@@ -62,7 +62,7 @@ mutable struct Parameters
     K_carrying_capacity::Union{Float64, Nothing}
 
     "Burst size"
-    beta_burst_size::Union{UInt16, Nothing}
+    beta_burst_size::Union{UInt32, Nothing}
 
     "Adsorption rate"
     phi_adsorption_rate::Union{Float64, Nothing}
@@ -143,8 +143,8 @@ mutable struct Strains
     next_id::UInt32
     ids::Vector{UInt32}
 
-    abundance::Vector{UInt32}
-    total_abundance::UInt32
+    abundance::Vector{UInt32} ##### CHANGE TO 64 BIT IF NEED BE! BUT REMEMBER TO CHANGE
+    total_abundance::UInt32     #### FXNs BELOW ACCORDINGLY
 
     spacers::Vector{Vector{UInt32}}
 
@@ -202,7 +202,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
     mutable struct State
         bstrains::Strains
         vstrains::Strains
-        next_pspacer_id::UInt64
+        next_pspacer_id::UInt32
 
         function State(n_bstrains, n_hosts_per_bstrain, # n_spacers_init,
             n_vstrains, n_particles_per_vstrain, n_pspacers_init
