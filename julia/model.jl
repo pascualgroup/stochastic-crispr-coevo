@@ -27,27 +27,27 @@ mutable struct Parameters
         p
     end
     "Number of initial bacterial strains"
-    n_bstrains::Union{UInt64, Nothing}
+    n_bstrains::Union{UInt16, Nothing}
 
     "Number of initial hosts per bacterial strain"
-    n_hosts_per_bstrain::Union{UInt64, Nothing}
+    n_hosts_per_bstrain::Union{UInt16, Nothing}
 
     # "Number of initial spacers per bacterial strain"
     # n_spacers::UInt64
 
     "Number of initial virus strains"
-    n_vstrains::Union{UInt64, Nothing}
+    n_vstrains::Union{UInt16, Nothing}
 
     "Number of initial particles per bacterial strain"
-    n_particles_per_vstrain::Union{UInt64, Nothing}
+    n_particles_per_vstrain::Union{UInt16, Nothing}
 
     "Number of initial protospacers per virus strain"
-    n_protospacers::Union{UInt64, Nothing}
+    n_protospacers::Union{UInt16, Nothing}
 
     InitializationParameters() = new()
 
     "Maximum number of spacers in a bacterial strain"
-    u_n_spacers_max::Union{UInt64, Nothing}
+    u_n_spacers_max::Union{UInt16, Nothing}
 
     "CRIPSR failure probability"
     p_crispr_failure_prob::Union{Float64, Nothing}
@@ -62,7 +62,7 @@ mutable struct Parameters
     K_carrying_capacity::Union{Float64, Nothing}
 
     "Burst size"
-    beta_burst_size::Union{UInt64, Nothing}
+    beta_burst_size::Union{UInt16, Nothing}
 
     "Adsorption rate"
     phi_adsorption_rate::Union{Float64, Nothing}
@@ -140,13 +140,13 @@ BACTERIAL_IMMIGRATION
 ### SIMULATION STATE ###
 
 mutable struct Strains
-    next_id::UInt64
-    ids::Vector{UInt64}
+    next_id::UInt32
+    ids::Vector{UInt32}
 
-    abundance::Vector{UInt64}
-    total_abundance::UInt64
+    abundance::Vector{UInt32}
+    total_abundance::UInt32
 
-    spacers::Vector{Vector{UInt64}}
+    spacers::Vector{Vector{UInt32}}
 
     strain_file::IOStream
     spacers_file::IOStream
@@ -204,11 +204,12 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         vstrains::Strains
         next_pspacer_id::UInt64
 
-        function State(
-            n_bstrains, n_hosts_per_bstrain, # n_spacers_init,
+        function State(n_bstrains, n_hosts_per_bstrain, # n_spacers_init,
             n_vstrains, n_particles_per_vstrain, n_pspacers_init
             )
+
             next_pspacer_id = 1 + n_vstrains * n_pspacers_init
+
             new(
             make_bstrains(n_bstrains, n_hosts_per_bstrain),
             make_vstrains(n_vstrains, n_particles_per_vstrain, n_pspacers_init),
@@ -318,7 +319,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
             # Write periodic output
             @debug "p.enable_output" p.enable_output
             if p.enable_output
-                write_periodic_output(sim)
+                write_periodic_output(sim)  ###THIS WRITES ABUNDANCES AT T_NEXT AS DETERMINED IN DO_NEXT_EVENT
             end
 
             @assert sim.t == t_next_output
@@ -333,7 +334,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         close(sim.meta_file)
     end
 
-    function do_next_event!(sim::Simulation, t_max::Float64)
+    function do_next_event!(sim::Simulation, t_max::Float64) ## THIS IS WHERE YOU WOULD MAKE EVENTS LIST
         p = sim.params
         s = sim.state
 
@@ -357,7 +358,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
             update_rates!(sim)
             @debug "end do_event()"
 
-            sim.t = t_next
+            sim.t = t_next          ###THIS IS WHERE THE SAMPLING TIME IS "DETERMINED". WILL ALWAYS BE LESS THAN BUT CLOSE TO T_MAX (I.E. p.t_ouput)
 
             @debug "bstrains.total_abundance:" sim.state.bstrains.total_abundance
             @debug "VStrains.total_abundance:" sim.state.vstrains.total_abundance
@@ -595,6 +596,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         jV = sample_linear_integer_weights(rng, V_vec, V)
 
         # Every contact results in the reduction of the viral population size by 1
+        @assert s.vstrains.abundance[jV] > 0
         s.vstrains.abundance[jV] -= 1
         s.vstrains.total_abundance -= 1
 
@@ -621,6 +623,24 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         elseif should_acquire_spacer
             acquire_spacer!(sim, t, iB, jV)
         end
+
+
+        # Remove extinct strain
+        if s.vstrains.abundance[jV] == 0
+            remove_strain!(s.vstrains, jV)
+        end
+
+        # Remove extinct strain but keep first index that is reserved
+        ## for memoryless immigrants
+        if s.bstrains.abundance[iB] == 0 && iB != 1
+            remove_strain!(s.bstrains, iB)
+        end
+
+        @assert s.bstrains.abundance[1] >= 0
+        ###############
+
+
+
     end
 
     function infect!(sim::Simulation, t::Float64, iB, jV)
@@ -641,8 +661,8 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         n_pspacers = length(old_pspacers)
 
         # Just adjust viral population upward with the burst size
-        s.vstrains.abundance[jV] += beta
-        s.vstrains.total_abundance += beta
+        #s.vstrains.abundance[jV] += beta    This is redundant considering the code below
+        #s.vstrains.total_abundance += beta
 
         # Perform mutations
         mu = p.mu_viral_mutation_rate
@@ -680,7 +700,9 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         missing_spacers = setdiff(s.vstrains.spacers[jV], s.bstrains.spacers[iB])
         if length(missing_spacers) > 0
             # Create new bacterial strain with modified spacers
+            @assert s.bstrains.abundance[iB] > 0
             s.bstrains.abundance[iB] -= 1
+            s.bstrains.total_abundance -= 1
 
             # Add spacer, dropping the oldest one if we're at capacity
             old_spacers = s.bstrains.spacers[iB]
@@ -720,7 +742,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         end
     end
 
-    function is_immune(spacers::Vector{UInt64}, pspacers::Vector{UInt64})
+    function is_immune(spacers::Vector{UInt32}, pspacers::Vector{UInt32})
         length(intersect(spacers, pspacers)) > 0
     end
 
@@ -732,8 +754,9 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         s = sim.state
         rng = sim.rng
 
-        s.vstrains.abundance[virus_id] -= 1
-        s.vstrains.total_abundance -= 1
+        #s.vstrains.abundance[virus_id] -= 1 #This is redundant considering
+        #s.vstrains.total_abundance -= 1    #how contact already removes one and only
+                                            #adds beta - n_with_mut
 
         old_pspacers = s.vstrains.spacers[virus_id]
         new_pspacers = copy(old_pspacers)
