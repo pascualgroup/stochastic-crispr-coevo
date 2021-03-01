@@ -46,12 +46,14 @@ SBATCH_TEMPLATE = \
 #SBATCH --job-name={job_name}
 #SBATCH --chdir={job_dir}
 #SBATCH --account=pi-pascualmm
-#SBATCH --output=stdout.txt
-#SBATCH --error=stderr.txt
+#SBATCH --output=simulation_stdout.txt
+#SBATCH --error=simulation_stderr.txt
 #SBATCH --partition=bigmem2
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --time=14:00:00
+#SBATCH --ntasks-per-node=4
+#SBATCH --time=20:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=armun@uchicago.edu
 
 module purge
 module load julia
@@ -163,12 +165,14 @@ SBATCH_TEMPLATE_PY = \
 #SBATCH --job-name={job_name}
 #SBATCH --chdir={job_dir}
 #SBATCH --account=pi-pascualmm
-#SBATCH --output=stdout.txt
-#SBATCH --error=stderr.txt
+#SBATCH --output=plot_stdout.txt
+#SBATCH --error=plot_stderr.txt
 #SBATCH --partition=bigmem2
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --time=14:00:00
+#SBATCH --ntasks-per-node=4
+#SBATCH --time=20:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=armun@uchicago.edu
 
 module purge
 module load python
