@@ -200,7 +200,7 @@ def main():
     run_paths = []
     for n_protospacers in [15]:
         for u_n_spacers_max in [10]:
-            for g_X in [0]:
+            for g_X in [1e5]:
                 for run_path in set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_X):
                     run_paths.append(run_path)
     
