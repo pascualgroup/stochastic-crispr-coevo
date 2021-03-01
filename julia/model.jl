@@ -708,10 +708,11 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
             old_spacers = s.bstrains.spacers[iB]
 
             new_spacers = if length(old_spacers) == p.u_n_spacers_max
-                old_spacers[2:length(old_spacers)]
-            else
+                old_spacers[2:length(old_spacers)]        ### This removes thes first locus
+            else                                          ### of the CRISPR cassette. Is this what original C code was?
                 copy(old_spacers)
             end
+
             new_spacers_from_old = copy(new_spacers)
 
             push!(new_spacers, rand(rng, missing_spacers))
@@ -803,7 +804,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
 
     s must be precomputed to be sum(w).
     """
-    function sample_linear_integer_weights(rng::MersenneTwister, w::Vector{UInt64}, s::UInt64)
+    function sample_linear_integer_weights(rng::MersenneTwister, w::Vector{UInt32}, s::UInt32)
         i = rand(rng, 1:s)
         cs = 0
         for j = 1:(length(w) - 1)
