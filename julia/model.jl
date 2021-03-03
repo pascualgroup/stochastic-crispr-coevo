@@ -681,6 +681,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
 
         # Perform mutations for mutated particles
         for i = 1:n_with_mut
+            #loops through n_with_mut mutated viruses among the beta: makes and adds new identity and adds abundance
             # Draw which loci are mutated using the previously drawn number of mutations,
             # and create new protospacers
             mut_loci = sample(rng, 1:n_pspacers, n_mut[i]; replace=false, ordered=false)
@@ -770,8 +771,8 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
 
         id = s.vstrains.next_id
         s.vstrains.next_id += 1
-        push!(s.vstrains.ids, id)
-        push!(s.vstrains.abundance, 1)
+        push!(s.vstrains.ids, id) #Adds new strain identity
+        push!(s.vstrains.abundance, 1) #Adds abundance of one to new strain identity
         s.vstrains.total_abundance += 1
         push!(s.vstrains.spacers, new_pspacers)
 

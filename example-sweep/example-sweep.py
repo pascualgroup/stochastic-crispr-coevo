@@ -11,10 +11,10 @@ JULIA_SCRIPT_PATH = os.path.abspath(
 
 RUNS_PATH = os.path.join(SCRIPT_DIR, 'runs')
 
-N_REPLICATES = 35
+N_REPLICATES = 30
 
 PARAMETERS = {
-    "t_final" : 2500.0,
+    "t_final" : 2000.0,
     "t_output" : 1.0,
     
     "n_bstrains" : 1,
@@ -200,7 +200,7 @@ def main():
     run_paths = []
     for n_protospacers in [15]:
         for u_n_spacers_max in [10]:
-            for g_X in [1e5]:
+            for g_X in [0 1 10 100]:
                 for run_path in set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_X):
                     run_paths.append(run_path)
     
