@@ -553,6 +553,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         strain_index = sample_linear_integer_weights(rng, V_vec, V)
 
         # Update abundance and total abundance
+        @assert s.vstrains.abundance[strain_index] > 0
         s.vstrains.abundance[strain_index] -= 1
         s.vstrains.total_abundance -= 1
 
@@ -702,8 +703,8 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         if length(missing_spacers) > 0
             # Create new bacterial strain with modified spacers
             @assert s.bstrains.abundance[iB] > 0
-            s.bstrains.abundance[iB] -= 1
-            s.bstrains.total_abundance -= 1
+            s.bstrains.abundance[iB] -= 1 #This does not need a change of total
+                                            #abundance alongside. We are just rearranging the identities
 
             # Add spacer, dropping the oldest one if we're at capacity
             old_spacers = s.bstrains.spacers[iB]
