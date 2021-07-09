@@ -136,9 +136,9 @@ Vstacked_plot = StackedPlotDF(phage,"vir")
 sim_dir = os.path.relpath(SCRIPT_PATH,   os.path.join(SCRIPT_PATH,'..','..'));
 
 #plt.figure(figsize=(10, 10), dpi= 80)
-stacked_plot.plot.area(stacked=True, legend=False, linewidth=0);
+stacked_plot.plot.area(x="t",stacked=True, legend=False, linewidth=0);
 #plt.show()
-plt.title('Bacterial Abundances: ' + sim_dir )
+plt.title('Microbial Abundances: ' + sim_dir )
 plt.xlabel('Time t')
 plt.ylabel('Abundances N_i')
 plt.tight_layout()
@@ -147,7 +147,7 @@ plt.close()
 
 
 #plt.figure(figsize=(10, 10), dpi= 80)
-Vstacked_plot.plot.area(stacked=True, legend=False, linewidth=0);
+Vstacked_plot.plot.area(x="t",stacked=True, legend=False, linewidth=0);
 #plt.show()
 plt.title('Viral Abundances: ' + sim_dir )
 plt.xlabel('Time t')
