@@ -486,6 +486,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         strain_index = sample_linear_integer_weights(rng, N_vec, N)
 
         # Update abundance and total abundance
+        @assert s.bstrains.abundance[strain_index] > 0
         s.bstrains.abundance[strain_index] -= 1
         s.bstrains.total_abundance -= 1
 
@@ -495,9 +496,6 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
             remove_strain!(s.bstrains, strain_index)
         end
 
-        if s.bstrains.abundance[1] < 0
-            s.bstrains.abundance[1] = 0
-        end
     end
 
     ### BACTERIAL IMMIGRATION EVENT ###
