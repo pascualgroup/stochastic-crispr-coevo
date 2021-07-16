@@ -14,7 +14,7 @@ RUNS_PATH = os.path.join(SCRIPT_DIR, 'runs')
 N_REPLICATES = 30
 
 PARAMETERS = {
-    "t_final" : 2000.0,
+    "t_final" : 6000.0,
     "t_output" : 1.0,
     
     "n_bstrains" : 1,
@@ -94,7 +94,6 @@ def StackedPlotDF(data,tp):
         ID = "vstrain_id"
     
     
-    #strains = data['bstrain_id'].unique()
     strains = data[ID].unique()
     tl = len(data["t"].unique())
     
@@ -104,7 +103,6 @@ def StackedPlotDF(data,tp):
 
         Abs = np.zeros(tl)
         
-        #tmp = data[data["bstrain_id"]==s]
         tmp = data[data[ID]==s]
         
         for i in tmp["t"].values:
@@ -142,7 +140,7 @@ plt.title('Microbial Abundances: ' + sim_dir )
 plt.xlabel('Time t')
 plt.ylabel('Abundances N_i')
 plt.tight_layout()
-plt.savefig(os.path.join(SCRIPT_PATH,'..','..','..','plots',sim_dir,'Bacteria-Abundance_stacked_plot.png'),dpi=500)
+plt.savefig(os.path.join(SCRIPT_PATH,'..','..','..','plots',sim_dir,'Microbe-Abundance_stacked_plot.png'),dpi=500)
 plt.close()
 
 
@@ -200,7 +198,7 @@ def main():
     run_paths = []
     for n_protospacers in [15]:
         for u_n_spacers_max in [10]:
-            for g_X in [0 1 10 100]:
+            for g_X in [0, 1, 10, 100]:
                 for run_path in set_up_replicates(seed_rng, n_protospacers, u_n_spacers_max, g_X):
                     run_paths.append(run_path)
     
