@@ -110,14 +110,10 @@ mutable struct Strains
 
     spacers::Vector{Vector{UInt64}}
 
-    strain_file::IOStream
-    spacers_file::IOStream
-    abundance_file::IOStream
+    #strain_file::IOStream
+    #spacers_file::IOStream
+    #abundance_file::IOStream
 end
-
-
-
-
 
 
 
@@ -128,10 +124,10 @@ function make_bstrains(n_strains, n_hosts_per_strain)
         1:n_strains,
         repeat([n_hosts_per_strain], n_strains),
         n_strains * n_hosts_per_strain,
-        repeat([[]], n_strains),
-        open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
-        open_csv("bspacers", "bstrain_id", "spacer_id"),
-        open_csv("babundance", "t", "bstrain_id", "abundance")
+        repeat([[]], n_strains)#,
+        #open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
+        #open_csv("bspacers", "bstrain_id", "spacer_id"),
+        #open_csv("babundance", "t", "bstrain_id", "abundance")
     )
 end
 
@@ -156,10 +152,10 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         ids,
         abundance,
         total_abundance,
-        pspacers,
-        open_csv("vstrains", "t_creation", "vstrain_id", "parent_vstrain_id", "infected_bstrain_id"),
-        open_csv("vpspacers", "vstrain_id", "spacer_id"),
-        open_csv("vabundance", "t", "vstrain_id", "abundance")
+        pspacers#,
+        #open_csv("vstrains", "t_creation", "vstrain_id", "parent_vstrain_id", "infected_bstrain_id"),
+        #open_csv("vpspacers", "vstrain_id", "spacer_id"),
+        #open_csv("vabundance", "t", "vstrain_id", "abundance")
     )
 end
 
@@ -221,8 +217,8 @@ mutable struct Simulation
     event_rates::Vector{Float64}
     event_counts::Vector{UInt64}
 
-    meta_file::IOStream
-    summary_file::IOStream
+    #meta_file::IOStream
+    #summary_file::IOStream
 
     function Simulation(p::Parameters)
         meta_file = open_csv("meta", "key", "value")
@@ -230,14 +226,14 @@ mutable struct Simulation
         # Use random seed if provided, or generate one
         rng_seed = p.rng_seed === nothing ? UInt64(rand(RandomDevice(), UInt32)) : p.rng_seed
         p.rng_seed = rng_seed
-        write_csv(meta_file, "rng_seed", rng_seed)
+        #write_csv(meta_file, "rng_seed", rng_seed)
 
         # Save parameters as loaded
-        write_json_to_file(p, "parameters_out.json")
+        #write_json_to_file(p, "parameters_out.json")
 
         # Record start time
         start_time = now()
-        write_csv(meta_file, "start_time", start_time)
+        #write_csv(meta_file, "start_time", start_time)
 
         # Initialize & validate model state
         state = State(p)
@@ -245,9 +241,9 @@ mutable struct Simulation
 
         sim = new(
             p, 0.0, state, MersenneTwister(rng_seed),
-            zeros(length(EVENTS)), zeros(length(EVENTS)),
-            meta_file,
-            open_csv("summary", "t", "bacterial_abundance", "viral_abundance")
+            zeros(length(EVENTS)), zeros(length(EVENTS))#,
+            #meta_file,
+            #open_csv("summary", "t", "bacterial_abundance", "viral_abundance")
         )
         update_rates!(sim)
         sim
