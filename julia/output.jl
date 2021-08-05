@@ -1,3 +1,108 @@
+### OUTPUT FUNCTIONS ###
+
+function write_json_to_file(x, filename)
+    if ispath(filename)
+        error("$filename already exists. You should delete output, or run in a different directory.")
+    else
+        file = open(filename, "w")
+        print(file, JSON2.write(x))
+        file
+    end
+end
+
+function open_csv(prefix, header...)
+    filename = "$prefix.csv"
+    if ispath(filename)
+        error("$filename already exists. You should delete output, or run in a different directory.")
+    else
+        file = open(filename, "w")
+        write_csv(file, header...)
+        file
+    end
+end
+
+function write_csv(file, row...)
+    for i = 1:lastindex(row)
+        print(file, row[i])
+        if i < lastindex(row)
+            print(file, ",")
+        end
+    end
+    print(file, "\n")
+end
+
+function write_periodic_output(sim) # this only writes the summary
+    #and the abundances of the different strains
+    s = sim.state
+
+    write_summary(sim.summary_file, sim.t, s)
+
+    write_abundances(
+        s.bstrains.abundance_file, sim.t, s.bstrains.ids, s.bstrains.abundance
+    )
+    write_abundances(
+        s.vstrains.abundance_file, sim.t, s.vstrains.ids, s.vstrains.abundance
+    )
+
+    flush(s.bstrains.strain_file)
+    flush(s.bstrains.spacers_file)
+    flush(s.vstrains.strain_file)
+    flush(s.vstrains.spacers_file)
+end
+
+function write_summary(file, t, state)
+    write_csv(file, t, state.bstrains.total_abundance, state.vstrains.total_abundance)
+    flush(file)
+end
+
+function write_strains(strain_file, spacers_file, t_creation, ids, spacers)
+    @debug "write_strains" ids
+    for i = 1:lastindex(ids)
+        write_strain(strain_file, t_creation, ids[i], 0, 0)
+        write_spacers(spacers_file, ids[i], spacers[i])
+    end
+    flush(strain_file)
+    flush(spacers_file)
+end
+
+function write_strain(file, t_creation, id, parent_id, other_id) #only initialization of simulation
+    # and events such as "acquire spacer" and "mutate virus" use this write new strains.
+    #write_periodic_output is used to update abundances thereafter.
+    # THIS FUNCTION ONLY INSERTS a new strain into the file
+    write_csv(file, t_creation, id, parent_id, other_id)
+end
+
+function write_spacers(file, id, spacers)
+    @debug "write_spacers" id spacers
+    for spacer_id = spacers
+        write_csv(file, id, spacer_id)
+    end
+end
+
+function write_abundances(file, t, ids, abundance)
+    @debug "write_abundances" t ids abundance
+    @debug "lastindex(ids)" lastindex(ids)
+    for i = 1:lastindex(ids)
+        @debug "lastindex(ids)" lastindex(ids)
+        write_csv(file, t, ids[i], abundance[i])
+    end
+    flush(file)
+end
+
+
+
+
+
+
+## Output Functions from var model ##
+
+
+
+
+
+
+
+
 """
 This file defines types and functions for database output.
 Currently, it is shared across model variants, but in the future may need to be
