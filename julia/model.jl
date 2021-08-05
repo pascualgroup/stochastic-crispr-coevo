@@ -31,14 +31,14 @@ BACTERIAL_IMMIGRATION
             @info "initial output"
             write_periodic_output(sim) # isolates and writes summary_file
                 #from simulation object and state/strain objects that comprises simulation object
-            write_strains(
+            ############ write_strains(
             state.bstrains.strain_file,
             state.bstrains.spacers_file,
             sim.t,
             state.bstrains.ids,
             state.bstrains.spacers
             )
-            write_strains(
+            ############ write_strains(
             state.vstrains.strain_file,
             state.vstrains.spacers_file,
             sim.t,
@@ -81,12 +81,21 @@ BACTERIAL_IMMIGRATION
 
         # Record end time and elapsed
         end_time = now()
-        write_csv(sim.meta_file, "end_time", end_time)
+        ############ write_csv(sim.meta_file, "end_time", end_time)
         #elapsed_seconds = Dates.value(end_time - start_time) / 1000.0
         #write_csv(sim.meta_file, "elapsed_seconds", elapsed_seconds)
 
-        close(sim.meta_file)
+        ############ close(sim.meta_file)
     end
+
+
+
+
+
+
+
+
+    ## EVENT FUNCTIONS ##
 
     function do_next_event!(sim::Simulation, t_max::Float64) ## THIS IS WHERE YOU WOULD MAKE EVENTS LIST
         p = sim.params
@@ -493,8 +502,8 @@ BACTERIAL_IMMIGRATION
                 push!(s.bstrains.spacers, new_spacers)
 
                 if p.enable_output
-                    write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
-                    write_spacers(s.bstrains.spacers_file, id, new_spacers)
+                    ############ write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
+                    ############ write_spacers(s.bstrains.spacers_file, id, new_spacers)
                 end
             else
                 @debug "using old bacterial strain" mutated_strain_index
@@ -536,7 +545,7 @@ BACTERIAL_IMMIGRATION
         push!(s.vstrains.spacers, new_pspacers)
 
         if p.enable_output
-            write_strain(s.vstrains.strain_file, sim.t, id, s.vstrains.ids[virus_id], contact_b_id)
-            write_spacers(s.vstrains.spacers_file, id, new_pspacers)
+            ############ write_strain(s.vstrains.strain_file, sim.t, id, s.vstrains.ids[virus_id], contact_b_id)
+            ############ write_spacers(s.vstrains.spacers_file, id, new_pspacers)
         end
     end
