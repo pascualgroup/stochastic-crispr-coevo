@@ -5,124 +5,6 @@ using DelimitedFiles
 using Dates
 using JSON2
 
-### PARAMETERS ###
-
-mutable struct Parameters
-    "Simulation end time"
-    t_final::Union{Float64, Nothing}
-
-    "Time between output events"
-    t_output::Union{Float64, Nothing}
-
-    "Seed for random number generator"
-    rng_seed::Union{UInt64, Nothing}
-
-    "Enable output?"
-    enable_output::Union{Bool, Nothing}
-
-    function RunParameters()
-        p = new()
-        p.rng_seed = nothing
-        p.enable_output = true
-        p
-    end
-    "Number of initial bacterial strains"
-    n_bstrains::Union{UInt32, Nothing}
-
-    "Number of initial hosts per bacterial strain"
-    n_hosts_per_bstrain::Union{UInt32, Nothing}
-
-    # "Number of initial spacers per bacterial strain"
-    # n_spacers::UInt64
-
-    "Number of initial virus strains"
-    n_vstrains::Union{UInt32, Nothing}
-
-    "Number of initial particles per bacterial strain"
-    n_particles_per_vstrain::Union{UInt32, Nothing}
-
-    "Number of initial protospacers per virus strain"
-    n_protospacers::Union{UInt32, Nothing}
-
-    InitializationParameters() = new()
-
-    "Maximum number of spacers in a bacterial strain"
-    u_n_spacers_max::Union{UInt32, Nothing}
-
-    "CRIPSR failure probability"
-    p_crispr_failure_prob::Union{Float64, Nothing}
-
-    "New spacer acquisition probability"
-    q_spacer_acquisition_prob::Union{Float64, Nothing}
-
-    "Growth rate at 0 (1/h)"
-    r_growth_rate::Union{Float64, Nothing}
-
-    "Carrying capacity (1/mL)"
-    K_carrying_capacity::Union{Float64, Nothing}
-
-    "Burst size"
-    beta_burst_size::Union{UInt32, Nothing}
-
-    "Adsorption rate"
-    phi_adsorption_rate::Union{Float64, Nothing}
-
-    "Viral decay rate"
-    m_viral_decay_rate::Union{Float64, Nothing}
-
-    "Mutation rate"
-    mu_viral_mutation_rate::Union{Float64, Nothing}
-
-    "Density cutoff: used to scale volume of system, and therefore discrete population sizes"
-    rho_c_density_cutoff::Union{Float64, Nothing}
-
-    "Constant death rate (not in Childs model)"
-    d_death_rate::Union{Float64, Nothing}
-
-    "Constant immigration rate (not in Childs model)"
-    g_immigration_rate::Union{Float64, Nothing}
-
-    function Parameters()
-        p = new()
-        p.rng_seed = nothing
-        p.enable_output = true
-        p
-    end
-end
-JSON2.@format Parameters noargs
-
-function validate(p::Parameters)
-    @assert p.t_final !== nothing
-    @assert p.t_output !== nothing
-
-    @assert p.n_bstrains !== nothing
-    @assert p.n_hosts_per_bstrain !== nothing
-    @assert p.n_vstrains !== nothing
-    @assert p.n_particles_per_vstrain !== nothing
-    @assert p.n_protospacers !== nothing
-
-    @assert p.u_n_spacers_max !== nothing
-    @assert p.p_crispr_failure_prob !== nothing
-    @assert p.q_spacer_acquisition_prob !== nothing
-    @assert p.r_growth_rate !== nothing
-    @assert p.K_carrying_capacity !== nothing
-    @assert p.beta_burst_size !== nothing
-    @assert p.phi_adsorption_rate !== nothing
-    @assert p.m_viral_decay_rate !== nothing
-    @assert p.mu_viral_mutation_rate !== nothing
-    @assert p.rho_c_density_cutoff !== nothing
-    @assert p.d_death_rate !== nothing
-    @assert p.g_immigration_rate !== nothing
-end
-
-function load_parameters_from_json(filename) :: Parameters
-    str = open(f -> read(f, String), filename)
-    params = JSON2.read(str, Parameters)
-    validate(params)
-    params
-end
-
-
 ### EVENT CONSTANTS ###
 
 const N_EVENTS = 5
@@ -137,139 +19,8 @@ BACTERIAL_IMMIGRATION
 ) = EVENTS
 
 
-### SIMULATION STATE ###
 
-mutable struct Strains
-    next_id::UInt32
-    ids::Vector{UInt32}
-
-    abundance::Vector{UInt32} ##### CHANGE TO 64 BIT IF NEED BE! BUT REMEMBER TO CHANGE
-    total_abundance::UInt32     #### FXNs BELOW ACCORDINGLY
-
-    spacers::Vector{Vector{UInt32}}
-
-    strain_file::IOStream
-    spacers_file::IOStream
-    abundance_file::IOStream
-end
-
-function make_bstrains(n_strains, n_hosts_per_strain)
-    Strains(
-    n_strains + 1,
-    1:n_strains,
-    repeat([n_hosts_per_strain], n_strains),
-    n_strains * n_hosts_per_strain,
-    repeat([[]], n_strains),
-    open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
-    open_csv("bspacers", "bstrain_id", "spacer_id"),
-    open_csv("babundance", "t", "bstrain_id", "abundance")
-    )
-end
-
-function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
-    next_id = n_strains + 1
-    ids = Vector(1:n_strains)
-    abundance = repeat([n_particles_per_strain], n_strains)
-    total_abundance = n_strains * n_particles_per_strain
-    pspacers = [
-    Vector(1:n_pspacers_init) .+ repeat([n_pspacers_init * (i - 1)], n_pspacers_init)
-    for i = 1:n_strains
-        ]
-
-        Strains(
-        next_id,
-        ids,
-        abundance,
-        total_abundance,
-        pspacers,
-        open_csv("vstrains", "t_creation", "vstrain_id", "parent_vstrain_id", "infected_bstrain_id"),
-        open_csv("vpspacers", "vstrain_id", "spacer_id"),
-        open_csv("vabundance", "t", "vstrain_id", "abundance")
-        )
-    end
-
-    function remove_strain!(strains, index)
-        # This is only used when a strain has gone extinct
-        @assert strains.abundance[index] == 0
-
-        @debug "Removing strain" id=strains.ids[index] index=index
-
-        swap_with_end_and_remove!(strains.ids, index)
-        swap_with_end_and_remove!(strains.abundance, index)
-        swap_with_end_and_remove!(strains.spacers, index)
-    end
-
-    mutable struct State
-        bstrains::Strains
-        vstrains::Strains
-        next_pspacer_id::UInt32
-
-        function State(n_bstrains, n_hosts_per_bstrain, # n_spacers_init,
-            n_vstrains, n_particles_per_vstrain, n_pspacers_init
-            )
-
-            next_pspacer_id = 1 + n_vstrains * n_pspacers_init
-
-            new(
-            make_bstrains(n_bstrains, n_hosts_per_bstrain),
-            make_vstrains(n_vstrains, n_particles_per_vstrain, n_pspacers_init),
-            next_pspacer_id
-            )
-        end
-    end
-
-    function State(p::Parameters)
-        State(
-        p.n_bstrains, p.n_hosts_per_bstrain,
-        p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers
-        )
-    end
-
-    mutable struct Simulation
-        params::Parameters
-        t::Float64
-        state::State
-        rng::MersenneTwister
-
-        event_rates::Vector{Float64}
-        event_counts::Vector{UInt64}
-
-        meta_file::IOStream
-        summary_file::IOStream
-
-        function Simulation(p::Parameters)
-            meta_file = open_csv("meta", "key", "value")
-
-            # Use random seed if provided, or generate one
-            rng_seed = p.rng_seed === nothing ? UInt64(rand(RandomDevice(), UInt32)) : p.rng_seed
-            p.rng_seed = rng_seed
-            write_csv(meta_file, "rng_seed", rng_seed)
-
-            # Save parameters as loaded
-            write_json_to_file(p, "parameters_out.json")
-
-            # Record start time
-            start_time = now()
-            write_csv(meta_file, "start_time", start_time)
-
-            # Initialize & validate model state
-            state = State(p)
-            validate(state)
-
-            sim = new(
-            p, 0.0, state, MersenneTwister(rng_seed),
-            zeros(length(EVENTS)), zeros(length(EVENTS)),
-            meta_file,
-            open_csv("summary", "t", "bacterial_abundance", "viral_abundance")
-            )
-            update_rates!(sim)
-            sim
-        end
-    end
-
-
-
-    ### SIMULATION LOOP ###
+############### SIMULATION LOOP ################
 
     function simulate(sim::Simulation)
         state = sim.state
@@ -278,7 +29,8 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         # Initial output
         if p.enable_output
             @info "initial output"
-            write_periodic_output(sim)
+            write_periodic_output(sim) # isolates and writes summary_file
+                #from simulation object and state/strain objects that comprises simulation object
             write_strains(
             state.bstrains.strain_file,
             state.bstrains.spacers_file,
@@ -304,12 +56,12 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
 
             @info "Beginning period: $(sim.t) to $(t_next_output)"
 
-            while sim.t < t_next_output
+            while sim.t < t_next_output # This continues until sum of event times meet sampling time
                 # Perform the next event.
                 # If the next event time is computed to be
                 # greater than t_next_output, no event will occur
                 # and time will simply advance exactly to t_next_output.
-                do_next_event!(sim, t_next_output)
+                do_next_event!(sim, t_next_output) # NO FILES ARE WRITTEN IN THIS FUNCTION
             end
 
             @debug "event counts:" total=n_events, breakdown=sim.event_counts
@@ -319,7 +71,9 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
             # Write periodic output
             @debug "p.enable_output" p.enable_output
             if p.enable_output
-                write_periodic_output(sim)  ###THIS WRITES ABUNDANCES AT T_NEXT AS DETERMINED IN DO_NEXT_EVENT
+                write_periodic_output(sim)  # isolates and writes summary_file
+                    #from simulation object and state/strain objects that comprises simulation object
+                    #LOOK AT COMMENT IN IF STATEMENT OF "DO_NEXT_EVENT"
             end
 
             @assert sim.t == t_next_output
@@ -345,7 +99,13 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
         t_next = sim.t + randexp(sim.rng) / R
 
         if t_next > t_max
-            sim.t = t_max
+            sim.t = t_max #THIS SHOULD ADVANCE TO T_NEXT.
+            #ADVANCE TO T_MAX (i.e. sim.t = t_next) WHILE KEEPING STATE THE SAME, THEN WRITE STATE
+                #ONE THING TO note is that the data is written outside of this function,
+                        #namely in the simulate function as "write_periodic_output". perhaps data
+                        #for should be written in this if statement
+            #THEN ADVANCE TO T_MAX (i.e. sim.t = t_max) AND UPDATE RATES BUT DON'T WRITE STATE.
+                #UPDATE RATES LIKE BELOW
         else
             @debug "event_rates:" sim.event_rates
 
@@ -358,7 +118,7 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
             update_rates!(sim)
             @debug "end do_event()"
 
-            sim.t = t_next          ###THIS IS WHERE THE SAMPLING TIME IS "DETERMINED". WILL ALWAYS BE LESS THAN BUT CLOSE TO T_MAX (I.E. p.t_ouput)
+            sim.t = t_next          # Time advances
 
             @debug "bstrains.total_abundance:" sim.state.bstrains.total_abundance
             @debug "VStrains.total_abundance:" sim.state.vstrains.total_abundance
@@ -779,141 +539,4 @@ function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
             write_strain(s.vstrains.strain_file, sim.t, id, s.vstrains.ids[virus_id], contact_b_id)
             write_spacers(s.vstrains.spacers_file, id, new_pspacers)
         end
-    end
-
-
-    ### VALIDATION TO ENSURE CODE CORRECTNESS IN THE FACE OF OPTIMIZATIONS ###
-
-    function validate(s::State)
-        validate(s.bstrains)
-        validate(s.vstrains)
-    end
-
-    function validate(strains::Strains)
-        @assert strains.total_abundance == sum(strains.abundance)
-        @assert strains.next_id > maximum(strains.ids)
-        @assert length(strains.abundance) == length(strains.ids)
-        @assert length(strains.spacers) == length(strains.ids)
-    end
-
-
-    ### RNG UTILITY FUNCTIONS ##
-
-    """
-    Returns an index from 1:length(w) with probability proportional to w.
-
-    s must be precomputed to be sum(w).
-    """
-    function sample_linear_integer_weights(rng::MersenneTwister, w::Vector{UInt32}, s::UInt32)
-        i = rand(rng, 1:s)
-        cs = 0
-        for j = 1:(length(w) - 1)
-            cs += w[j]
-            if i <= cs
-                return j
-            end
-        end
-        length(w)
-    end
-
-    """
-    Removes an item in the middle of an array that does not need to be kept ordered in constant time.
-
-    The item is replaced with the item at the end of the array, and then the item at the end of the
-    array is removed.
-    """
-    function swap_with_end_and_remove!(a, index)
-        if index != lastindex(a)
-            setindex!(a, a[lastindex(a)], index)
-        end
-        pop!(a)
-        nothing
-    end
-
-
-    ### OUTPUT FUNCTIONS ###
-
-    function write_json_to_file(x, filename)
-        if ispath(filename)
-            error("$filename already exists. You should delete output, or run in a different directory.")
-        else
-            file = open(filename, "w")
-            print(file, JSON2.write(x))
-            file
-        end
-    end
-
-    function open_csv(prefix, header...)
-        filename = "$prefix.csv"
-        if ispath(filename)
-            error("$filename already exists. You should delete output, or run in a different directory.")
-        else
-            file = open(filename, "w")
-            write_csv(file, header...)
-            file
-        end
-    end
-
-    function write_csv(file, row...)
-        for i = 1:lastindex(row)
-            print(file, row[i])
-            if i < lastindex(row)
-                print(file, ",")
-            end
-        end
-        print(file, "\n")
-    end
-
-    function write_periodic_output(sim)
-        s = sim.state
-
-        write_summary(sim.summary_file, sim.t, s)
-
-        write_abundances(
-        s.bstrains.abundance_file, sim.t, s.bstrains.ids, s.bstrains.abundance
-        )
-        write_abundances(
-        s.vstrains.abundance_file, sim.t, s.vstrains.ids, s.vstrains.abundance
-        )
-
-        flush(s.bstrains.strain_file)
-        flush(s.bstrains.spacers_file)
-        flush(s.vstrains.strain_file)
-        flush(s.vstrains.spacers_file)
-    end
-
-    function write_summary(file, t, state)
-        write_csv(file, t, state.bstrains.total_abundance, state.vstrains.total_abundance)
-        flush(file)
-    end
-
-    function write_strains(strain_file, spacers_file, t_creation, ids, spacers)
-        @debug "write_strains" ids
-        for i = 1:lastindex(ids)
-            write_strain(strain_file, t_creation, ids[i], 0, 0)
-            write_spacers(spacers_file, ids[i], spacers[i])
-        end
-        flush(strain_file)
-        flush(spacers_file)
-    end
-
-    function write_strain(file, t_creation, id, parent_id, other_id)
-        write_csv(file, t_creation, id, parent_id, other_id)
-    end
-
-    function write_spacers(file, id, spacers)
-        @debug "write_spacers" id spacers
-        for spacer_id = spacers
-            write_csv(file, id, spacer_id)
-        end
-    end
-
-    function write_abundances(file, t, ids, abundance)
-        @debug "write_abundances" t ids abundance
-        @debug "lastindex(ids)" lastindex(ids)
-        for i = 1:lastindex(ids)
-            @debug "lastindex(ids)" lastindex(ids)
-            write_csv(file, t, ids[i], abundance[i])
-        end
-        flush(file)
     end
