@@ -25,6 +25,7 @@ BACTERIAL_IMMIGRATION
     function simulate(sim::Simulation)
         state = sim.state
         p = sim.params
+        db = sim.db
 
         # Initial output
         if p.enable_output
@@ -32,23 +33,27 @@ BACTERIAL_IMMIGRATION
             write_periodic_output(sim) # isolates and writes summary_file
                 #from simulation object and state/strain objects that comprises simulation object
             ############ write_strains(
-            state.bstrains.strain_file,
-            state.bstrains.spacers_file,
-            sim.t,
-            state.bstrains.ids,
-            state.bstrains.spacers
-            )
+            ############ state.bstrains.strain_file,
+            ############ state.bstrains.spacers_file,
+            ############ sim.t,
+            ############ state.bstrains.ids,
+            ############ state.bstrains.spacers
+            ############ )
             ############ write_strains(
-            state.vstrains.strain_file,
-            state.vstrains.spacers_file,
-            sim.t,
-            state.vstrains.ids,
-            state.vstrains.spacers
-            )
+            ############ state.vstrains.strain_file,
+            ############ state.vstrains.spacers_file,
+            ############ sim.t,
+            ############ state.vstrains.ids,
+            ############ state.vstrains.spacers
+            ############ )
+
+            write_strains(sim, "bstrains", "bspacers", state.bstrains.ids, state.bstrains.spacers)
+            write_strains(sim, "vstrains", "vpspacers", state.vstrains.ids, state.vstrains.spacers)
         end
 
         # Simulation loop
         t_next_output = 0.0
+        execute(db, "BEGIN TRANSACTION")
 
         while sim.t < p.t_final
             # Simulate exactly until the next output time
@@ -74,6 +79,10 @@ BACTERIAL_IMMIGRATION
                 write_periodic_output(sim)  # isolates and writes summary_file
                     #from simulation object and state/strain objects that comprises simulation object
                     #LOOK AT COMMENT IN IF STATEMENT OF "DO_NEXT_EVENT"
+
+                execute(db, "COMMIT")
+                execute(db, "BEGIN TRANSACTION")
+
             end
 
             @assert sim.t == t_next_output
@@ -82,8 +91,23 @@ BACTERIAL_IMMIGRATION
         # Record end time and elapsed
         end_time = now()
         ############ write_csv(sim.meta_file, "end_time", end_time)
-        #elapsed_seconds = Dates.value(end_time - start_time) / 1000.0
-        #write_csv(sim.meta_file, "elapsed_seconds", elapsed_seconds)
+
+
+        elapsed_seconds = Dates.value(end_time - start_time) / 1000.0
+
+        execute(db,
+        "INSERT INTO meta VALUES (?,?)",
+        ["end_time", Dates.format(end_time, "yyyy-mm-ddTHH:MM:SS")]
+        )
+
+        execute(db,
+        "INSERT INTO meta VALUES (?,?)",
+        ["end_time", elapsed_seconds]
+        )
+
+        execute(db, "COMMIT")
+
+        #############write_csv(sim.meta_file, "elapsed_seconds", elapsed_seconds)
 
         ############ close(sim.meta_file)
     end
@@ -504,6 +528,8 @@ BACTERIAL_IMMIGRATION
                 if p.enable_output
                     ############ write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
                     ############ write_spacers(s.bstrains.spacers_file, id, new_spacers)
+                    write_strain(sim, "bstrains", id, s.bstrains.ids[iB], s.vstrains.ids[jV])
+                    write_spacers(sim, "bspacers", id, new_spacers)
                 end
             else
                 @debug "using old bacterial strain" mutated_strain_index
@@ -517,7 +543,6 @@ BACTERIAL_IMMIGRATION
     end
 
 
-    ### VIRAL MUTATION FUNCTION (was shared by coupled/uncoupled mutation code) ###
 
     function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
         p = sim.params
@@ -547,5 +572,7 @@ BACTERIAL_IMMIGRATION
         if p.enable_output
             ############ write_strain(s.vstrains.strain_file, sim.t, id, s.vstrains.ids[virus_id], contact_b_id)
             ############ write_spacers(s.vstrains.spacers_file, id, new_pspacers)
+            write_strain(sim, "vstrains", id, s.vstrains.ids[virus_id], contact_b_id)
+            write_spacers(sim, "vpspacers", id, new_pspacers)
         end
     end

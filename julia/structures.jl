@@ -217,23 +217,38 @@ mutable struct Simulation
     event_rates::Vector{Float64}
     event_counts::Vector{UInt64}
 
+    db::DB
+
     #meta_file::IOStream
     #summary_file::IOStream
 
     function Simulation(p::Parameters)
-        meta_file = open_csv("meta", "key", "value")
+        #meta_file = open_csv("meta", "key", "value")
+
+        db = initialize_databse()
 
         # Use random seed if provided, or generate one
         rng_seed = p.rng_seed === nothing ? UInt64(rand(RandomDevice(), UInt32)) : p.rng_seed
         p.rng_seed = rng_seed
+
         #write_csv(meta_file, "rng_seed", rng_seed)
 
+        execute(db,
+            "INSERT INTO meta VALUES (?,?)", ["rng_seed", Int64(rng_seed)]
+        )
+
         # Save parameters as loaded
-        #write_json_to_file(p, "parameters_out.json")
+        ########### write_json_to_file(p, "parameters_out.json")
 
         # Record start time
         start_time = now()
+
         #write_csv(meta_file, "start_time", start_time)
+
+        execute(db,
+            "INSERT INTO meta VALUES (?,?)",
+            ["start_time", Dates.format(start_time, "yyyy-mm-ddTHH:MM:SS")]
+        )
 
         # Initialize & validate model state
         state = State(p)
@@ -241,9 +256,10 @@ mutable struct Simulation
 
         sim = new(
             p, 0.0, state, MersenneTwister(rng_seed),
-            zeros(length(EVENTS)), zeros(length(EVENTS))#,
+            zeros(length(EVENTS)), zeros(length(EVENTS)),
             #meta_file,
             #open_csv("summary", "t", "bacterial_abundance", "viral_abundance")
+            db
         )
         update_rates!(sim)
         sim
