@@ -1,9 +1,12 @@
 using Random
 using Distributions
 using StatsBase
-using DelimitedFiles
+#using DelimitedFiles
 using Dates
 using JSON2
+
+using SQLite: DB, Stmt, bind!
+using SQLite.DBInterface: execute
 
 ### PARAMETERS ###
 
@@ -225,7 +228,7 @@ mutable struct Simulation
     function Simulation(p::Parameters)
         #meta_file = open_csv("meta", "key", "value")
 
-        db = initialize_databse()
+        db = initialize_database()
 
         # Use random seed if provided, or generate one
         rng_seed = p.rng_seed === nothing ? UInt64(rand(RandomDevice(), UInt32)) : p.rng_seed
@@ -238,7 +241,7 @@ mutable struct Simulation
         )
 
         # Save parameters as loaded
-        ########### write_json_to_file(p, "parameters_out.json")
+        write_json_to_file(p, "parameters_out.json")
 
         # Record start time
         start_time = now()
