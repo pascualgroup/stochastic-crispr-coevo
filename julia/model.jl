@@ -1,9 +1,9 @@
 using Random
 using Distributions
 using StatsBase
-using DelimitedFiles
-using Dates
-using JSON2
+#using DelimitedFiles
+
+
 
 ### EVENT CONSTANTS ###
 
@@ -102,7 +102,7 @@ BACTERIAL_IMMIGRATION
 
         execute(db,
         "INSERT INTO meta VALUES (?,?)",
-        ["end_time", elapsed_seconds]
+        ["elapsed_seconds", elapsed_seconds]
         )
 
         execute(db, "COMMIT")
@@ -538,7 +538,7 @@ BACTERIAL_IMMIGRATION
         end
     end
 
-    function is_immune(spacers::Vector{UInt32}, pspacers::Vector{UInt32})
+    function is_immune(spacers::Vector{UInt64}, pspacers::Vector{UInt64})
         length(intersect(spacers, pspacers)) > 0
     end
 
