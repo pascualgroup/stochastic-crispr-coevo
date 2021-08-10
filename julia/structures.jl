@@ -243,9 +243,6 @@ mutable struct Simulation
         # Save parameters as loaded
         write_json_to_file(p, "parameters_out.json")
 
-        # Record start time
-        start_time = now()
-
         #write_csv(meta_file, "start_time", start_time)
 
         execute(db,
