@@ -1,9 +1,3 @@
-using Dates
-using JSON2
-
-using SQLite: DB, Stmt, bind!
-using SQLite.DBInterface: execute
-
 ### OUTPUT FUNCTIONS ###
 
 function initialize_database()
@@ -101,7 +95,7 @@ end
 
 function write_periodic_output(sim) # this only writes the summary
     #and the abundances of the different strains
-    #s = sim.state
+    s = sim.state
 
     #write_summary(sim.summary_file, sim.t, s)
 
