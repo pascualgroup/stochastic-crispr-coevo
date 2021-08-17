@@ -23,12 +23,14 @@ mutable struct Parameters
     "Enable output?"
     enable_output::Union{Bool, Nothing}
 
-    function RunParameters()
-        p = new()
-        p.rng_seed = nothing
-        p.enable_output = true
-        p
-    end
+    # REMOVE COMMENTED BLOCK BELOW
+    #function RunParameters()
+        #p = new()
+        #p.rng_seed = nothing
+        #p.enable_output = true
+        #p
+    #end
+
     "Number of initial bacterial strains"
     n_bstrains::Union{UInt64, Nothing}
 
@@ -47,7 +49,7 @@ mutable struct Parameters
     "Number of initial protospacers per virus strain"
     n_protospacers::Union{UInt64, Nothing}
 
-    InitializationParameters() = new()
+    #InitializationParameters() = new() # WHAT IS THIS????
 
     "Maximum number of spacers in a bacterial strain"
     u_n_spacers_max::Union{UInt64, Nothing}
@@ -77,18 +79,19 @@ mutable struct Parameters
     mu_viral_mutation_rate::Union{Float64, Nothing}
 
     "Density cutoff: used to scale volume of system, and therefore discrete population sizes"
-    rho_c_density_cutoff::Union{Float64, Nothing}
+    rho_c_density_cutoff::Union{Float64, Nothing} # REMOVE THIS
 
     "Constant death rate (not in Childs model)"
     d_death_rate::Union{Float64, Nothing}
 
     "Constant immigration rate (not in Childs model)"
-    g_immigration_rate::Float64
+    g_immigration_rate::Union{Float64, Nothing}
 
     function Parameters()
         p = new()
-        p.rng_seed = nothing
-        p.enable_output = true
+        p.rng_seed = nothing # when feeding json script, with pre-defined entry,
+        #this function will not successfully change values
+        p.enable_output = true # applies to this as well...
         p
     end
 end
