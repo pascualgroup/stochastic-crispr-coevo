@@ -20,8 +20,28 @@ include("output.jl")
 include("util.jl")
 include("model.jl")
 
+
+
 # Record start time
 start_time = now()
+
+
+const P = let
+    params_filename = if length(ARGS) == 0
+        "parameters.json"
+    elseif length(ARGS) == 1
+        ARGS[1]
+    else
+        error("Usage: <path-to>/run.jl [parameters.json]")
+    end
+
+    json_str = read(params_filename, String)
+
+    d_str = JSON.parse(json_str)
+    d_symb = Dict((Symbol(k), v) for (k, v) in d_str)
+    Params(; d_symb...)
+end
+
 
 # Run simulation
 function main()
