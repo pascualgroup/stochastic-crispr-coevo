@@ -73,7 +73,8 @@ function main()
     if ispath("sweep_db.sqlite")
         error("`sweep_db.sqlite` already exists; please move or delete")
     end
-    db = SQLite.DB(joinpath("sweep_db.sqlite"))
+    db = SQLite.DB(joinpath("sweep_db.sqlite")) # the function of this database
+    # is to log run and job ids of individual simulation directory names
     execute(db, "CREATE TABLE meta (key, value)")
     execute(db, "CREATE TABLE param_combos (combo_id INTEGER, mutation_rate REAL, transmissibility REAL)")
     execute(db, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER, rng_seed INTEGER, run_dir TEXT, params TEXT)")
@@ -84,7 +85,10 @@ function main()
     generate_jobs(db)
 end
 
-function generate_runs(db)
+function generate_runs(db) # This function generates the directories
+    # for the individual parameter sets and corresponding replicates. It also
+    # generates shell scripts for each run and corresponding parameter file.
+
     # System random device used to generate seeds
     seed_rng = RandomDevice()
 
@@ -110,7 +114,8 @@ function generate_runs(db)
                     rng_seed = rng_seed,
                     mutation_rate = mutation_rate,
                     transmissibility = transmissibility
-                )
+                ) # <-- via JSON"1". this params function either needs to be adapted for CRISPR code,
+                # or I need to adapt CRISPR code to adapt to functuon
 
                 run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
                 @assert !ispath(run_dir)
@@ -122,6 +127,11 @@ function generate_runs(db)
                     println(f, params_json)
                 end
 
+
+                # I think this needs a "joinpath" code block for model.jl,
+                # structures.jl, output.jl, util.jl, model.jl??????? ##########
+
+
                 # Generate shell script to perform a single run
                 run_script = joinpath(run_dir, "run.sh")
                 open(run_script, "w") do f
@@ -129,9 +139,16 @@ function generate_runs(db)
                     #!/bin/sh
                     cd `dirname \$0`
                     julia --check-bounds=no -O3 $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
-                    """)
+                    """)# what does \$0 mean???? # ROOT_RUN_SCRIPT = run.jl which is analogous to main.jl
+                    # Double check what runs.jl looks like. Don't forget to put "include()" scripts into a "preamble.jl"
+                    # what is --check-bounds=no -03???
+                    # this creates a shell script for each simulation... this is not an sbatch
+                    #EACH OF THESE IN AN INDIVIDUAL DIRECTORY IS SAVED LINE-BY-LINE in RUNS.TXTTTT.
+                    # what does &> mean???
+                    #check julia --check-bounds=no -O3 $(ROOT_RUN_SCRIPT) parameters.json &> output.txt on desktop
                 end
                 run(`chmod +x $(run_script)`) # Make run script executable
+                # WHY NOT 777 but rather +x? TEST THIS ON MIDWAY
 
                 # Save all run info (including redundant stuff for reference) into DB
                 execute(db, "INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)", (run_id, combo_id, replicate, rng_seed, run_dir, params_json))
@@ -163,7 +180,8 @@ function generate_jobs(db)
     """)
     for (job_id,) in execute(db, "SELECT DISTINCT job_id FROM job_runs ORDER BY job_id")
         job_dir = joinpath("jobs", "$(job_id)")
-        mkpath(job_dir)
+        mkpath(job_dir) # this is the directory of a "job". Here a inside a job id folder there is
+        # a corresponding runs.txt file that is opened with runmany.jl in order to parallelize individual runs
 
         # Get all run directories for this job
         run_dirs = [run_dir for (run_dir,) in execute(db,
@@ -200,9 +218,10 @@ function generate_jobs(db)
             #SBATCH --output=output.txt
             module purge
             # Uncomment this to use the Midway-provided Julia:
-            # module load julia
+            module load julia
             julia $(ROOT_RUNMANY_SCRIPT) $(n_cores) runs.txt
-            """)
+            """) # runs.txt is for parallel processing
+            # WHAT DOES OUTPUT.TXT LOOK LIKE??
         end
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)
 
