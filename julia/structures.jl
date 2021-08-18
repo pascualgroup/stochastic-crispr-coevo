@@ -3,14 +3,15 @@ using Distributions
 using StatsBase
 #using DelimitedFiles
 using Dates
-using JSON2
+using Parameters
+#using JSON2
 
 using SQLite: DB, Stmt, bind!
 using SQLite.DBInterface: execute
 
 ### PARAMETERS ###
 
-mutable struct Parameters
+@with_kw mutable struct Params
     "Simulation end time"
     t_final::Union{Float64, Nothing}
 
@@ -87,13 +88,14 @@ mutable struct Parameters
     "Constant immigration rate (not in Childs model)"
     g_immigration_rate::Union{Float64, Nothing}
 
-    function Parameters()
-        p = new()
-        p.rng_seed = nothing # when feeding json script, with pre-defined entry,
-        #this function will not successfully change values
-        p.enable_output = true # applies to this as well...
-        p
-    end
+    #function Params() #this function is important for proper function of JSON2
+        #new()
+        ##p = new()
+        ##p.rng_seed = nothing # when feeding json script, with pre-defined entry,
+        ###this function will not successfully change values
+        ##p.enable_output = true # applies to this as well...
+        ##p
+    #end
 end
 
 
@@ -196,7 +198,7 @@ end
 
 
 
-function State(p::Parameters)
+function State(p::Params)
     State(
         p.n_bstrains, p.n_hosts_per_bstrain,
         p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers
@@ -215,7 +217,7 @@ end
 
 
 mutable struct Simulation
-    params::Parameters
+    params::Params
     t::Float64
     state::State
     rng::MersenneTwister
@@ -228,7 +230,7 @@ mutable struct Simulation
     #meta_file::IOStream
     #summary_file::IOStream
 
-    function Simulation(p::Parameters)
+    function Simulation(p::Params)
         #meta_file = open_csv("meta", "key", "value")
 
         db = initialize_database()
@@ -244,7 +246,7 @@ mutable struct Simulation
         )
 
         # Save parameters as loaded
-        write_json_to_file(p, "parameters_out.json")
+        #write_json_to_file(p, "parameters_out.json")
 
         #write_csv(meta_file, "start_time", start_time)
 

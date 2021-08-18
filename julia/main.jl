@@ -1,6 +1,8 @@
 #!/usr/bin/env julia
 
 using Logging
+using JSON
+
 
 # Uncomment this to see all debugging output:
 # Logging.global_logger(
@@ -44,10 +46,10 @@ end
 
 
 # Run simulation
-function main()
-    params = load_parameters_from_json(ARGS[1])
-    sim = Simulation(params)
+function main(P::Params)
+    #P = load_parameters_from_json(ARGS[1]) # parameters
+    sim = Simulation(P)
     simulate(sim)
 end
 
-main()
+main(P)

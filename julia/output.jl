@@ -62,15 +62,15 @@ function initialize_database()
     db
 end
 
-function write_json_to_file(x, filename)
-    if ispath(filename)
-        error("$filename already exists. You should delete output, or run in a different directory.")
-    else
-        file = open(filename, "w")
-        print(file, JSON2.write(x))
-        file
-    end
-end
+#function write_json_to_file(x, filename)
+    #if ispath(filename)
+        #error("$filename already exists. You should delete output, or run in a different directory.")
+    #else
+        #file = open(filename, "w")
+        #print(file, JSON2.write(x))
+        #file
+    #end
+#end
 
 #function open_csv(prefix, header...)
     #filename = "$prefix.csv"
