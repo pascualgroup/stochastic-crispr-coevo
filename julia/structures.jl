@@ -53,40 +53,37 @@ using SQLite.DBInterface: execute
     #InitializationParameters() = new() # WHAT IS THIS????
 
     "Maximum number of spacers in a bacterial strain"
-    u_n_spacers_max::Union{UInt64, Nothing}
+    n_spacers_max::Union{UInt64, Nothing}
 
-    "CRIPSR failure probability"
-    p_crispr_failure_prob::Union{Float64, Nothing}
+    "CRIPSR failure probability [p]"
+    crispr_failure_prob::Union{Float64, Nothing}
 
-    "New spacer acquisition probability"
-    q_spacer_acquisition_prob::Union{Float64, Nothing}
+    "New spacer acquisition probability [q]"
+    spacer_acquisition_prob::Union{Float64, Nothing}
 
-    "Growth rate at 0 (1/h)"
-    r_growth_rate::Union{Float64, Nothing}
+    "Growth rate at 0 (1/h) = [r]"
+    microbe_growth_rate::Union{Float64, Nothing}
 
-    "Carrying capacity (1/mL)"
-    K_carrying_capacity::Union{Float64, Nothing}
+    "Carrying capacity (1/mL) = [K]"
+    microbe_carrying_capacity::Union{Float64, Nothing}
 
-    "Burst size"
-    beta_burst_size::Union{UInt64, Nothing}
+    "Burst size [beta]"
+    viral_burst_size::Union{UInt64, Nothing}
 
-    "Adsorption rate"
-    phi_adsorption_rate::Union{Float64, Nothing}
+    "Adsorption rate [phi]"
+    adsorption_rate::Union{Float64, Nothing}
 
-    "Viral decay rate"
-    m_viral_decay_rate::Union{Float64, Nothing}
+    "Viral decay rate [m]"
+    viral_decay_rate::Union{Float64, Nothing}
 
-    "Mutation rate"
-    mu_viral_mutation_rate::Union{Float64, Nothing}
+    "Mutation rate [mu]"
+    viral_mutation_rate::Union{Float64, Nothing}
 
-    "Density cutoff: used to scale volume of system, and therefore discrete population sizes"
-    rho_c_density_cutoff::Union{Float64, Nothing} # REMOVE THIS
+    "Constant death rate (not in Childs model) [d]"
+    microbe_death_rate::Union{Float64, Nothing}
 
-    "Constant death rate (not in Childs model)"
-    d_death_rate::Union{Float64, Nothing}
-
-    "Constant immigration rate (not in Childs model)"
-    g_immigration_rate::Union{Float64, Nothing}
+    "Constant immigration rate (not in Childs model) [eta]"
+    microbe_immigration_rate::Union{Float64, Nothing}
 
     #function Params() #this function is important for proper function of JSON2
         #new()
@@ -263,7 +260,7 @@ mutable struct Simulation
             p, 0.0, state, MersenneTwister(rng_seed),
             zeros(length(EVENTS)), zeros(length(EVENTS)),
             #meta_file,
-            #open_csv("summary", "t", "bacterial_abundance", "viral_abundance")
+            #open_csv("summary", "t", "microbial_abundance", "viral_abundance")
             db
         )
         update_rates!(sim)

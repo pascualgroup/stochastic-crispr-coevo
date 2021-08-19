@@ -32,18 +32,17 @@ function validate(p::Params)
     @assert p.n_particles_per_vstrain !== nothing
     @assert p.n_protospacers !== nothing
 
-    @assert p.u_n_spacers_max !== nothing
-    @assert p.p_crispr_failure_prob !== nothing
-    @assert p.q_spacer_acquisition_prob !== nothing
-    @assert p.r_growth_rate !== nothing
-    @assert p.K_carrying_capacity !== nothing
-    @assert p.beta_burst_size !== nothing
-    @assert p.phi_adsorption_rate !== nothing
-    @assert p.m_viral_decay_rate !== nothing
-    @assert p.mu_viral_mutation_rate !== nothing
-    @assert p.rho_c_density_cutoff !== nothing
-    @assert p.d_death_rate !== nothing
-    @assert p.g_immigration_rate !== nothing
+    @assert p.n_spacers_max !== nothing
+    @assert p.crispr_failure_prob !== nothing
+    @assert p.spacer_acquisition_prob !== nothing
+    @assert p.microbe_growth_rate !== nothing
+    @assert p.microbe_carrying_capacity !== nothing
+    @assert p.viral_burst_size !== nothing
+    @assert p.adsorption_rate !== nothing
+    @assert p.viral_decay_rate !== nothing
+    @assert p.viral_mutation_rate !== nothing
+    @assert p.microbe_death_rate !== nothing
+    @assert p.microbe_immigration_rate !== nothing
 end
 
 function validate(s::State)

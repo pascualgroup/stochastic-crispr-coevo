@@ -11,11 +11,11 @@ const N_EVENTS = 5
 const EVENTS = 1:N_EVENTS
 
 const (
-BACTERIAL_GROWTH,
-BACTERIAL_DEATH,
+MICROBIAL_GROWTH,
+MICROBIAL_DEATH,
 VIRAL_DECAY,
 CONTACT,
-BACTERIAL_IMMIGRATION
+MICROBIAL_IMMIGRATION
 ) = EVENTS
 
 
@@ -171,41 +171,41 @@ BACTERIAL_IMMIGRATION
     # but this is easier to understand for Julia newbies.
 
     function get_rate(event_id, sim::Simulation)
-        if event_id == BACTERIAL_GROWTH
-            get_rate_bacterial_growth(sim)
-        elseif event_id == BACTERIAL_DEATH
-            get_rate_bacterial_death(sim)
+        if event_id == MICROBIAL_GROWTH
+            get_rate_microbial_growth(sim)
+        elseif event_id == MICROBIAL_DEATH
+            get_rate_microbial_death(sim)
         elseif event_id == VIRAL_DECAY
             get_rate_viral_decay(sim)
         elseif event_id == CONTACT
             get_rate_contact(sim)
-        elseif event_id == BACTERIAL_IMMIGRATION
-            get_rate_bacterial_immigration(sim)
+        elseif event_id == MICROBIAL_IMMIGRATION
+            get_rate_microbial_immigration(sim)
         else
             error("unknown event")
         end
     end
 
     function do_event!(event_id, sim::Simulation, t::Float64)
-        if event_id == BACTERIAL_GROWTH
-            do_event_bacterial_growth!(sim, t)
-        elseif event_id == BACTERIAL_DEATH
-            do_event_bacterial_death!(sim, t)
+        if event_id == MICROBIAL_GROWTH
+            do_event_microbial_growth!(sim, t)
+        elseif event_id == MICROBIAL_DEATH
+            do_event_microbial_death!(sim, t)
         elseif event_id == VIRAL_DECAY
             do_event_viral_decay!(sim, t)
         elseif event_id == CONTACT
             do_event_contact!(sim, t)
-        elseif event_id == BACTERIAL_IMMIGRATION
-            do_event_bacterial_immigration!(sim, t)
+        elseif event_id == MICROBIAL_IMMIGRATION
+            do_event_microbial_immigration!(sim, t)
         else
             error("unknown event")
         end
     end
 
 
-    ### BACTERIAL GROWTH EVENT ###
+    ### MICROBIAL GROWTH EVENT ###
 
-    function get_rate_bacterial_growth(sim::Simulation)
+    function get_rate_microbial_growth(sim::Simulation)
         p = sim.params
         s = sim.state
 
@@ -217,8 +217,8 @@ BACTERIAL_IMMIGRATION
         # offset the death rate to yield a total growth rate of r:
         #
         # b0 = r + d
-        r = p.r_growth_rate
-        d = p.d_death_rate
+        r = p.microbe_growth_rate
+        d = p.microbe_death_rate
         b0 = r + d
 
         # And we need the birth rate at N = K * V to similarly equal d:
@@ -227,7 +227,7 @@ BACTERIAL_IMMIGRATION
         # =>
         # C = KV / (1 - d / b0)
 
-        KV = p.K_carrying_capacity / p.rho_c_density_cutoff
+        KV = p.microbe_carrying_capacity
         C = KV / (1 - d / b0)
 
         # Assumes total_abundance is correct
@@ -237,7 +237,7 @@ BACTERIAL_IMMIGRATION
         max(0, b0 * N * (1 - N / C))
     end
 
-    function do_event_bacterial_growth!(sim::Simulation, t::Float64)
+    function do_event_microbial_growth!(sim::Simulation, t::Float64)
         p = sim.params
         s = sim.state
         rng = sim.rng
@@ -254,19 +254,19 @@ BACTERIAL_IMMIGRATION
     end
 
 
-    ### BACTERIAL DEATH EVENT ###
+    ### MICROBIAL DEATH EVENT ###
 
-    function get_rate_bacterial_death(sim::Simulation)
+    function get_rate_microbial_death(sim::Simulation)
         p = sim.params
         s = sim.state
 
         N = s.bstrains.total_abundance
-        d = p.d_death_rate
+        d = p.microbe_death_rate
 
         d * N
     end
 
-    function do_event_bacterial_death!(sim::Simulation, t::Float64)
+    function do_event_microbial_death!(sim::Simulation, t::Float64)
         p = sim.params
         s = sim.state
         rng = sim.rng
@@ -291,18 +291,18 @@ BACTERIAL_IMMIGRATION
 
     end
 
-    ### BACTERIAL IMMIGRATION EVENT ###
+    ### MICROBIAL IMMIGRATION EVENT ###
 
-    function get_rate_bacterial_immigration(sim::Simulation)
+    function get_rate_microbial_immigration(sim::Simulation)
         p = sim.params
         s = sim.state
-        g = p.g_immigration_rate
-        r = p.r_growth_rate
-        d = p.d_death_rate
+        g = p.microbe_immigration_rate
+        r = p.microbe_growth_rate
+        d = p.microbe_death_rate
         b0 = r + d
 
 
-        KV = p.K_carrying_capacity / p.rho_c_density_cutoff
+        KV = p.microbe_carrying_capacity
         C = KV / (1 - d / b0)
 
         # Assumes total_abundance is correct
@@ -313,7 +313,7 @@ BACTERIAL_IMMIGRATION
     end
 
 
-    function do_event_bacterial_immigration!(sim::Simulation, t::Float64)
+    function do_event_microbial_immigration!(sim::Simulation, t::Float64)
         s = sim.state
         s.bstrains.abundance[1] += 1
         s.bstrains.total_abundance += 1
@@ -325,7 +325,7 @@ BACTERIAL_IMMIGRATION
     function get_rate_viral_decay(sim::Simulation)
         p = sim.params
         s = sim.state
-        m = p.m_viral_decay_rate
+        m = p.viral_decay_rate
         V = s.vstrains.total_abundance
 
         m * V
@@ -361,15 +361,11 @@ BACTERIAL_IMMIGRATION
         p = sim.params
         s = sim.state
 
-        phi = p.phi_adsorption_rate
+        phi = p.adsorption_rate
         N = s.bstrains.total_abundance
         V = s.vstrains.total_abundance
-        rho = p.rho_c_density_cutoff
 
-        # phi * (N * rho) * (V * rho) * rho
-        # = phi * (N / vol) * (V /vol) * vol
-        # = contacts per unit time
-        phi * N * V * rho
+        phi * N * V
     end
 
     function do_event_contact!(sim::Simulation, t::Float64)
@@ -383,7 +379,7 @@ BACTERIAL_IMMIGRATION
         N_vec = s.bstrains.abundance
         V_vec = s.vstrains.abundance
 
-        # Choose bacterial strain and viral strain proportional to population size
+        # Choose microbial strain and viral strain proportional to population size
         iB = sample_linear_integer_weights(rng, N_vec, N)
         jV = sample_linear_integer_weights(rng, V_vec, V)
 
@@ -397,13 +393,13 @@ BACTERIAL_IMMIGRATION
         if is_immune(s.bstrains.spacers[iB], s.vstrains.spacers[jV])
             @debug "Immune" t
             # If immune, infect anyway with probability p
-            if rand(rng) < params.p_crispr_failure_prob
+            if rand(rng) < params.crispr_failure_prob
                 should_infect = true
             end
         else
             @debug "Not immune" t
             # If not immune, defend (and acquire spacer) with probability q
-            if rand(rng) < params.q_spacer_acquisition_prob
+            if rand(rng) < params.spacer_acquisition_prob
                 should_acquire_spacer = true
             else
                 should_infect = true
@@ -440,10 +436,10 @@ BACTERIAL_IMMIGRATION
         p = sim.params
         s = sim.state
 
-        beta = p.beta_burst_size
+        beta = p.viral_burst_size
 
         @debug "Infecting!" t
-        # Reduce bacterial population
+        # Reduce microbial population
         @assert s.bstrains.abundance[iB] > 0
         s.bstrains.abundance[iB] -= 1
         s.bstrains.total_abundance -= 1
@@ -457,7 +453,7 @@ BACTERIAL_IMMIGRATION
         #s.vstrains.total_abundance += beta
 
         # Perform mutations
-        mu = p.mu_viral_mutation_rate
+        mu = p.viral_mutation_rate
 
         # The number of mutations for each new virus particle is binomially distributed.
         # n_mut is left with just the nonzero draws--that is, the number of
@@ -492,7 +488,7 @@ BACTERIAL_IMMIGRATION
         # (If all have already been acquired, don't do anything.)
         missing_spacers = setdiff(s.vstrains.spacers[jV], s.bstrains.spacers[iB])
         if length(missing_spacers) > 0
-            # Create new bacterial strain with modified spacers
+            # Create new microbial strain with modified spacers
             @assert s.bstrains.abundance[iB] > 0
             s.bstrains.abundance[iB] -= 1 #This does not need a change of total
                                             #abundance alongside. We are just rearranging the identities
@@ -500,7 +496,7 @@ BACTERIAL_IMMIGRATION
             # Add spacer, dropping the oldest one if we're at capacity
             old_spacers = s.bstrains.spacers[iB]
 
-            new_spacers = if length(old_spacers) == p.u_n_spacers_max
+            new_spacers = if length(old_spacers) == p.n_spacers_max
                 old_spacers[2:length(old_spacers)]        ### This removes thes first locus
             else                                          ### of the CRISPR cassette. Is this what original C code was?
                 copy(old_spacers)
@@ -512,7 +508,7 @@ BACTERIAL_IMMIGRATION
 
             mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
             if mutated_strain_index === nothing
-                @debug "Creating new bacterial strain"
+                @debug "Creating new microbial strain"
 
                 @debug "Old spacers:" old_spacers
                 @debug "New spacers from old spacers:" new_spacers_from_old
@@ -532,7 +528,7 @@ BACTERIAL_IMMIGRATION
                     write_spacers(sim, "bspacers", id, new_spacers)
                 end
             else
-                @debug "using old bacterial strain" mutated_strain_index
+                @debug "using old microbial strain" mutated_strain_index
                 s.bstrains.abundance[mutated_strain_index] += 1
             end
         end

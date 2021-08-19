@@ -10,7 +10,7 @@ function initialize_database()
     execute(db, """
         CREATE TABLE summary (
             t REAL,
-            bacterial_abundance INTEGER,
+            microbial_abundance INTEGER,
             viral_abundance INTEGER
         );
     """)
