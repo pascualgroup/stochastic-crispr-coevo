@@ -44,7 +44,7 @@ using DelimitedFiles
 # NB: use actual relative locations of varmodel3 root relative to your script.
 include("../../preamble.jl")
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
-ROOT_PATH = abspath(joinpath(SCRIPT_PATH, "..", ".."))
+ROOT_PATH = abspath(joinpath(SCRIPT_PATH, "..", "..")) #CHANGE THESE DIRECTORIES ACCORDINGLY
 ROOT_RUN_SCRIPT = joinpath(ROOT_PATH, "run.jl")
 ROOT_RUNMANY_SCRIPT = joinpath(ROOT_PATH, "runmany.jl")
 cd(SCRIPT_PATH)
@@ -101,8 +101,8 @@ function generate_runs(db) # This function generates the directories
     # `runs/c<combo_id>/r<replicate>` for each one.
     combo_id = 1
     run_id = 1
-    for mutation_rate in (0.5e-8, 1.0e-8, 1.5e-8, 2.0e-8)
-        for transmissibility in (0.25, 0.5, 0.75)
+    for mutation_rate in (0.5e-8, 1.0e-8)
+        for transmissibility in (0.25, 0.5)
             println("Processing c$(combo_id): mutation_rate = $(mutation_rate), transmissibility = $(transmissibility)")
 
             execute(db, "INSERT INTO param_combos VALUES (?, ?, ?)", (combo_id, mutation_rate, transmissibility))
@@ -138,7 +138,7 @@ function generate_runs(db) # This function generates the directories
                     print(f, """
                     #!/bin/sh
                     cd `dirname \$0`
-                    julia --check-bounds=no -O3 $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
+                    julia $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
                     """)# what does \$0 mean???? # ROOT_RUN_SCRIPT = run.jl which is analogous to main.jl
                     # Double check what runs.jl looks like. Don't forget to put "include()" scripts into a "preamble.jl"
                     # what is --check-bounds=no -03???
@@ -232,7 +232,7 @@ function generate_jobs(db)
     run(`chmod +x submit_jobs.sh`) # Make submit script executable
 end
 
-function pretty_json(params)
+function pretty_json(params) #LEARN WHAT THIS FUNCTION IS DOING...
     d = Dict(fn => getfield(params, fn) for fn in fieldnames(typeof(params)))
     io = IOBuffer()
     JSON.print(io, d, 2)
