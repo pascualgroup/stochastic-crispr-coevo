@@ -240,62 +240,46 @@ function pretty_json(params) #LEARN WHAT THIS FUNCTION IS DOING...
 end
 
 function init_base_params()
-    t_year = 360
-    daily_biting_rate_multiplier = readdlm("../mosquito_population.txt", Float64)[:,1]
-
     Params(
-        upper_bound_recomputation_period = 30,
+        t_final = 2000.0,
 
-        output_db_filename = "output.sqlite",
-
-        summary_period = 30,
-        gene_strain_count_period = 360,
-
-        host_sampling_period = 30,
-        host_sample_size = 100,
-
-        verification_period = 360,
+        t_output = 1.0,
 
         rng_seed = nothing,
 
-        t_year = t_year,
-        t_end = (111) * t_year,
+        enable_output = true,
 
-        t_burnin = 61 * t_year,
+        n_bstrains = 1,
 
-        n_hosts = 10000,
-        n_initial_infections = 20,
+        n_hosts_per_bstrain = 100,
 
-        n_genes_initial = 9600,
-        n_genes_per_strain = 60,
+        n_vstrains = 1,
 
-        n_loci = 2,
+        n_particles_per_vstrain = 100,
 
-        n_alleles_per_locus_initial = 960,
+        n_protospacers = 15,
 
-        transmissibility = 0.5,
-        coinfection_reduces_transmission = true,
+        u_n_spacers_max = 10,
 
-        ectopic_recombination_rate = 1.8e-7,
+        p_crispr_failure_prob = 1e-05,
 
-        immunity_level_max = 100,
-        immunity_loss_rate = 0.001,
+        q_spacer_acquisition_prob = 1e-05,
 
-        mutation_rate = 1.42e-8,
+        r_growth_rate = 1,
 
-        t_liver_stage = 14.0,
+        K_carrying_capacity = 316227.7660168379,
 
-        switching_rate = 1.0/6.0,
+        beta_burst_size = 50,
 
-        mean_host_lifetime = 30 * t_year,
-        max_host_lifetime = 80 * t_year,
+        phi_adsorption_rate = 1e-01,
 
-        immigration_rate_fraction = 0.0026,
+        m_viral_decay_rate = 0.1,
 
-        n_infections_liver_max = 10,
-        n_infections_active_max = 10,
+        mu_viral_mutation_rate = 1e-06,
 
-        biting_rate = 0.0005 * daily_biting_rate_multiplier,
+        d_death_rate = 0,
+
+        g_immigration_rate = 1,
     )
 end
 
