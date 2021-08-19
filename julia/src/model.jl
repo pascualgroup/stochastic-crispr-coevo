@@ -1,9 +1,3 @@
-using Random
-using Distributions
-using StatsBase
-#using DelimitedFiles
-
-
 
 ### EVENT CONSTANTS ###
 
@@ -215,8 +209,7 @@ MICROBIAL_IMMIGRATION
 
         # To match the Childs model, we need the birth rate at N = 0 to
         # offset the death rate to yield a total growth rate of r:
-        #
-        # b0 = r + d
+
         r = p.microbe_growth_rate
         d = p.microbe_death_rate
         b0 = r + d

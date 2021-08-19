@@ -1,23 +1,3 @@
-using Random
-using Distributions
-using StatsBase
-#using DelimitedFiles
-using Dates
-#using JSON2
-
-
-############## structures.jl should be loaded first ############
-
-#JSON2.@format Params noargs # this is super important for proper reading of
-# parameters.JSON file ... not sure why...
-
-
-#function load_parameters_from_json(filename) :: Params
-    #str = open(f -> read(f, String), filename)
-    #p = JSON2.read(str, Params)
-    #validate(p)
-    #p
-#end
 
 
 ### VALIDATION TO ENSURE CODE CORRECTNESS IN THE FACE OF OPTIMIZATIONS ###

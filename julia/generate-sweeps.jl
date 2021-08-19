@@ -76,7 +76,7 @@ function main()
     db = SQLite.DB(joinpath("sweep_db.sqlite")) # the function of this database
     # is to log run and job ids of individual simulation directory names
     execute(db, "CREATE TABLE meta (key, value)")
-    execute(db, "CREATE TABLE param_combos (combo_id INTEGER, mutation_rate REAL, transmissibility REAL)")
+    execute(db, "CREATE TABLE param_combos (combo_id INTEGER, viral_mutation_rate REAL, spacer_acquisition_prob REAL, viral_burst_size REAL)")
     execute(db, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER, rng_seed INTEGER, run_dir TEXT, params TEXT)")
     execute(db, "CREATE TABLE jobs (job_id INTEGER, job_dir TEXT)")
     execute(db, "CREATE TABLE job_runs (job_id INTEGER, run_id INTEGER)")
@@ -101,61 +101,69 @@ function generate_runs(db) # This function generates the directories
     # `runs/c<combo_id>/r<replicate>` for each one.
     combo_id = 1
     run_id = 1
-    for mutation_rate in (0.5e-8, 1.0e-8)
-        for transmissibility in (0.25, 0.5)
-            println("Processing c$(combo_id): mutation_rate = $(mutation_rate), transmissibility = $(transmissibility)")
+    for viral_mutation_rate in (0.5e-8, 1.0e-8)
+        for spacer_acquisition_prob in (0.25, 0.5)
+            for viral_burst_size in (1 5)
+                println("Processing c$(combo_id): viral_mutation_rate = $(viral_mutation_rate),
+                    spacer_acquisition_prob = $(spacer_acquisition_prob),
+                    viral_burst_size = $(viral_burst_size)"
+                    )
 
-            execute(db, "INSERT INTO param_combos VALUES (?, ?, ?)", (combo_id, mutation_rate, transmissibility))
+                execute(db, "INSERT INTO param_combos VALUES (?, ?, ?)",
+                (combo_id, viral_mutation_rate, spacer_acquisition_prob, viral_burst_size)
+                )
 
-            for replicate in 1:N_REPLICATES
-                rng_seed = rand(seed_rng, 1:typemax(Int64))
-                params = Params(
-                    base_params;
-                    rng_seed = rng_seed,
-                    mutation_rate = mutation_rate,
-                    transmissibility = transmissibility
-                ) # <-- via JSON"1". this params function either needs to be adapted for CRISPR code,
-                # or I need to adapt CRISPR code to adapt to functuon
+                for replicate in 1:N_REPLICATES
+                    rng_seed = rand(seed_rng, 1:typemax(Int64))
+                    params = Params(
+                        base_params;
+                        rng_seed = rng_seed,
+                        viral_mutation_rate = viral_mutation_rate,
+                        spacer_acquisition_prob = spacer_acquisition_prob,
+                        viral_burst_size = viral_burst_size
+                    ) # <-- via JSON"1". this params function either needs to be adapted for CRISPR code,
+                    # or I need to adapt CRISPR code to adapt to functuon
 
-                run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
-                @assert !ispath(run_dir)
-                mkpath(run_dir)
+                    run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
+                    @assert !ispath(run_dir)
+                    mkpath(run_dir)
 
-                # Generate parameters file
-                params_json = pretty_json(params)
-                open(joinpath(run_dir, "parameters.json"), "w") do f
-                    println(f, params_json)
+                    # Generate parameters file
+                    params_json = pretty_json(params)
+                    open(joinpath(run_dir, "parameters.json"), "w") do f
+                        println(f, params_json)
+                    end
+
+
+                    # I think this needs a "joinpath" code block for model.jl,
+                    # structures.jl, output.jl, util.jl, model.jl??????? ##########
+
+
+                    # Generate shell script to perform a single run
+                    run_script = joinpath(run_dir, "run.sh")
+                    open(run_script, "w") do f
+                        print(f, """
+                        #!/bin/sh
+                        cd `dirname \$0`
+                        julia $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
+                        """)# what does \$0 mean???? # ROOT_RUN_SCRIPT = run.jl which is analogous to main.jl
+                        # Double check what runs.jl looks like. Don't forget to put "include()" scripts into a "preamble.jl"
+                        # what is --check-bounds=no -03???
+                        # this creates a shell script for each simulation... this is not an sbatch
+                        #EACH OF THESE IN AN INDIVIDUAL DIRECTORY IS SAVED LINE-BY-LINE in RUNS.TXTTTT.
+                        # what does &> mean???
+                        #check julia --check-bounds=no -O3 $(ROOT_RUN_SCRIPT) parameters.json &> output.txt on desktop
+                    end
+                    run(`chmod +x $(run_script)`) # Make run script executable
+                    # WHY NOT 777 but rather +x? TEST THIS ON MIDWAY
+
+                    # Save all run info (including redundant stuff for reference) into DB
+                    execute(db, "INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)", (run_id, combo_id, replicate, rng_seed, run_dir, params_json))
+
+                    run_id += 1
                 end
-
-
-                # I think this needs a "joinpath" code block for model.jl,
-                # structures.jl, output.jl, util.jl, model.jl??????? ##########
-
-
-                # Generate shell script to perform a single run
-                run_script = joinpath(run_dir, "run.sh")
-                open(run_script, "w") do f
-                    print(f, """
-                    #!/bin/sh
-                    cd `dirname \$0`
-                    julia $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
-                    """)# what does \$0 mean???? # ROOT_RUN_SCRIPT = run.jl which is analogous to main.jl
-                    # Double check what runs.jl looks like. Don't forget to put "include()" scripts into a "preamble.jl"
-                    # what is --check-bounds=no -03???
-                    # this creates a shell script for each simulation... this is not an sbatch
-                    #EACH OF THESE IN AN INDIVIDUAL DIRECTORY IS SAVED LINE-BY-LINE in RUNS.TXTTTT.
-                    # what does &> mean???
-                    #check julia --check-bounds=no -O3 $(ROOT_RUN_SCRIPT) parameters.json &> output.txt on desktop
-                end
-                run(`chmod +x $(run_script)`) # Make run script executable
-                # WHY NOT 777 but rather +x? TEST THIS ON MIDWAY
-
-                # Save all run info (including redundant stuff for reference) into DB
-                execute(db, "INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)", (run_id, combo_id, replicate, rng_seed, run_dir, params_json))
-
-                run_id += 1
+                combo_id += 1
             end
-            combo_id += 1
         end
     end
 end
@@ -259,27 +267,27 @@ function init_base_params()
 
         n_protospacers = 15,
 
-        u_n_spacers_max = 10,
+        n_spacers_max = 10,
 
-        p_crispr_failure_prob = 1e-05,
+        crispr_failure_prob = 1e-05,
 
-        q_spacer_acquisition_prob = 1e-05,
+        spacer_acquisition_prob = 1e-05,
 
-        r_growth_rate = 1,
+        microbe_growth_rate = 1,
 
-        K_carrying_capacity = 316227.7660168379,
+        microbe_carrying_capacity = 316227.7660168379,
 
-        beta_burst_size = 50,
+        viral_burst_size = 50,
 
-        phi_adsorption_rate = 1e-01,
+        adsorption_rate = 1e-01,
 
-        m_viral_decay_rate = 0.1,
+        viral_decay_rate = 0.1,
 
-        mu_viral_mutation_rate = 1e-06,
+        viral_mutation_rate = 1e-06,
 
-        d_death_rate = 0,
+        microbe_death_rate = 0,
 
-        g_immigration_rate = 1,
+        microbe_immigration_rate = 1,
     )
 end
 
