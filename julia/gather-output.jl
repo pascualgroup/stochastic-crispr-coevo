@@ -14,7 +14,7 @@ import SQLite.DBInterface.execute
 
 # Get relevant paths and cd to the script path.
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
-cd(SCRIPT_PATH)
+#cd(SCRIPT_PATH)
 
 function main()
     # Source database containing experiment metadata
@@ -84,3 +84,5 @@ function main()
         execute(db, "COMMIT")
     end
 end
+
+main()

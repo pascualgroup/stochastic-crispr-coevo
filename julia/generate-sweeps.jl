@@ -35,17 +35,16 @@ the `generate_jobs()` function.
 
 println("(Annoying Julia compilation delay...)")
 
-using Random
-using SQLite
-import SQLite.DBInterface.execute
-using DelimitedFiles
+include("src/setup.jl")
+include("src/structures.jl")
+include("src/util.jl")
 
-# Get relevant paths and cd to the script path.
-# NB: use actual relative locations of varmodel3 root relative to your script.
-include("../../preamble.jl")
+using SQLite
+using JSON
+
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
-ROOT_PATH = abspath(joinpath(SCRIPT_PATH, "..", "..")) #CHANGE THESE DIRECTORIES ACCORDINGLY
-ROOT_RUN_SCRIPT = joinpath(ROOT_PATH, "run.jl")
+ROOT_PATH = joinpath(SCRIPT_PATH, "src")
+ROOT_RUN_SCRIPT = joinpath(ROOT_PATH, "main-sweeps.jl")
 ROOT_RUNMANY_SCRIPT = joinpath(ROOT_PATH, "runmany.jl")
 cd(SCRIPT_PATH)
 
@@ -53,7 +52,7 @@ cd(SCRIPT_PATH)
 const N_REPLICATES = 2
 
 # Number of SLURM jobs to generate
-const N_JOBS_MAX = 100
+const N_JOBS_MAX = 8
 const N_CORES_PER_JOB_MAX = 14 # Half a node, easier to get scheduled than a whole one
 
 function main()
@@ -101,15 +100,15 @@ function generate_runs(db) # This function generates the directories
     # `runs/c<combo_id>/r<replicate>` for each one.
     combo_id = 1
     run_id = 1
-    for viral_mutation_rate in (0.5e-8, 1.0e-8)
-        for spacer_acquisition_prob in (0.25, 0.5)
-            for viral_burst_size in (1 5)
+    for viral_mutation_rate in (1.0e-06, 2.0e-06)
+        for spacer_acquisition_prob in (5e-06, 1e-05)
+            for viral_burst_size in (50, 100)
                 println("Processing c$(combo_id): viral_mutation_rate = $(viral_mutation_rate),
                     spacer_acquisition_prob = $(spacer_acquisition_prob),
                     viral_burst_size = $(viral_burst_size)"
-                    )
+                )
 
-                execute(db, "INSERT INTO param_combos VALUES (?, ?, ?)",
+                execute(db, "INSERT INTO param_combos VALUES (?, ?, ?, ?)",
                 (combo_id, viral_mutation_rate, spacer_acquisition_prob, viral_burst_size)
                 )
 
@@ -121,8 +120,7 @@ function generate_runs(db) # This function generates the directories
                         viral_mutation_rate = viral_mutation_rate,
                         spacer_acquisition_prob = spacer_acquisition_prob,
                         viral_burst_size = viral_burst_size
-                    ) # <-- via JSON"1". this params function either needs to be adapted for CRISPR code,
-                    # or I need to adapt CRISPR code to adapt to functuon
+                    )
 
                     run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
                     @assert !ispath(run_dir)
@@ -217,7 +215,7 @@ function generate_jobs(db)
             #!/bin/sh
             #SBATCH --account=pi-pascualmm
             #SBATCH --partition=broadwl
-            #SBATCH --job-name=var-$(job_id)
+            #SBATCH --job-name=crispr-$(job_id)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=2000m
@@ -229,7 +227,6 @@ function generate_jobs(db)
             module load julia
             julia $(ROOT_RUNMANY_SCRIPT) $(n_cores) runs.txt
             """) # runs.txt is for parallel processing
-            # WHAT DOES OUTPUT.TXT LOOK LIKE??
         end
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)
 
