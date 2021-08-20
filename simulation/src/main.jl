@@ -24,8 +24,7 @@ include("model.jl")
 
 
 
-# Record start time
-start_time = now()
+
 
 
 const P = let
@@ -51,5 +50,8 @@ function main(P::Params)
     sim = Simulation(P)
     simulate(sim)
 end
+
+# Record start time
+start_time = now()
 
 main(P)
