@@ -1,6 +1,8 @@
-using Pkg
+#!/usr/bin/env julia
 
-#Pkg.add("JSON2")
+
+import Pkg
+
 Pkg.add("JSON")
 Pkg.add("Parameters")
 Pkg.add("StatsBase")
