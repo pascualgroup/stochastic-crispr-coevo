@@ -22,8 +22,6 @@ include(joinpath(SCRIPT_PATH,"output.jl"))
 include(joinpath(SCRIPT_PATH,"util.jl"))
 include(joinpath(SCRIPT_PATH,"model.jl"))
 
-using JSON
-
 
 const P = let
     params_filename = if length(ARGS) == 0

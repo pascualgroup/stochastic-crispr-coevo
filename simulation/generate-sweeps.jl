@@ -40,7 +40,6 @@ include("src/structures.jl")
 include("src/util.jl")
 
 using SQLite
-using JSON
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 ROOT_PATH = joinpath(SCRIPT_PATH, "src")
@@ -222,6 +221,7 @@ function generate_jobs(db)
             #SBATCH --time=4:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=output.txt
+            #SBATCH --mail-user=armun@uchicago.edu
             module purge
             # Uncomment this to use the Midway-provided Julia:
             module load julia
@@ -246,7 +246,7 @@ end
 
 function init_base_params()
     Params(
-        t_final = 2000.0,
+        t_final = 3.0,
 
         t_output = 1.0,
 
