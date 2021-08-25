@@ -48,7 +48,7 @@ ROOT_RUNMANY_SCRIPT = joinpath(ROOT_PATH, "runmany.jl")
 cd(SCRIPT_PATH)
 
 # Number of replicates for each parameter combination
-const N_REPLICATES = 2
+const N_REPLICATES = 30
 
 # Number of SLURM jobs to generate
 const N_JOBS_MAX = 8
@@ -74,7 +74,7 @@ function main()
     db = SQLite.DB(joinpath("sweep_db.sqlite")) # the function of this database
     # is to log run and job ids of individual simulation directory names
     execute(db, "CREATE TABLE meta (key, value)")
-    execute(db, "CREATE TABLE param_combos (combo_id INTEGER, viral_mutation_rate REAL, spacer_acquisition_prob REAL, viral_burst_size REAL)")
+    execute(db, "CREATE TABLE param_combos (combo_id INTEGER, viral_mutation_rate REAL, spacer_acquisition_prob REAL, crispr_failure_prob REAL)")
     execute(db, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER, rng_seed INTEGER, run_dir TEXT, params TEXT)")
     execute(db, "CREATE TABLE jobs (job_id INTEGER, job_dir TEXT)")
     execute(db, "CREATE TABLE job_runs (job_id INTEGER, run_id INTEGER)")
@@ -100,15 +100,15 @@ function generate_runs(db) # This function generates the directories
     combo_id = 1
     run_id = 1
     for viral_mutation_rate in (1.0e-06, 2.0e-06)
-        for spacer_acquisition_prob in (5e-06, 1e-05)
-            for viral_burst_size in (50, 100)
+        for spacer_acquisition_prob in (1e-06, 1e-05)
+            for crispr_failure_prob in (1e-06, 1e-05)
                 println("Processing c$(combo_id): viral_mutation_rate = $(viral_mutation_rate),
                     spacer_acquisition_prob = $(spacer_acquisition_prob),
-                    viral_burst_size = $(viral_burst_size)"
+                    crispr_failure_prob = $(crispr_failure_prob)"
                 )
 
                 execute(db, "INSERT INTO param_combos VALUES (?, ?, ?, ?)",
-                (combo_id, viral_mutation_rate, spacer_acquisition_prob, viral_burst_size)
+                (combo_id, viral_mutation_rate, spacer_acquisition_prob, crispr_failure_prob)
                 )
 
                 for replicate in 1:N_REPLICATES
@@ -118,7 +118,7 @@ function generate_runs(db) # This function generates the directories
                         rng_seed = rng_seed,
                         viral_mutation_rate = viral_mutation_rate,
                         spacer_acquisition_prob = spacer_acquisition_prob,
-                        viral_burst_size = viral_burst_size
+                        crispr_failure_prob = crispr_failure_prob
                     )
 
                     run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
@@ -246,7 +246,7 @@ end
 
 function init_base_params()
     Params(
-        t_final = 3.0,
+        t_final = 2000.0,
 
         t_output = 1.0,
 
@@ -276,7 +276,7 @@ function init_base_params()
 
         viral_burst_size = 50,
 
-        adsorption_rate = 1e-01,
+        adsorption_rate = 1e-07,
 
         viral_decay_rate = 0.1,
 
