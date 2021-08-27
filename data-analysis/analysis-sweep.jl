@@ -83,7 +83,7 @@ function main()
     execute(dbAnalysis, "CREATE TABLE $(analysisType) (t REAL, microbe REAL, virus REAL)")
 
     # Connect to simulation data
-    dbSim = SQLite.DB(joinpath("..","simulation","sweep_db_gathered.sqlite"))
+    dbSim = SQLite.DB(joinpath("..","simulation","sweep_db.sqlite"))
 
     # Create little database that corresponds analysis runs to jobIDs for troubleshooting
     dbTempJobs = SQLite.DB(joinpath(analysisDir,"$(analysisType)jobs.sqlite"))
