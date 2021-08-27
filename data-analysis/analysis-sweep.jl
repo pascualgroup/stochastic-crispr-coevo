@@ -184,7 +184,7 @@ function generate_analysis_jobs(dbSim,dbTempJobs)
         # Write out list of runs
         open(joinpath(job_dir, "runs.txt"), "w") do f
             for run_dir in run_dirs
-                run_script = joinpath(SCRIPT_PATH, run_dir, "run.sh")
+                run_script = joinpath(SCRIPT_PATH, analysisDir, run_dir, "run.sh")
                 println(f, run_script)
             end
         end
