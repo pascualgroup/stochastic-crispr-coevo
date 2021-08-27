@@ -80,7 +80,7 @@ function main()
 
     # Create table for type of analysis. This will write over existing data
     execute(dbAnalysis, "DROP TABLE IF EXISTS $(analysisType)")
-    execute(dbAnalysis, "CREATE TABLE $(analysisType) (t REAL, microbe REAL, virus REAL)")
+    execute(dbAnalysis, "CREATE TABLE $(analysisType) (run_id INTEGER, t REAL, microbe REAL, virus REAL)")
 
     # Connect to simulation data
     dbSim = SQLite.DB(joinpath("..","simulation","sweep_db.sqlite"))
