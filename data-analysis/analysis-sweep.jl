@@ -47,10 +47,9 @@ analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
-ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"$(analysisType).py")
+ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"$(analysisType).jl")
 ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)
-
 
 
 # Number of replicates for each parameter combination
@@ -71,16 +70,10 @@ function main()
         error("`jobs` does not exist; please simulate first.")
     end
 
-    if isfile(joinpath("data_analysis.sqlite"))
-        @info "\n\n\n\nNotice: `data_analysis.sqlite` already exists.\n
-        Make sure other data is updated and is in accordance.\n\n\n\n"
-    end
-    # Connect or create data analysis databsase
-    dbAnalysis = SQLite.DB(joinpath("data_analysis.sqlite"))
-
-    # Create table for type of analysis. This will write over existing data
-    execute(dbAnalysis, "DROP TABLE IF EXISTS $(analysisType)")
-    execute(dbAnalysis, "CREATE TABLE $(analysisType) (run_id INTEGER, t REAL, microbe REAL, virus REAL)")
+    #if isfile(joinpath("data_analysis.sqlite"))
+        #@info "\n\n\n\nNotice: `data_analysis.sqlite` already exists.\n
+        #Make sure other data is updated and is in accordance.\n\n\n\n"
+    #end
 
     # Connect to simulation data
     dbSim = SQLite.DB(joinpath("..","simulation","sweep_db.sqlite"))
