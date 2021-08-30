@@ -1,42 +1,5 @@
 #!/usr/bin/env julia
 
-"""
-The purpose of this file is to illustrate how to do a parameter sweep in Julia.
-This script loops through parameter combinations, and replicates with different
-random seeds, and generates files necessary to perform runs on a local machine
-or on a SLURM cluster.
-To use this script for an experiment, you should copy this directory to a new
-location, modify the parameter sweeps, and modify the relative paths to
-`preamble.jl` and `ROOT_PATH` below to be correct, and the run
-`./generate-runs.jl`
-When the experiment is complete, you can collect all output files into a single
-SQLite database via
-`./gather-output.jl`
-For each run, it creates a directory, `runs/c<combo_id>/r<replicate>`, and adds
-entries to a SQLite database of run information, to make it easy to identify
-runs and collate output.
-It also divides runs into jobs suitable for execution on a single cluster node
-or local machine. The runs are specified as lines in the job's `runs.txt`
-file, and the job is specified in a `job.sbatch` file, which can be run directly
-as a shell script or submitted to a SLURM cluster.
-Each job uses the script `varmodel3/runmany.jl` to run a single-node, multi-core
-queue of runs, with one run running on each core at any time.
-This script also generates a script `submit_jobs.sh`, which submits every job to
-SLURM at once.
-Runs are divided into at most `N_JOBS_MAX` jobs that make use of at most
-`N_CORES_PER_JOB_MAX` for the cluster node's local queue.
-This allows you to work within limits set by your cluster administrator.
-If you have no limits, you should set `N_JOBS_MAX` to a very large number,
-and set `N_CORES_PER_JOB_MAX = 1`, so that the cluster can dynamically
-balance runs across cluster nodes as the experiment runs.
-To modify configuration settings for SLURM jobs, edit the template string in
-the `generate_jobs()` function.
-"""
-
-# for other data change "richness" folder (lines ...), "make-richness-plots" (line 48)!!!!
-# make sure data type has its own directory, analogous to "richness" in the
-# data analysis folder
-
 println("(Annoying Julia compilation delay...)")
 
 include(joinpath("..","simulation","src","setup.jl"))
@@ -62,12 +25,12 @@ const N_CORES_PER_JOB_MAX = 14 # Half a node (14) is easier to get scheduled tha
 function main()
     # Root run directory
     if !ispath(joinpath("..","simulation","runs"))
-        error("`simulation/runs` does not exist; please simulate first.")
+        error("`../simulation/runs` does not exist; please simulate time series first.")
     end
 
     # Root job directory
     if !ispath(joinpath("..","simulation","jobs"))
-        error("`simulation/jobs` does not exist; please simulate first.")
+        error("`../simulation/jobs` does not exist; please simulate time series first.")
     end
 
     # Connect to simulation data
@@ -111,9 +74,9 @@ function generate_plot_runs(dbSim) # This function generates the directories
                         error("Please analyze data first; `$(analysisType)/runs` is missing.")
                     end
 
-                    plot_dir = joinpath(analysisDir,"plots", "c$(combo_id)", "r$(replicate)")
+                    plot_dir = joinpath("gathered-analyses",analysisDir,"plots", "c$(combo_id)", "r$(replicate)")
                     if ispath(plot_dir)
-                        error("Please delete `$(analysisType)/plots`.")
+                        error("Please delete `gathered-analyses/$(analysisType)/plots`.")
                     end
                     mkpath(plot_dir)
 
@@ -162,7 +125,7 @@ function generate_plot_jobs(dbSim,dbTempJobs)
         if !ispath(job_dir)
             mkpath(job_dir)
         else
-            error("Please delete `$(analysisType)/plotjobs` and `$(analysisType)/plots`.")
+            error("Please delete `$(analysisType)/plotjobs` and `gathered-analyses/$(analysisType)/plots`.")
         end
 
         # Get all run directories for this job
@@ -174,12 +137,14 @@ function generate_plot_jobs(dbSim,dbTempJobs)
             (job_id,)
         )]
 
-        n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX)
+
+        n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX) #!
+
 
         # Write out list of runs
         open(joinpath(job_dir, "plot_runs.txt"), "w") do f
             for run_dir in run_dirs
-                run_script = joinpath(SCRIPT_PATH, run_dir, "runplotmaker.sh")
+                run_script = joinpath(SCRIPT_PATH, analysisDir, run_dir, "runplotmaker.sh")
                 println(f, run_script)
             end
         end
@@ -194,7 +159,7 @@ function generate_plot_jobs(dbSim,dbTempJobs)
             #SBATCH --job-name=crispr-$(analysisType)-plots-$(job_id)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
-            #SBATCH --mem-per-cpu=2000m
+            #SBATCH --mem-per-cpu=6500m
             #SBATCH --time=4:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=plot_output.txt
