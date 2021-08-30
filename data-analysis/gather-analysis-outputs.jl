@@ -15,25 +15,10 @@ import SQLite.DBInterface.execute
 analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
 
-# Get relevant paths and cd to the script path.
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
-#cd(SCRIPT_PATH)
 
 function main()
-    # Source database containing experiment metadata
-    #if !ispath("sweep_db.sqlite")
-        #error("`sweep_db.sqlite` does not exist; please run the sweep first")
-    #end
-
-    # New database
-    #if ispath("sweep_db_gathered.sqlite")
-        #error("`sweep_db_gathered.sqlite` exists; please move or delete")
-    #end
-
-    # Copy source database as starting point
-    #cp("sweep_db.sqlite", "sweep_db_gathered.sqlite")
-
-    an_dir = joinpath("gathered-analyses")
+    an_dir = joinpath("gathered-analyses",analysisDir)
     if !ispath(an_dir)
         mkpath(an_dir)
     end
@@ -41,7 +26,7 @@ function main()
     # Connect or create data analysis databsase
     dbAnalysis = SQLite.DB(joinpath(an_dir,"$(analysisType).sqlite"))
 
-    if !isfile("$(analysisType)jobs.sqlite") # cluster
+    if !isfile(joinpath(analysisDir,"$(analysisType)jobs.sqlite")) # cluster
         error("$(analysisType)jobs.sqlite is missing; please run analysis first") # cluster
     end # cluster
     run_pairs = let
