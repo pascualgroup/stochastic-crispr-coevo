@@ -99,6 +99,7 @@ function generate_plot_runs(db) # This function generates the directories
                         print(f, """
                         #!/bin/sh
                         cd `dirname \$0`
+                        module load python
                         python $(ROOT_RUN_SCRIPT) $(run_id) &> plot_output.txt
                         """)
                     end
