@@ -8,6 +8,8 @@ using SQLite
 
 analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
+a2 = ARGS[2]
+a3 = ARGS[3]
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"$(analysisType).jl")
@@ -79,7 +81,7 @@ function generate_analysis_runs(dbSim) # This function generates the directories
                         print(f, """
                         #!/bin/sh
                         cd `dirname \$0`
-                        julia $(ROOT_RUN_SCRIPT) $(run_id) &> output.txt
+                        julia $(ROOT_RUN_SCRIPT) $(run_id) $(a2) $(a3) &> output.txt
                         """)
                     end
                     run(`chmod +x $(run_script)`) # Make run script executable
