@@ -8,6 +8,8 @@ using SQLite
 
 analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
+a2 = ARGS[2]
+a3 = ARGS[3]
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"make-$(analysisType)-plots.py")
@@ -86,7 +88,8 @@ function generate_plot_runs(dbSim) # This function generates the directories
                         print(f, """
                         #!/bin/sh
                         cd `dirname \$0`
-                        python $(ROOT_RUN_SCRIPT) $(run_id) &> plot_output.txt
+                        module load python/anaconda-2021.05
+                        python $(ROOT_RUN_SCRIPT) $(run_id) $(a2) $(a3) &> plot_output.txt
                         """)
                     end
                     run(`chmod +x $(run_script)`) # Make run script executable
