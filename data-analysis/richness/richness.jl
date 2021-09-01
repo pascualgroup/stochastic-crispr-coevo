@@ -1,5 +1,7 @@
 #!/usr/bin/env julia
 
+println("(Annoying Julia compilation delay...)")
+
 using SQLite
 using DataFrames
 using SQLite.DBInterface: execute
@@ -23,8 +25,8 @@ dbOutput = SQLite.DB("richness_output.sqlite") # cluster
 execute(dbOutput, "CREATE TABLE richness (t REAL, vrichness INTEGER, brichness INTEGER)")
 
 # Create temporary database that is a copy of the main database at the run_id value of the script's argument
-#dbTemp = SQLite.DB("/Volumes/Yadgah/timeSeries$(run_id).sqlite")
-dbTemp = SQLite.DB()
+#dbTemp = SQLite.DB("/Volumes/Yadgah/timeSeries$(run_id).sqlite") # local
+dbTemp = SQLite.DB() # cluster
 execute(dbTemp, "CREATE TABLE summary (t REAL, microbial_abundance INTEGER)")
 execute(dbTemp, "CREATE TABLE babundance (t REAL, bstrain_id INTEGER, abundance INTEGER)")
 execute(dbTemp, "CREATE TABLE vabundance (t REAL, vstrain_id INTEGER, abundance INTEGER)")
@@ -45,7 +47,7 @@ execute(dbTemp, "COMMIT")
 println("Processing richness of run $(run_id)")
 function richness(dbTemp,dbOutput)
     for (time,) in execute(dbTemp, "SELECT DISTINCT t FROM summary")
-        time = time + 400 # this is for testing
+        #time = time + 400 # for testing
         println("Computing richness at time $(time)")
         bstrains = [strain.bstrain_id for strain in execute(dbTemp, "SELECT DISTINCT bstrain_id FROM babundance WHERE t = ?", (time,))]
         brichness = length(bstrains)

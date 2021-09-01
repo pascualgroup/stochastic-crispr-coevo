@@ -12,7 +12,6 @@ from scipy import stats
 import sqlite3
 
 run_id = sys.argv[1]
-#run_id = 1
 
 SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
 
