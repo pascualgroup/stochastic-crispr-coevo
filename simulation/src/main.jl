@@ -2,8 +2,6 @@
 
 using Logging
 
-
-
 # Uncomment this to see all debugging output:
 # Logging.global_logger(
 #     Logging.SimpleLogger(
@@ -21,10 +19,6 @@ include("structures.jl")
 include("output.jl")
 include("util.jl")
 include("model.jl")
-
-
-
-
 
 
 const P = let

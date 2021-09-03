@@ -1,4 +1,3 @@
-
 ### EVENT CONSTANTS ###
 
 const N_EVENTS = 5
@@ -21,25 +20,11 @@ state = sim.state
 p = sim.params
 db = sim.db
 
+execute(db, "BEGIN TRANSACTION")
 # Initial output
 if p.enable_output
     @info "initial output"
-    write_periodic_output(sim) # isolates and writes summary_file
-        #from simulation object and state/strain objects that comprises simulation object
-    ############ write_strains(
-    ############ state.bstrains.strain_file,
-    ############ state.bstrains.spacers_file,
-    ############ sim.t,
-    ############ state.bstrains.ids,
-    ############ state.bstrains.spacers
-    ############ )
-    ############ write_strains(
-    ############ state.vstrains.strain_file,
-    ############ state.vstrains.spacers_file,
-    ############ sim.t,
-    ############ state.vstrains.ids,
-    ############ state.vstrains.spacers
-    ############ )
+    write_periodic_output(sim)
 
     write_strains(sim, "bstrains", "bspacers", state.bstrains.ids, state.bstrains.spacers)
     write_strains(sim, "vstrains", "vpspacers", state.vstrains.ids, state.vstrains.spacers)
@@ -47,48 +32,27 @@ end
 
 # Simulation loop
 t_next_output = 0.0
-execute(db, "BEGIN TRANSACTION")
-
 while sim.t < p.t_final
     # Simulate exactly until the next output time
     t_next_output = min(p.t_final, t_next_output + p.t_output)
 
-    @info "Beginning period: $(sim.t) to $(t_next_output)"
-
+    beginTime = sim.t
     while sim.t < t_next_output # This continues until sum of event times meet sampling time
-        # Perform the next event.
-        # If the next event time is computed to be
-        # greater than t_next_output, no event will occur
-        # and time will simply advance exactly to t_next_output.
-        do_next_event!(sim, t_next_output) # NO FILES ARE WRITTEN IN THIS FUNCTION
+        do_next_event!(sim, t_next_output)
     end
+    endTime = sim.t
 
-    @debug "event counts:" total=n_events, breakdown=sim.event_counts
-    @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-    @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+    @info "Completed period: $(beginTime) to $(endTime)"
 
-    # Write periodic output
-    @debug "p.enable_output" p.enable_output
-    if p.enable_output
-        write_periodic_output(sim)  # isolates and writes summary_file
-            #from simulation object and state/strain objects that comprises simulation object
-            #LOOK AT COMMENT IN IF STATEMENT OF "DO_NEXT_EVENT"
-
-        execute(db, "COMMIT")
-        execute(db, "BEGIN TRANSACTION")
-
-    end
-
-    @assert sim.t == t_next_output
+    @assert sim.t >= t_next_output
 end
+execute(db, "COMMIT")
 
 # Record end time and elapsed
 end_time = now()
-############ write_csv(sim.meta_file, "end_time", end_time)
-
-
 elapsed_seconds = Dates.value(end_time - start_time) / 1000.0
 
+execute(db, "BEGIN TRANSACTION")
 execute(db,
 "INSERT INTO meta VALUES (?,?)",
 ["end_time", Dates.format(end_time, "yyyy-mm-ddTHH:MM:SS")]
@@ -98,26 +62,19 @@ execute(db,
 "INSERT INTO meta VALUES (?,?)",
 ["elapsed_seconds", elapsed_seconds]
 )
-
 execute(db, "COMMIT")
 
-#############write_csv(sim.meta_file, "elapsed_seconds", elapsed_seconds)
-
-############ close(sim.meta_file)
 end
-
-
-
-
 
 
 
 
 ## EVENT FUNCTIONS ##
 
-function do_next_event!(sim::Simulation, t_max::Float64) ## THIS IS WHERE YOU WOULD MAKE EVENTS LIST
+function do_next_event!(sim::Simulation, t_max::Float64)
     p = sim.params
     s = sim.state
+    db = sim.db
 
     @assert length(sim.event_rates) == length(EVENTS)
     R = sum(sim.event_rates)
@@ -126,14 +83,47 @@ function do_next_event!(sim::Simulation, t_max::Float64) ## THIS IS WHERE YOU WO
     t_next = sim.t + randexp(sim.rng) / R
 
     if t_next > t_max
-        sim.t = t_max #THIS SHOULD ADVANCE TO T_NEXT.
-        #ADVANCE TO T_MAX (i.e. sim.t = t_next) WHILE KEEPING STATE THE SAME, THEN WRITE STATE
-            #ONE THING TO note is that the data is written outside of this function,
-                    #namely in the simulate function as "write_periodic_output". perhaps data
-                    #for should be written in this if statement
-        #THEN ADVANCE TO T_MAX (i.e. sim.t = t_max) AND UPDATE RATES BUT DON'T WRITE STATE.
-            #UPDATE RATES LIKE BELOW
+        if t_next > p.t_final
+            sim.t = p.t_final
+
+            # Write periodic output
+            @debug "p.enable_output" p.enable_output
+            if p.enable_output
+                write_periodic_output(sim)
+            end
+
+            @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+            @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+
+        else
+            sim.t = t_max
+
+            # Write periodic output
+            @debug "p.enable_output" p.enable_output
+            if p.enable_output
+                write_periodic_output(sim)
+            end
+
+            @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+            @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+
+            # Time advances to value greater than current output time
+            sim.t = t_next
+
+            @debug "event counts:" total=n_events, breakdown=sim.event_counts
+            @debug "event_rates:" sim.event_rates
+
+            # Sample next top-level event proportional to event rate
+            event_id = sample(sim.rng, EVENTS, Weights(sim.event_rates, R))
+            sim.event_counts[event_id] += 1
+
+            @debug "begin do_event()" event=event t=t_next
+            do_event!(event_id, sim, t_next)
+            update_rates!(sim)
+            @debug "end do_event()"
+        end
     else
+        @debug "event counts:" total=n_events, breakdown=sim.event_counts
         @debug "event_rates:" sim.event_rates
 
         # Sample next top-level event proportional to event rate
@@ -145,12 +135,13 @@ function do_next_event!(sim::Simulation, t_max::Float64) ## THIS IS WHERE YOU WO
         update_rates!(sim)
         @debug "end do_event()"
 
-        sim.t = t_next          # Time advances
+        sim.t = t_next # Time advances
 
-        @debug "bstrains.total_abundance:" sim.state.bstrains.total_abundance
-        @debug "VStrains.total_abundance:" sim.state.vstrains.total_abundance
+        @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+        @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
     end
 end
+
 
 function update_rates!(sim::Simulation)
     for i = EVENTS
@@ -179,6 +170,7 @@ function get_rate(event_id, sim::Simulation)
         error("unknown event")
     end
 end
+
 
 function do_event!(event_id, sim::Simulation, t::Float64)
     if event_id == MICROBIAL_GROWTH
