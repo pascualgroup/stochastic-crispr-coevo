@@ -35,6 +35,18 @@ function main()
         error("`../simulation/jobs` does not exist; please simulate time series first.")
     end
 
+    if ispath(joinpath(analysisDir,"plotjobs"))
+        error("Please delete `$(analysisType)/plotjobs` and `gathered-analyses/$(analysisType)/plots`.")
+    end
+
+    if !ispath(joinpath(analysisDir,"runs"))
+        error("Please analyze data first; `$(analysisType)/runs` is missing.")
+    end
+
+    if ispath(joinpath("gathered-analyses",analysisDir,"plots"))
+        error("Please delete `gathered-analyses/$(analysisType)/plots`.")
+    end
+
     # Connect to simulation data
     dbSim = SQLite.DB(joinpath("..","simulation","sweep_db.sqlite"))
 
@@ -42,18 +54,19 @@ function main()
     if !isfile(joinpath(analysisDir,"$(analysisType)jobs.sqlite"))
         error("`$(analysisType)jobs.sqlite` in /$(analysisType) is missing. Please analyze simulation data first.")
     end
+
     dbTempJobs = SQLite.DB(joinpath(analysisDir,"$(analysisType)jobs.sqlite"))
     execute(dbTempJobs, "DROP TABLE IF EXISTS plot_jobs")
     execute(dbTempJobs, "CREATE TABLE plot_jobs (job_id INTEGER, job_dir TEXT)")
     execute(dbTempJobs, "DROP TABLE IF EXISTS plot_job_runs")
     execute(dbTempJobs, "CREATE TABLE plot_job_runs (job_id INTEGER, run_id INTEGER, run_dir TEXT)")
 
-    generate_plot_runs(dbSim)
+    generate_plot_runs()
     generate_plot_jobs(dbSim,dbTempJobs)
 
 end
 
-function generate_plot_runs(dbSim) # This function generates the directories
+function generate_plot_runs() # This function generates the directories
     # for the individual parameter sets and corresponding replicates. It also
     # generates shell scripts for each run and corresponding parameter file.
 
@@ -72,14 +85,10 @@ function generate_plot_runs(dbSim) # This function generates the directories
                 for replicate in 1:N_REPLICATES
 
                     run_dir = joinpath(analysisDir,"runs", "c$(combo_id)", "r$(replicate)")
-                    if !ispath(run_dir)
-                        error("Please analyze data first; `$(analysisType)/runs` is missing.")
-                    end
+                    @assert ispath(run_dir)
 
                     plot_dir = joinpath("gathered-analyses",analysisDir,"plots", "c$(combo_id)", "r$(replicate)")
-                    if ispath(plot_dir)
-                        error("Please delete `gathered-analyses/$(analysisType)/plots`.")
-                    end
+                    @assert !ispath(plot_dir)
                     mkpath(plot_dir)
 
                     # Generate shell script to perform a single run
@@ -107,13 +116,13 @@ function generate_plot_jobs(dbSim,dbTempJobs)
 
     # Assign runs to jobs (round-robin)
     job_id = 1
+    execute(dbTempJobs, "BEGIN TRANSACTION")
     for (run_id, run_dir) in execute(dbSim, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
-        execute(dbTempJobs, "BEGIN TRANSACTION")
         execute(dbTempJobs, "INSERT INTO plot_job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
-        execute(dbTempJobs, "COMMIT")
         # Mod-increment job ID
         job_id = (job_id % N_JOBS_MAX) + 1
     end
+    execute(dbTempJobs, "COMMIT")
 
     # Create job directories containing job scripts and script to submit all jobs
     submit_file = open("submit_plot_jobs.sh", "w")
@@ -125,11 +134,8 @@ function generate_plot_jobs(dbSim,dbTempJobs)
     for (job_id,) in execute(dbTempJobs, "SELECT DISTINCT job_id FROM plot_job_runs ORDER BY job_id")
 
         job_dir = joinpath(analysisDir,"plotjobs", "$(job_id)")
-        if !ispath(job_dir)
-            mkpath(job_dir)
-        else
-            error("Please delete `$(analysisType)/plotjobs` and `gathered-analyses/$(analysisType)/plots`.")
-        end
+        @assert !ispath(job_dir)
+        mkpath(job_dir)
 
         # Get all run directories for this job
         run_dirs = [run_dir for (run_dir,) in execute(dbTempJobs,
@@ -140,9 +146,7 @@ function generate_plot_jobs(dbSim,dbTempJobs)
             (job_id,)
         )]
 
-
         n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX) #!
-
 
         # Write out list of runs
         open(joinpath(job_dir, "plot_runs.txt"), "w") do f
@@ -162,7 +166,7 @@ function generate_plot_jobs(dbSim,dbTempJobs)
             #SBATCH --job-name=crispr-$(analysisType)-plots-$(job_id)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
-            #SBATCH --mem-per-cpu=6500m
+            #SBATCH --mem-per-cpu=7000m
             #SBATCH --time=4:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=plot_output.txt

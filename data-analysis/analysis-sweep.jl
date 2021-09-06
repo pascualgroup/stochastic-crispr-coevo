@@ -65,15 +65,12 @@ function generate_analysis_runs(dbSim) # This function generates the directories
                     spacer_acquisition_prob = $(spacer_acquisition_prob),
                     crispr_failure_prob = $(crispr_failure_prob)"
                 )
-
                 for replicate in 1:N_REPLICATES
-
                     run_dir = joinpath(analysisDir,"runs", "c$(combo_id)", "r$(replicate)")
                     if ispath(run_dir)
                         error("Please delete `$(analysisType)/runs`.")
                     end
                     mkpath(run_dir)
-
 
                     # Generate shell script to perform a single run
                     run_script = joinpath(run_dir, "run.sh")
