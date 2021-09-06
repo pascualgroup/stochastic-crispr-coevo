@@ -40,7 +40,6 @@ end
 
 # Run simulation
 function main(P::Params)
-    #P = load_parameters_from_json(ARGS[1]) # parameters
     sim = Simulation(P)
     simulate(sim)
 end

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 import pandas as pd
 import numpy as np
 import scipy as sp
@@ -11,8 +10,6 @@ import os
 import seaborn as sns
 from scipy import stats
 import sqlite3
-
-
 
 run_id = sys.argv[1]
 
@@ -32,11 +29,11 @@ PLOT_PATH = os.path.join(SCRIPT_PATH,'..', 'plots','c{}'.format(combo_id),'r{}'.
 
 #PLOT_PATH = os.path.abspath(os.path.dirname(__file__))
 
-print('SQLite Query: Virus Data')
+print('SQLite Query: virus abundance data')
 virus = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance WHERE run_id = {}".format(run_id), con)
 virus_stacked = virus.pivot(index='t',columns='vstrain_id',values='abundance')
 
-print('Processing: Viral Strain Abundances Plot')
+print('Compiling viral strain Abundances plot')
 pal = sns.color_palette("tab20b")
 virus_stacked.plot.area(stacked=True, legend=False, linewidth=0,color=pal)
 plt.title('Viral Strain Abundances:')
@@ -46,12 +43,11 @@ plt.tight_layout()
 plt.savefig(os.path.join(PLOT_PATH,'virus-strain-abundances_plot.png'),dpi=500)
 #plt.show()
 
-print('SQLite Query: Microbe Data')
+print('SQLite Query: microbe abundance data')
 microbe = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance WHERE run_id = {}".format(run_id), con)
 microbe_stacked = microbe.pivot(index='t',columns='bstrain_id',values='abundance')
 
-print('Processing: Microbial Strain Abundances Plot')
-#pal = sns.color_palette("tab20b")
+print('Compiling microbial strain abundances plot')
 microbe_stacked.plot.area(stacked=True, legend=False, linewidth=0,color=pal)
 plt.title('Microbial Strain Abundances:')
 plt.xlabel('Time t')
@@ -59,4 +55,3 @@ plt.ylabel('Abundances N_i')
 plt.tight_layout()
 plt.savefig(os.path.join(PLOT_PATH,'microbe-strain-abundances_plot.png'),dpi=500)
 #plt.show()
-
