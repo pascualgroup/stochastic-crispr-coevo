@@ -143,13 +143,7 @@ function generate_runs(db) # This function generates the directories
                         #!/bin/sh
                         cd `dirname \$0`
                         julia $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
-                        """)# what does \$0 mean???? # ROOT_RUN_SCRIPT = run.jl which is analogous to main.jl
-                        # Double check what runs.jl looks like. Don't forget to put "include()" scripts into a "preamble.jl"
-                        # what is --check-bounds=no -03???
-                        # this creates a shell script for each simulation... this is not an sbatch
-                        #EACH OF THESE IN AN INDIVIDUAL DIRECTORY IS SAVED LINE-BY-LINE in RUNS.TXTTTT.
-                        # what does &> mean???
-                        #check julia --check-bounds=no -O3 $(ROOT_RUN_SCRIPT) parameters.json &> output.txt on desktop
+                        """)
                     end
                     run(`chmod +x $(run_script)`) # Make run script executable
                     # WHY NOT 777 but rather +x? TEST THIS ON MIDWAY
