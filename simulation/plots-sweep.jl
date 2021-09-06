@@ -41,7 +41,7 @@ using SQLite
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH, "src","make-plots.py")
-ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "run-many-plots.jl")
+ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)
 
 db = SQLite.DB("sweep_db.sqlite")
@@ -64,6 +64,15 @@ function main()
         error("`jobs` does not exist; please simulate first.")
     end
 
+    if ispath(joinpath("plots"))
+        error("`plots` already exist; please delete first.")
+    end
+
+    execute(db, "DROP TABLE IF EXISTS plot_jobs")
+    execute(db, "CREATE TABLE plot_jobs (job_id INTEGER, job_dir TEXT)")
+    execute(db, "DROP TABLE IF EXISTS plot_job_runs")
+    execute(db, "CREATE TABLE plot_job_runs (job_id INTEGER, run_id INTEGER, run_dir TEXT)")
+
     generate_plot_runs(db)
     generate_plot_jobs(db)
 end
@@ -73,43 +82,27 @@ function generate_plot_runs(db) # This function generates the directories
     # generates shell scripts for each run and corresponding parameter file.
 
     # Loop through parameter combinations and replicates, generating a run directory
-    # `runs/c<combo_id>/r<replicate>` for each one.
-    combo_id = 1
-    run_id = 1
-    for viral_mutation_rate in (1.0e-06, 2.0e-06)
-        for spacer_acquisition_prob in (1e-06, 1e-05)
-            for crispr_failure_prob in (1e-06, 1e-05)
-                println("Processing plot scripts for c$(combo_id): viral_mutation_rate = $(viral_mutation_rate),
-                    spacer_acquisition_prob = $(spacer_acquisition_prob),
-                    crispr_failure_prob = $(crispr_failure_prob)"
-                )
+    # `plots/c<combo_id>/r<replicate>` for each one.
 
-                for replicate in 1:N_REPLICATES
+    for (run_id, combo_id, replicate) in execute(db, "SELECT run_id,combo_id,replicate FROM runs")
+        run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
+        @assert ispath(run_dir)
 
-                    run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
-                    @assert ispath(run_dir)
+        plot_dir = joinpath("plots", "c$(combo_id)", "r$(replicate)")
+        @assert !ispath(plot_dir)
+        mkpath(plot_dir)
 
-                    plot_dir = joinpath("plots", "c$(combo_id)", "r$(replicate)")
-                    @assert !ispath(plot_dir)
-                    mkpath(plot_dir)
-
-                    # Generate shell script to perform a single run
-                    run_script = joinpath(run_dir, "runplotmaker.sh")
-                    open(run_script, "w") do f
-                        print(f, """
-                        #!/bin/sh
-                        cd `dirname \$0`
-                        module load python
-                        python $(ROOT_RUN_SCRIPT) $(run_id) &> plot_output.txt
-                        """)
-                    end
-                    run(`chmod +x $(run_script)`) # Make run script executable
-
-                    run_id += 1
-                end
-                combo_id += 1
-            end
+        # Generate shell script to perform a single run
+        run_script = joinpath(run_dir, "runplotmaker.sh")
+        open(run_script, "w") do f
+            print(f, """
+            #!/bin/sh
+            cd `dirname \$0`
+            module load python/anaconda-2021.05
+            python $(ROOT_RUN_SCRIPT) $(run_id) &> plot_output.txt
+            """)
         end
+        run(`chmod +x $(run_script)`) # Make run script executable
     end
 end
 
@@ -118,11 +111,13 @@ function generate_plot_jobs(db)
 
     # Assign runs to jobs (round-robin)
     job_id = 1
+    execute(db, "BEGIN TRANSACTION")
     for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
-
+        execute(db, "INSERT INTO plot_job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
         job_id = (job_id % N_JOBS_MAX) + 1
     end
+    execute(db, "COMMIT")
 
     # Create job directories containing job scripts and script to submit all jobs
     submit_file = open("submit_plot_jobs.sh", "w")
@@ -142,6 +137,7 @@ function generate_plot_jobs(db)
             """,
             (job_id,)
         )]
+
         n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX)
 
         # Write out list of runs
@@ -162,7 +158,7 @@ function generate_plot_jobs(db)
             #SBATCH --job-name=crispr-plots-$(job_id)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
-            #SBATCH --mem-per-cpu=4000m
+            #SBATCH --mem-per-cpu=7000m
             #SBATCH --time=4:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=plot_output.txt
@@ -174,6 +170,10 @@ function generate_plot_jobs(db)
             """) # runs.txt is for parallel processing
         end
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)
+
+        execute(db, "BEGIN TRANSACTION")
+        execute(db, "INSERT INTO plot_jobs VALUES (?,?)", (job_id, job_dir))
+        execute(db, "COMMIT")
 
         println(submit_file, "sbatch $(job_sbatch)")
     end
