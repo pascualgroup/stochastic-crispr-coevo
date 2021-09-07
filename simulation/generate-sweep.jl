@@ -43,7 +43,7 @@ using SQLite
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 ROOT_PATH = joinpath(SCRIPT_PATH, "src")
-ROOT_RUN_SCRIPT = joinpath(ROOT_PATH, "main-sweeps.jl")
+ROOT_RUN_SCRIPT = joinpath(ROOT_PATH, "main-sweep.jl")
 ROOT_RUNMANY_SCRIPT = joinpath(ROOT_PATH, "runmany.jl")
 cd(SCRIPT_PATH)
 
