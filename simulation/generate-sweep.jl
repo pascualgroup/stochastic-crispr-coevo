@@ -51,119 +51,125 @@ cd(SCRIPT_PATH)
 const N_REPLICATES = 30
 
 # Number of SLURM jobs to generate
-const N_JOBS_MAX = 8
+const N_JOBS_MAX = 100
 const N_CORES_PER_JOB_MAX = 14 # Half a node, easier to get scheduled than a whole one
 
 function main()
     # Root run directory
-    if ispath("runs")
-        error("`runs` already exists; please move or delete.")
+    if ispath(joinpath(SCRIPT_PATH,"runs"))
+        error("`simulation/runs` already exists; please move or delete.")
     end
     mkdir("runs")
 
     # Root job directory
-    if ispath("jobs")
-        error("`jobs` already exists; please move or delete.")
+    if ispath(joinpath(SCRIPT_PATH,"jobs"))
+        error("`simulation/jobs` already exists; please move or delete.")
     end
     mkdir("jobs")
 
     # Database of experiment information
-    if ispath("sweep_db.sqlite")
-        error("`sweep_db.sqlite` already exists; please move or delete")
+    if isfile(joinpath(SCRIPT_PATH,"sweep_db.sqlite)"))
+        error("`simulation/sweep_db.sqlite` already exists; please move or delete")
     end
-    db = SQLite.DB(joinpath("sweep_db.sqlite")) # the function of this database
+    db = SQLite.DB(joinpath(SCRIPT_PATH,"sweep_db.sqlite")) # the function of this database
     # is to log run and job ids of individual simulation directory names
+
+    json_str = read(joinpath(SCRIPT_PATH,"..","sweep-parameters.json"), String)
+
+    paramStringTrunc = JSON.parse(json_str)
+    # Deleting any key will designate the parameter as a base (unchanging parameter)
+    # with the exception of the seed, which is generated for every individual replicate
+    delete!(paramStringTrunc,"rng_seed")
+    delete!(paramStringTrunc,"enable_output")
+
+    paramKeys = ["$(k) REAL" for (k,v) in paramStringTrunc]
+    paramColumns = join(paramKeys,", ")
+
     execute(db, "CREATE TABLE meta (key, value)")
-    execute(db, "CREATE TABLE param_combos (combo_id INTEGER, viral_mutation_rate REAL, spacer_acquisition_prob REAL, crispr_failure_prob REAL)")
+    execute(db, "CREATE TABLE param_combos (combo_id INTEGER, $(paramColumns))")
     execute(db, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER, rng_seed INTEGER, run_dir TEXT, params TEXT)")
     execute(db, "CREATE TABLE jobs (job_id INTEGER, job_dir TEXT)")
     execute(db, "CREATE TABLE job_runs (job_id INTEGER, run_id INTEGER)")
 
-    generate_runs(db)
+    generate_runs(db,paramStringTrunc)
     generate_jobs(db)
 end
 
-function generate_runs(db) # This function generates the directories
+function generate_runs(db::DB,paramStringTrunc::Dict{String,Any}) # This function generates the directories
     # for the individual parameter sets and corresponding replicates. It also
     # generates shell scripts for each run and corresponding parameter file.
 
     # System random device used to generate seeds
     seed_rng = RandomDevice()
 
-    # Base parameter set, copied/modified for each combination/replicate
-    base_params = init_base_params()
+    json_str = read(joinpath(SCRIPT_PATH,"..","sweep-parameters.json"), String)
+    paramString = JSON.parse(json_str)
+    paramSymb = Dict((Symbol(k), v) for (k, v) in paramString)
+    base_params = init_params(paramSymb)
     validate(base_params)
+
+    execute(db, "BEGIN TRANSACTION")
     execute(db, "INSERT INTO meta VALUES (?, ?)", ("base_params", pretty_json(base_params)))
 
-    # Loop through parameter combinations and replicates, generating a run directory
-    # `runs/c<combo_id>/r<replicate>` for each one.
-    combo_id = 1
+    paramKeys = [k for (k,) in paramStringTrunc]
+    paramVals = [v for (nothing,v) in paramStringTrunc]
+    combos = collect(Base.product(paramVals...))
+
     run_id = 1
-    for viral_mutation_rate in (1.0e-06, 2.0e-06)
-        for spacer_acquisition_prob in (1e-06, 1e-05)
-            for crispr_failure_prob in (1e-06, 1e-05)
-                println("Processing c$(combo_id): viral_mutation_rate = $(viral_mutation_rate),
-                    spacer_acquisition_prob = $(spacer_acquisition_prob),
-                    crispr_failure_prob = $(crispr_failure_prob)"
-                )
 
-                execute(db, "INSERT INTO param_combos VALUES (?, ?, ?, ?)",
-                (combo_id, viral_mutation_rate, spacer_acquisition_prob, crispr_failure_prob)
-                )
+    for combo_id in 1:length(combos)
+        println("Processing parameter combination $(combo_id)")
+        paramSpace = ["?" for i in 1:(length(paramVals)+1)]
+        paramSpaces = join(paramSpace,", ")
+        execute(db, "INSERT INTO param_combos VALUES ($(paramSpaces))",
+        (combo_id,combos[combo_id]...)
+        )
 
-                for replicate in 1:N_REPLICATES
-                    rng_seed = rand(seed_rng, 1:typemax(Int64))
-                    params = Params(
-                        base_params;
-                        rng_seed = rng_seed,
-                        viral_mutation_rate = viral_mutation_rate,
-                        spacer_acquisition_prob = spacer_acquisition_prob,
-                        crispr_failure_prob = crispr_failure_prob
-                    )
+        paramSymbTrunc = Dict(map(Symbol,paramKeys).=>combos[combo_id])
 
-                    run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
-                    @assert !ispath(run_dir)
-                    mkpath(run_dir)
+        for replicate in 1:N_REPLICATES
+            rng_seed = rand(seed_rng, 1:typemax(Int64))
+            params = Params(base_params;rng_seed = rng_seed,
+                        paramSymbTrunc...
+                        )
 
-                    # Generate parameters file
-                    params_json = pretty_json(params)
-                    open(joinpath(run_dir, "parameters.json"), "w") do f
-                        println(f, params_json)
-                    end
+            run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
+            @assert !ispath(run_dir)
+            mkpath(run_dir)
 
-
-                    # I think this needs a "joinpath" code block for model.jl,
-                    # structures.jl, output.jl, util.jl, model.jl??????? ##########
-
-
-                    # Generate shell script to perform a single run
-                    run_script = joinpath(run_dir, "run.sh")
-                    open(run_script, "w") do f
-                        print(f, """
-                        #!/bin/sh
-                        cd `dirname \$0`
-                        julia $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
-                        """)
-                    end
-                    run(`chmod +x $(run_script)`) # Make run script executable
-                    # WHY NOT 777 but rather +x? TEST THIS ON MIDWAY
-
-                    # Save all run info (including redundant stuff for reference) into DB
-                    execute(db, "INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)", (run_id, combo_id, replicate, rng_seed, run_dir, params_json))
-
-                    run_id += 1
-                end
-                combo_id += 1
+            # Generate parameters file
+            params_json = pretty_json(params)
+            open(joinpath(run_dir, "parameters.json"), "w") do f
+                println(f, params_json)
             end
+
+            # Generate shell script to perform a single run
+            run_script = joinpath(run_dir, "run.sh")
+            open(run_script, "w") do f
+                print(f, """
+                #!/bin/sh
+                cd `dirname \$0`
+                julia $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
+                """)
+            end
+            run(`chmod +x $(run_script)`) # Make run script executable
+            # WHY NOT 777 but rather +x? TEST THIS ON MIDWAY
+
+            # Save all run info (including redundant stuff for reference) into DB
+            execute(db, "INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)", (run_id, combo_id, replicate, rng_seed, run_dir, params_json))
+
+            run_id += 1
         end
     end
+    execute(db, "COMMIT")
 end
 
-function generate_jobs(db)
+function generate_jobs(db::DB)
     println("Assigning runs to jobs...")
 
     # Assign runs to jobs (round-robin)
     job_id = 1
+    execute(db, "BEGIN TRANSACTION")
     for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
         execute(db, "INSERT INTO job_runs VALUES (?,?)", (job_id, run_id))
 
@@ -227,6 +233,7 @@ function generate_jobs(db)
         execute(db, "INSERT INTO jobs VALUES (?,?)", (job_id, job_dir,))
         println(submit_file, "sbatch $(job_sbatch)")
     end
+    execute(db, "COMMIT")
     close(submit_file)
     run(`chmod +x submit_jobs.sh`) # Make submit script executable
 end
@@ -238,47 +245,47 @@ function pretty_json(params) #LEARN WHAT THIS FUNCTION IS DOING...
     String(take!(io))
 end
 
-function init_base_params()
-    Params(
-        t_final = 2000.0,
+function init_params(d_symb::Dict{Symbol,Any})
+    Params(;
+        t_final = d_symb[:t_final][1],
 
-        t_output = 1.0,
+        t_output = d_symb[:t_output][1],
 
-        rng_seed = nothing,
+        rng_seed = d_symb[:rng_seed][1],
 
-        enable_output = true,
+        enable_output = d_symb[:enable_output][1],
 
-        n_bstrains = 1,
+        n_bstrains = d_symb[:n_bstrains][1],
 
-        n_hosts_per_bstrain = 100,
+        n_hosts_per_bstrain = d_symb[:n_hosts_per_bstrain][1],
 
-        n_vstrains = 1,
+        n_vstrains = d_symb[:n_vstrains][1],
 
-        n_particles_per_vstrain = 100,
+        n_particles_per_vstrain = d_symb[:n_particles_per_vstrain][1],
 
-        n_protospacers = 15,
+        n_protospacers = d_symb[:n_protospacers][1],
 
-        n_spacers_max = 10,
+        n_spacers_max = d_symb[:n_spacers_max][1],
 
-        crispr_failure_prob = 1e-05,
+        crispr_failure_prob = d_symb[:crispr_failure_prob][1],
 
-        spacer_acquisition_prob = 1e-05,
+        spacer_acquisition_prob = d_symb[:spacer_acquisition_prob][1],
 
-        microbe_growth_rate = 1,
+        microbe_growth_rate = d_symb[:microbe_growth_rate][1],
 
-        microbe_carrying_capacity = 316227.7660168379,
+        microbe_carrying_capacity = d_symb[:microbe_carrying_capacity][1],
 
-        viral_burst_size = 50,
+        viral_burst_size = d_symb[:viral_burst_size][1],
 
-        adsorption_rate = 1e-07,
+        adsorption_rate = d_symb[:adsorption_rate][1],
 
-        viral_decay_rate = 0.1,
+        viral_decay_rate = d_symb[:viral_decay_rate][1],
 
-        viral_mutation_rate = 1e-06,
+        viral_mutation_rate = d_symb[:viral_mutation_rate][1],
 
-        microbe_death_rate = 0,
+        microbe_death_rate = d_symb[:microbe_death_rate][1],
 
-        microbe_immigration_rate = 1,
+        microbe_immigration_rate = d_symb[:microbe_immigration_rate][1],
     )
 end
 
