@@ -96,13 +96,13 @@ function generate_analysis_jobs(dbSim,dbTempJobs)
 
     # Assign runs to jobs (round-robin)
     job_id = 1
+    execute(dbTempJobs, "BEGIN TRANSACTION")
     for (run_id, run_dir) in execute(dbSim, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
-        execute(dbTempJobs, "BEGIN TRANSACTION")
         execute(dbTempJobs, "INSERT INTO job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
-        execute(dbTempJobs, "COMMIT")
         # Mod-increment job ID
         job_id = (job_id % N_JOBS_MAX) + 1
     end
+    execute(dbTempJobs, "COMMIT")
 
     # Create job directories containing job scripts and script to submit all jobs
     submit_file = open("submit_analysis_jobs.sh", "w")
