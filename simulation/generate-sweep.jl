@@ -238,7 +238,7 @@ function generate_jobs(db::DB)
     run(`chmod +x submit_jobs.sh`) # Make submit script executable
 end
 
-function pretty_json(params) #LEARN WHAT THIS FUNCTION IS DOING...
+function pretty_json(params)
     d = Dict(fn => getfield(params, fn) for fn in fieldnames(typeof(params)))
     io = IOBuffer()
     JSON.print(io, d, 2)
