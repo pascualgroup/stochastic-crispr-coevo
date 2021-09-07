@@ -1,5 +1,5 @@
 {
-    "t_final": 20.0,
+    "t_final": 2000.0,
     "t_output": 1.0,
     "n_bstrains": 1,
     "n_hosts_per_bstrain": 100,
