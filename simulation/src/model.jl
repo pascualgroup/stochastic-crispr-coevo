@@ -84,61 +84,67 @@ function do_next_event!(sim::Simulation, t_max::Float64)
 
     if t_next > t_max
         if t_next > p.t_final
+
             sim.t = p.t_final
 
-            # Write periodic output
-            @debug "p.enable_output" p.enable_output
-            if p.enable_output
-                write_periodic_output(sim)
-            end
+                # Write periodic output
+                @debug "p.enable_output" p.enable_output
+                if p.enable_output
+                    write_periodic_output(sim)
+                end
 
-            @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-            @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+                @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+                @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
 
         else
             sim.t = t_max
 
-            # Write periodic output
-            @debug "p.enable_output" p.enable_output
-            if p.enable_output
-                write_periodic_output(sim)
-            end
+                # Write periodic output
+                @debug "p.enable_output" p.enable_output
+                if p.enable_output
+                    write_periodic_output(sim)
+                end
 
-            @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-            @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+                @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+                @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
 
             # Time advances to value greater than current output time
+
+                # Sample next top-level event proportional to event rate
+
+                @debug "event counts:" total=n_events, breakdown=sim.event_counts
+                @debug "event_rates:" sim.event_rates
+
+                event_id = sample(sim.rng, EVENTS, Weights(sim.event_rates, R))
+                sim.event_counts[event_id] += 1
+
+                @debug "begin do_event()" event=event t=t_next
+                do_event!(event_id, sim, t_next)
+                update_rates!(sim)
+                @debug "end do_event()"
+
             sim.t = t_next
 
-            @debug "event counts:" total=n_events, breakdown=sim.event_counts
-            @debug "event_rates:" sim.event_rates
-
-            # Sample next top-level event proportional to event rate
-            event_id = sample(sim.rng, EVENTS, Weights(sim.event_rates, R))
-            sim.event_counts[event_id] += 1
-
-            @debug "begin do_event()" event=event t=t_next
-            do_event!(event_id, sim, t_next)
-            update_rates!(sim)
-            @debug "end do_event()"
+                @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+                @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
         end
     else
-        @debug "event counts:" total=n_events, breakdown=sim.event_counts
-        @debug "event_rates:" sim.event_rates
+                @debug "event counts:" total=n_events, breakdown=sim.event_counts
+                @debug "event_rates:" sim.event_rates
 
-        # Sample next top-level event proportional to event rate
-        event_id = sample(sim.rng, EVENTS, Weights(sim.event_rates, R))
-        sim.event_counts[event_id] += 1
+                # Sample next top-level event proportional to event rate
+                event_id = sample(sim.rng, EVENTS, Weights(sim.event_rates, R))
+                sim.event_counts[event_id] += 1
 
-        @debug "begin do_event()" event=event t=t_next
-        do_event!(event_id, sim, t_next)
-        update_rates!(sim)
-        @debug "end do_event()"
+                @debug "begin do_event()" event=event t=t_next
+                do_event!(event_id, sim, t_next)
+                update_rates!(sim)
+                @debug "end do_event()"
 
-        sim.t = t_next # Time advances
+            sim.t = t_next # Time advances
 
-        @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-        @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+                @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+                @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
     end
 end
 
@@ -222,6 +228,7 @@ function get_rate_microbial_growth(sim::Simulation)
     max(0, b0 * N * (1 - N / C))
 end
 
+
 function do_event_microbial_growth!(sim::Simulation, t::Float64)
     p = sim.params
     s = sim.state
@@ -250,6 +257,7 @@ function get_rate_microbial_death(sim::Simulation)
 
     d * N
 end
+
 
 function do_event_microbial_death!(sim::Simulation, t::Float64)
     p = sim.params
@@ -316,6 +324,7 @@ function get_rate_viral_decay(sim::Simulation)
     m * V
 end
 
+
 function do_event_viral_decay!(sim::Simulation, t::Float64)
     p = sim.params
     s = sim.state
@@ -352,6 +361,7 @@ function get_rate_contact(sim::Simulation)
 
     phi * N * V
 end
+
 
 function do_event_contact!(sim::Simulation, t::Float64)
     rng = sim.rng
@@ -416,6 +426,7 @@ function do_event_contact!(sim::Simulation, t::Float64)
 
 end
 
+
 function infect!(sim::Simulation, t::Float64, iB, jV)
     rng = sim.rng
     p = sim.params
@@ -461,6 +472,7 @@ function infect!(sim::Simulation, t::Float64, iB, jV)
         mutate_virus!(sim, jV, mut_loci, iB)
     end
 end
+
 
 function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
     rng = sim.rng
@@ -519,10 +531,10 @@ function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
     end
 end
 
+
 function is_immune(spacers::Vector{UInt64}, pspacers::Vector{UInt64})
     length(intersect(spacers, pspacers)) > 0
 end
-
 
 
 function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
