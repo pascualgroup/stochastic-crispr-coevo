@@ -165,7 +165,7 @@ function generate_plot_jobs(db)
             #SBATCH --job-name=crispr-plots-$(job_id)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
-            #SBATCH --mem-per-cpu=7000m
+            #SBATCH --mem-per-cpu=8000m
             #SBATCH --time=4:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=plot_output.txt
