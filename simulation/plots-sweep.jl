@@ -44,7 +44,7 @@ ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH, "src","make-plots.py")
 ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)
 
-db = SQLite.DB("sweep_db.sqlite")
+
 
 # Number of replicates for each parameter combination
 const N_REPLICATES = 30
@@ -55,19 +55,23 @@ const N_CORES_PER_JOB_MAX = 14 # Half a node, easier to get scheduled than a who
 
 function main()
     # Root run directory
-    if !ispath("runs")
-        error("`runs` does not exist; please simulate first.")
+    if !ispath(joinpath(SCRIPT_PATH,"runs"))
+        error("`/simulation/runs` is missing; please run generate-sweep.jl first, then simulate time series.")
     end
 
     # Root job directory
-    if !ispath("jobs")
-        error("`jobs` does not exist; please simulate first.")
+    if !ispath(joinpath(SCRIPT_PATH,"jobs"))
+        error("`/simulation/jobs` is missing; please run generate-sweep.jl first, then simulate time series.")
     end
 
-    if ispath(joinpath("plots"))
-        error("`plots` already exist; please delete first.")
+    if ispath(joinpath(SCRIPT_PATH,"plots"))
+        error("`simulation/plots` already exists; please delete first.")
     end
 
+    if !isfile(joinpath(SCRIPT_PATH,"sweep_db.sqlite"))
+        error("`sweep_db.sqlite` is missing; please run generate-sweep.jl first, then simulate time series.")
+    end
+    db = SQLite.DB("sweep_db.sqlite")
     execute(db, "DROP TABLE IF EXISTS plot_jobs")
     execute(db, "CREATE TABLE plot_jobs (job_id INTEGER, job_dir TEXT)")
     execute(db, "DROP TABLE IF EXISTS plot_job_runs")
@@ -85,10 +89,12 @@ function generate_plot_runs(db) # This function generates the directories
     # `plots/c<combo_id>/r<replicate>` for each one.
 
     for (run_id, combo_id, replicate) in execute(db, "SELECT run_id,combo_id,replicate FROM runs")
-        run_dir = joinpath("runs", "c$(combo_id)", "r$(replicate)")
+        println("Processing plot script for c$(combo_id)/r$(replicate)"
+        )
+        run_dir = joinpath(SCRIPT_PATH,"runs", "c$(combo_id)", "r$(replicate)")
         @assert ispath(run_dir)
 
-        plot_dir = joinpath("plots", "c$(combo_id)", "r$(replicate)")
+        plot_dir = joinpath(SCRIPT_PATH,"plots", "c$(combo_id)", "r$(replicate)")
         @assert !ispath(plot_dir)
         mkpath(plot_dir)
 
@@ -102,7 +108,7 @@ function generate_plot_runs(db) # This function generates the directories
             python $(ROOT_RUN_SCRIPT) $(run_id) &> plot_output.txt
             """)
         end
-        run(`chmod +x $(run_script)`) # Make run script executable
+        run(`chmod +x $(run_script)`)
     end
 end
 
@@ -125,6 +131,7 @@ function generate_plot_jobs(db)
     #!/bin/sh
     cd `dirname \$0`
     """)
+
     for (job_id,) in execute(db, "SELECT DISTINCT job_id FROM job_runs ORDER BY job_id")
         job_dir = joinpath("jobs", "$(job_id)")
 
