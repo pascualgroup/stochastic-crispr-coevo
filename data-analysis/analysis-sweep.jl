@@ -15,6 +15,9 @@ elseif analysisType == "walls" && length(ARGS) < 2
     error("`walls` analysis needs two arguments: upperThreshold lowerThreshold")
 end
 
+if analysisType == "walls" && !isfile(joinpath(SCRIPT_PATH,"richness","richness.sqlite"))
+    error("`/richness/richness.sqlite` is missing; please analyze richness first.")
+end
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"$(analysisType).jl")

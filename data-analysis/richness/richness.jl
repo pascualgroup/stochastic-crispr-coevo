@@ -7,15 +7,19 @@ using DataFrames
 using SQLite.DBInterface: execute
 
 
-run_id = ARGS[1] # cluster
-#run_id = 1
-
-CARRYING_CAP = 10^(5.5)
+run_id = ARGS[1] # cluster & local
+#run_id = 1 # local
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE)) # cluster
 
 dbSimPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db_gathered.sqlite") # cluster
 #dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local machine
+
+dbSim = SQLite.DB(dbSimPath)
+(combo_id,) = execute(dbSim,"SELECT combo_id FROM runs WHERE run_id = ?",(run_id,))
+combo_id = combo_id.combo_id
+(CARRYING_CAP,) = execute(dbSim,"SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = ?",(combo_id,))
+CARRYING_CAP = CARRYING_CAP.microbe_carrying_capacity
 
 if isfile("richness_output.sqlite") # cluster
     error("richness_output.sqlite already exists; delete first") # cluster

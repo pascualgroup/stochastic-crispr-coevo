@@ -6,10 +6,13 @@ using SQLite
 using DataFrames
 using SQLite.DBInterface: execute
 
-run_id = ARGS[1] # cluster
+run_id = ARGS[1] # cluster & local
+#run_id = 1 # local
 
 upperThreshold = ARGS[2]
 lowerThreshold = ARGS[3]
+
+thresholdVals =  DataFrame(upper_threshold = upperThreshold,lower_threshold = lowerThreshold)
 
 #upperThreshold = 3e5; # for testing
 #lowerThreshold = 1.2e5; # for testing
@@ -27,7 +30,7 @@ series = DataFrame(execute(dbSim, "SELECT t, microbial_abundance FROM summary WH
 #run(`cd`) # local machine
 dbOutputPath = joinpath("/Volumes/Yadgah/walls_output.sqlite") # local machine
 if isfile(dbOutputPath)
-    error(dbOutputPath)
+    error("$(dbOutputPath) already exists")
 end
 
 dbOutput = SQLite.DB(dbOutputPath)
@@ -122,6 +125,7 @@ walls = wallCount(coarseSeries,wallSeries);
 
 push!(numWalls,[Int64(walls)])
 
+thresholdVals |> SQLite.load!(dbOutput,"threshold_values",ifnotexists=true)
 wallSeries |> SQLite.load!(dbOutput,"microbial_wall_series",ifnotexists=true)
 wallDurations |> SQLite.load!(dbOutput,"microbial_wall_durations",ifnotexists=true)
 numWalls |> SQLite.load!(dbOutput,"microbial_num_walls",ifnotexists=true)
