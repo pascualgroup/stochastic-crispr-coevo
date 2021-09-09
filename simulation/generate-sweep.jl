@@ -48,39 +48,39 @@ ROOT_RUNMANY_SCRIPT = joinpath(ROOT_PATH, "runmany.jl")
 cd(SCRIPT_PATH)
 
 # Number of replicates for each parameter combination
-const N_REPLICATES = 30
+const N_REPLICATES = 20
 
 # Number of SLURM jobs to generate
 const N_JOBS_MAX = 100
-const N_CORES_PER_JOB_MAX = 14 # Half a node, easier to get scheduled than a whole one
+const N_CORES_PER_JOB_MAX = 20 # Half a node, easier to get scheduled than a whole one
+const mem_per_cpu = 3000 # in MB 100MB = 1 GB
+
+db = SQLite.DB(joinpath(SCRIPT_PATH,"sweep_db.sqlite")) # the function of this database
+# is to log run and job ids of individual simulation directory names
+json_str = read(joinpath(SCRIPT_PATH,"..","sweep-parameters.json"), String)
+paramStringTrunc = JSON.parse(json_str)
+# Deleting any key will designate the parameter as a base (unchanging parameter)
+# with the exception of the seed, which is generated for every individual replicate
+delete!(paramStringTrunc,"rng_seed")
+delete!(paramStringTrunc,"enable_output")
 
 function main()
     # Root run directory
     if ispath(joinpath(SCRIPT_PATH,"runs"))
-        error("`simulation/runs` already exists; please move or delete.")
+        error("`/simulation/runs` already exists; please move or delete.")
     end
     mkdir("runs")
 
     # Root job directory
     if ispath(joinpath(SCRIPT_PATH,"jobs"))
-        error("`simulation/jobs` already exists; please move or delete.")
+        error("`/simulation/jobs` already exists; please move or delete.")
     end
     mkdir("jobs")
 
     # Database of experiment information
     if isfile(joinpath(SCRIPT_PATH,"sweep_db.sqlite)"))
-        error("`simulation/sweep_db.sqlite` already exists; please move or delete")
+        error("`/simulation/sweep_db.sqlite` already exists; please move or delete")
     end
-    db = SQLite.DB(joinpath(SCRIPT_PATH,"sweep_db.sqlite")) # the function of this database
-    # is to log run and job ids of individual simulation directory names
-
-    json_str = read(joinpath(SCRIPT_PATH,"..","sweep-parameters.json"), String)
-
-    paramStringTrunc = JSON.parse(json_str)
-    # Deleting any key will designate the parameter as a base (unchanging parameter)
-    # with the exception of the seed, which is generated for every individual replicate
-    delete!(paramStringTrunc,"rng_seed")
-    delete!(paramStringTrunc,"enable_output")
 
     paramKeys = ["$(k) REAL" for (k,v) in paramStringTrunc]
     paramColumns = join(paramKeys,", ")
@@ -91,11 +91,11 @@ function main()
     execute(db, "CREATE TABLE jobs (job_id INTEGER, job_dir TEXT)")
     execute(db, "CREATE TABLE job_runs (job_id INTEGER, run_id INTEGER)")
 
-    generate_runs(db,paramStringTrunc)
-    generate_jobs(db)
+    numCombos = generate_runs(db)
+    generate_jobs(db,numCombos)
 end
 
-function generate_runs(db::DB,paramStringTrunc::Dict{String,Any}) # This function generates the directories
+function generate_runs(db::DB) # This function generates the directories
     # for the individual parameter sets and corresponding replicates. It also
     # generates shell scripts for each run and corresponding parameter file.
 
@@ -162,27 +162,43 @@ function generate_runs(db::DB,paramStringTrunc::Dict{String,Any}) # This functio
         end
     end
     execute(db, "COMMIT")
+    return Int64(length(combos))
 end
 
-function generate_jobs(db::DB)
+function generate_jobs(db::DB,numCombos::Int64)
     println("Assigning runs to jobs...")
+
+    numSubmits = Int64(ceil(numCombos*N_REPLICATES/(N_JOBS_MAX*N_CORES_PER_JOB_MAX)))
 
     # Assign runs to jobs (round-robin)
     job_id = 1
+    job_count = 0
+    n_cores_count = 0
+
     execute(db, "BEGIN TRANSACTION")
+
     for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
         execute(db, "INSERT INTO job_runs VALUES (?,?)", (job_id, run_id))
 
         # Mod-increment job ID
-        job_id = (job_id % N_JOBS_MAX) + 1
+        job_id = (job_id % (N_JOBS_MAX*numSubmits)) + 1
+
+        if job_id > job_count
+            job_count = job_id
+        end
+
+    end
+
+    submitScripts = IOStream[]
+    for script in 1:numSubmits
+        push!(submitScripts,open("$(script)_submit_jobs.sh", "w"))
+        println(submitScripts[script], """
+        #!/bin/sh
+        cd `dirname \$0`
+        """)
     end
 
     # Create job directories containing job scripts and script to submit all jobs
-    submit_file = open("submit_jobs.sh", "w")
-    println(submit_file, """
-    #!/bin/sh
-    cd `dirname \$0`
-    """)
     for (job_id,) in execute(db, "SELECT DISTINCT job_id FROM job_runs ORDER BY job_id")
         job_dir = joinpath("jobs", "$(job_id)")
         mkpath(job_dir) # this is the directory of a "job". Here a inside a job id folder there is
@@ -197,7 +213,12 @@ function generate_jobs(db::DB)
             """,
             (job_id,)
         )]
+
         n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX)
+
+        if n_cores > n_cores_count
+            n_cores_count = n_cores
+        end
 
         # Write out list of runs
         open(joinpath(job_dir, "runs.txt"), "w") do f
@@ -217,7 +238,7 @@ function generate_jobs(db::DB)
             #SBATCH --job-name=crispr-$(job_id)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
-            #SBATCH --mem-per-cpu=2000m
+            #SBATCH --mem-per-cpu=$(mem_per_cpu)m
             #SBATCH --time=4:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=output.txt
@@ -231,11 +252,20 @@ function generate_jobs(db::DB)
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)
 
         execute(db, "INSERT INTO jobs VALUES (?,?)", (job_id, job_dir,))
-        println(submit_file, "sbatch $(job_sbatch)")
+
+        submitScript = (job_id % numSubmits) + 1
+        println(submitScripts[submitScript], "sbatch $(job_sbatch)")
     end
     execute(db, "COMMIT")
-    close(submit_file)
-    run(`chmod +x submit_jobs.sh`) # Make submit script executable
+    map(close,submitScripts)
+
+    #run(`chmod +x submit_jobs.sh`) # Make submit script executable
+    @info "
+    Sweep will be submitted via $(numSubmits) `submit_jobs.sh` script(s).
+    Each `submit_jobs.sh` script submits $(job_count) jobs.
+    Each job will use $(n_cores_count) cpus at most, where each cpu will use $(mem_per_cpu/1000)GB.
+    Each job therefore will use at most $(n_cores_count*mem_per_cpu/1000)GB of memory in total.
+    "
 end
 
 function pretty_json(params)

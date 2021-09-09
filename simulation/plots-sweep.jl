@@ -44,53 +44,53 @@ ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH, "src","make-plots.py")
 ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)
 
-
-
-# Number of replicates for each parameter combination
-const N_REPLICATES = 30
-
 # Number of SLURM jobs to generate
 const N_JOBS_MAX = 100
-const N_CORES_PER_JOB_MAX = 14 # Half a node, easier to get scheduled than a whole one
+const N_CORES_PER_JOB_MAX = 20 # Half a node, easier to get scheduled than a whole one
+const mem_per_cpu = 8000 # in MB 100MB = 1 GB
+
+
 
 function main()
     # Root run directory
+    if ispath(joinpath(SCRIPT_PATH,"plots"))
+        error("`/simulation/plots` already exists; please delete first.")
+    end
+
     if !ispath(joinpath(SCRIPT_PATH,"runs"))
         error("`/simulation/runs` is missing; please run generate-sweep.jl first, then simulate time series.")
-    end
-
-    # Root job directory
-    if !ispath(joinpath(SCRIPT_PATH,"jobs"))
-        error("`/simulation/jobs` is missing; please run generate-sweep.jl first, then simulate time series.")
-    end
-
-    if ispath(joinpath(SCRIPT_PATH,"plots"))
-        error("`simulation/plots` already exists; please delete first.")
     end
 
     if !isfile(joinpath(SCRIPT_PATH,"sweep_db.sqlite"))
         error("`sweep_db.sqlite` is missing; please run generate-sweep.jl first, then simulate time series.")
     end
+
+    # Root job directory
+    if !ispath(joinpath(SCRIPT_PATH,"jobs"))
+        @info "Note that `/simulation/jobs` is missing."
+    end
+
     db = SQLite.DB("sweep_db.sqlite")
     execute(db, "DROP TABLE IF EXISTS plot_jobs")
     execute(db, "CREATE TABLE plot_jobs (job_id INTEGER, job_dir TEXT)")
     execute(db, "DROP TABLE IF EXISTS plot_job_runs")
     execute(db, "CREATE TABLE plot_job_runs (job_id INTEGER, run_id INTEGER, run_dir TEXT)")
 
-    generate_plot_runs(db)
-    generate_plot_jobs(db)
+    numSubmits = generate_plot_runs(db)
+    generate_plot_jobs(db,numSubmits)
 end
 
-function generate_plot_runs(db) # This function generates the directories
+function generate_plot_runs(db::DB) # This function generates the directories
     # for the individual parameter sets and corresponding replicates. It also
     # generates shell scripts for each run and corresponding parameter file.
 
     # Loop through parameter combinations and replicates, generating a run directory
     # `plots/c<combo_id>/r<replicate>` for each one.
-
+    run_count = 0
+    println("Processing plot script for each run")
     for (run_id, combo_id, replicate) in execute(db, "SELECT run_id,combo_id,replicate FROM runs")
-        println("Processing plot script for c$(combo_id)/r$(replicate)"
-        )
+        #println("Processing plot script for combination $(combo_id)/replicate $(replicate)"
+        #) # local
         run_dir = joinpath(SCRIPT_PATH,"runs", "c$(combo_id)", "r$(replicate)")
         @assert ispath(run_dir)
 
@@ -109,31 +109,43 @@ function generate_plot_runs(db) # This function generates the directories
             """)
         end
         run(`chmod +x $(run_script)`)
+        run_count += 1
     end
+    return numSubmits = Int64(ceil(run_count/(N_JOBS_MAX*N_CORES_PER_JOB_MAX)))
 end
 
-function generate_plot_jobs(db)
+function generate_plot_jobs(db::DB,numSubmits::Int64)
     println("Assigning plot runs to plot jobs...")
 
     # Assign runs to jobs (round-robin)
     job_id = 1
+    job_count = 0
+    n_cores_count = 0
+
     execute(db, "BEGIN TRANSACTION")
+
     for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
         execute(db, "INSERT INTO plot_job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
-        job_id = (job_id % N_JOBS_MAX) + 1
+        job_id = (job_id % N_JOBS_MAX*numSubmits) + 1
+        if job_id > job_count
+            job_count = job_id
+        end
     end
-    execute(db, "COMMIT")
 
-    # Create job directories containing job scripts and script to submit all jobs
-    submit_file = open("submit_plot_jobs.sh", "w")
-    println(submit_file, """
-    #!/bin/sh
-    cd `dirname \$0`
-    """)
+    submitScripts = IOStream[]
+    for script in 1:numSubmits
+        push!(submitScripts,open("$(script)-plot_submit_jobs.sh", "w"))
+        println(submitScripts[script], """
+        #!/bin/sh
+        cd `dirname \$0`
+        """)
+    end
 
     for (job_id,) in execute(db, "SELECT DISTINCT job_id FROM job_runs ORDER BY job_id")
+
         job_dir = joinpath("jobs", "$(job_id)")
+        @assert ispath(job_dir)
 
         # Get all run directories for this job
         run_dirs = [run_dir for (run_dir,) in execute(db,
@@ -146,6 +158,10 @@ function generate_plot_jobs(db)
         )]
 
         n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX)
+
+        if n_cores > n_cores_count
+            n_cores_count = n_cores
+        end
 
         # Write out list of runs
         open(joinpath(job_dir, "plot_runs.txt"), "w") do f
@@ -165,7 +181,7 @@ function generate_plot_jobs(db)
             #SBATCH --job-name=crispr-plots-$(job_id)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
-            #SBATCH --mem-per-cpu=8000m
+            #SBATCH --mem-per-cpu=$(mem_per_cpu)m
             #SBATCH --time=4:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=plot_output.txt
@@ -178,14 +194,21 @@ function generate_plot_jobs(db)
         end
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)
 
-        execute(db, "BEGIN TRANSACTION")
         execute(db, "INSERT INTO plot_jobs VALUES (?,?)", (job_id, job_dir))
-        execute(db, "COMMIT")
 
-        println(submit_file, "sbatch $(job_sbatch)")
+        submitScript = (job_id % numSubmits) + 1
+        println(submitScripts[submitScript], "sbatch $(job_sbatch)")
     end
-    close(submit_file)
-    run(`chmod +x submit_plot_jobs.sh`) # Make submit script executable
+    execute(db, "COMMIT")
+    map(close,submitScripts)
+
+    #run(`chmod +x submit_plot_jobs.sh`) # Make submit script executable
+    @info "
+    Sweep will be submitted via $(numSubmits) `plot_submit_jobs.sh` script(s).
+    Each `plot_submit_jobs.sh` script submits $(job_count) jobs.
+    Each job will use $(n_cores_count) cpus (cores) at most, where each cpu will use $(mem_per_cpu/1000)GB.
+    Each job therefore will use at most $(n_cores_count*mem_per_cpu/1000)GB of memory in total.
+    "
 end
 
 

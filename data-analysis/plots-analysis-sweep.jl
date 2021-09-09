@@ -8,132 +8,127 @@ using SQLite
 
 analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
-a2 = ARGS[2]
-a3 = ARGS[3]
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"make-$(analysisType)-plots.py")
 ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)
 
-
-# Number of replicates for each parameter combination
-const N_REPLICATES = 30
-
 # Number of SLURM jobs to generate
 const N_JOBS_MAX = 100
-const N_CORES_PER_JOB_MAX = 14 # Half a node (14) is easier to get scheduled than a whole one
+const N_CORES_PER_JOB_MAX = 20 # Half a node (14) is easier to get scheduled than a whole one
+const mem_per_cpu = 8500 # in MB 100MB = 1 GB
 
 function main()
     # Root run directory
-    if !ispath(joinpath("..","simulation","runs"))
-        error("`../simulation/runs` does not exist; please simulate time series first.")
+    if ispath(joinpath(SCRIPT_PATH,"gathered-analyses",analysisDir,"plots"))
+        error("Please move or delete `/gathered-analyses/$(analysisType)/plots`.")
+    end
+
+    if ispath(joinpath(SCRIPT_PATH,analysisDir,"plotjobs"))
+        error("Please move or delete `/$(analysisType)/plotjobs`.")
+    end
+
+    if !ispath(joinpath(SCRIPT_PATH,"..","simulation","runs"))
+        @info "Note that `/../simulation/runs` is missing."
     end
 
     # Root job directory
-    if !ispath(joinpath("..","simulation","jobs"))
-        error("`../simulation/jobs` does not exist; please simulate time series first.")
+    if !ispath(joinpath(SCRIPT_PATH,"..","simulation","jobs"))
+        @info "Note that `/../simulation/jobs` is missing."
     end
 
-    if ispath(joinpath(analysisDir,"plotjobs"))
-        error("Please delete `$(analysisType)/plotjobs` and `gathered-analyses/$(analysisType)/plots`.")
+    if !ispath(joinpath(SCRIPT_PATH,analysisDir,"runs"))
+        error("`/$(analysisType)/runs` is missing; please analyze data first")
     end
 
-    if !ispath(joinpath(analysisDir,"runs"))
-        error("Please analyze data first; `$(analysisType)/runs` is missing.")
+    if !ispath(joinpath(SCRIPT_PATH,analysisDir,"jobs"))
+        @info "Note that `/$(analysisType)/jobs` is missing."
     end
 
-    if ispath(joinpath("gathered-analyses",analysisDir,"plots"))
-        error("Please delete `gathered-analyses/$(analysisType)/plots`.")
+    # Use the little database that corresponds analysis runs to jobIDs for troubleshooting
+    if !isfile(joinpath(SCRIPT_PATH,analysisDir,"$(analysisType)jobs.sqlite"))
+        error("`/$(analysisType)/$(analysisType)jobs.sqlite` is missing; please analyze simulation data first.")
     end
 
     # Connect to simulation data
-    dbSim = SQLite.DB(joinpath("..","simulation","sweep_db.sqlite"))
+    dbSim = SQLite.DB(joinpath(SCRIPT_PATH,"..","simulation","sweep_db.sqlite"))
 
-    # Use the little database that corresponds analysis runs to jobIDs for troubleshooting
-    if !isfile(joinpath(analysisDir,"$(analysisType)jobs.sqlite"))
-        error("`$(analysisType)jobs.sqlite` in /$(analysisType) is missing. Please analyze simulation data first.")
-    end
-
-    dbTempJobs = SQLite.DB(joinpath(analysisDir,"$(analysisType)jobs.sqlite"))
+    dbTempJobs = SQLite.DB(joinpath(SCRIPT_PATH,analysisDir,"$(analysisType)jobs.sqlite"))
     execute(dbTempJobs, "DROP TABLE IF EXISTS plot_jobs")
     execute(dbTempJobs, "CREATE TABLE plot_jobs (job_id INTEGER, job_dir TEXT)")
     execute(dbTempJobs, "DROP TABLE IF EXISTS plot_job_runs")
     execute(dbTempJobs, "CREATE TABLE plot_job_runs (job_id INTEGER, run_id INTEGER, run_dir TEXT)")
 
-    generate_plot_runs()
-    generate_plot_jobs(dbSim,dbTempJobs)
-
+    numSubmits = generate_plot_runs(dbSim::DB)
+    generate_plot_jobs(dbSim,dbTempJobs,numSubmits)
 end
 
-function generate_plot_runs() # This function generates the directories
+function generate_plot_runs(dbSim::DB) # This function generates the directories
     # for the individual parameter sets and corresponding replicates. It also
     # generates shell scripts for each run and corresponding parameter file.
 
     # Loop through parameter combinations and replicates, generating a run directory
     # `runs/c<combo_id>/r<replicate>` for each one.
-    combo_id = 1
-    run_id = 1
-    for viral_mutation_rate in (1.0e-06, 2.0e-06)
-        for spacer_acquisition_prob in (1e-06, 1e-05)
-            for crispr_failure_prob in (1e-06, 1e-05)
-                println("Processing plot scripts for c$(combo_id): viral_mutation_rate = $(viral_mutation_rate),
-                    spacer_acquisition_prob = $(spacer_acquisition_prob),
-                    crispr_failure_prob = $(crispr_failure_prob)"
-                )
+    run_count = 0
+    println("Processing analysis plot script for each run")
+    for (run_id, combo_id, replicate) in execute(dbSim, "SELECT run_id,combo_id,replicate FROM runs")
+        #println("Processing analysis plot script for combination $(combo_id)/replicate $(replicate)"
+        #) # local
+        run_dir = joinpath(SCRIPT_PATH,analysisDir,"runs", "c$(combo_id)", "r$(replicate)")
+        @assert ispath(run_dir)
 
-                for replicate in 1:N_REPLICATES
+        plot_dir = joinpath(SCRIPT_PATH,"gathered-analyses",analysisDir,"plots", "c$(combo_id)", "r$(replicate)")
+        @assert !ispath(plot_dir)
+        mkpath(plot_dir)
 
-                    run_dir = joinpath(analysisDir,"runs", "c$(combo_id)", "r$(replicate)")
-                    @assert ispath(run_dir)
-
-                    plot_dir = joinpath("gathered-analyses",analysisDir,"plots", "c$(combo_id)", "r$(replicate)")
-                    @assert !ispath(plot_dir)
-                    mkpath(plot_dir)
-
-                    # Generate shell script to perform a single run
-                    run_script = joinpath(run_dir, "runplotmaker.sh")
-                    open(run_script, "w") do f
-                        print(f, """
-                        #!/bin/sh
-                        cd `dirname \$0`
-                        module load python/anaconda-2021.05
-                        python $(ROOT_RUN_SCRIPT) $(run_id) $(a2) $(a3) &> plot_output.txt
-                        """)
-                    end
-                    run(`chmod +x $(run_script)`) # Make run script executable
-
-                    run_id += 1
-                end
-                combo_id += 1
-            end
+        # Generate shell script to perform a single run
+        run_script = joinpath(run_dir, "runplotmaker.sh")
+        open(run_script, "w") do f
+            print(f, """
+            #!/bin/sh
+            cd `dirname \$0`
+            module load python/anaconda-2021.05
+            python $(ROOT_RUN_SCRIPT) $(run_id) &> plot_output.txt
+            """)
         end
+        run(`chmod +x $(run_script)`) # Make run script executable
+        run_count += 1
     end
+    return numSubmits = Int64(ceil(run_count/(N_JOBS_MAX*N_CORES_PER_JOB_MAX)))
 end
 
-function generate_plot_jobs(dbSim,dbTempJobs)
-    println("Assigning plot runs to jobs...")
+function generate_plot_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
+    println("Assigning analysis plot runs to jobs...")
 
     # Assign runs to jobs (round-robin)
     job_id = 1
+    job_count = 0
+    n_cores_count = 0
+
     execute(dbTempJobs, "BEGIN TRANSACTION")
+
     for (run_id, run_dir) in execute(dbSim, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
         execute(dbTempJobs, "INSERT INTO plot_job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
-        job_id = (job_id % N_JOBS_MAX) + 1
+        job_id = (job_id % N_JOBS_MAX*numSubmits) + 1
+        if job_id > job_count
+            job_count = job_id
+        end
     end
-    execute(dbTempJobs, "COMMIT")
 
-    # Create job directories containing job scripts and script to submit all jobs
-    submit_file = open("submit_plot_jobs.sh", "w")
-    println(submit_file, """
-    #!/bin/sh
-    cd `dirname \$0`
-    """)
+    submitScripts = IOStream[]
+    for script in 1:numSubmits
+        push!(submitScripts,open("$(script)-plot-analysis_submit_jobs.sh", "w"))
+        println(submitScripts[script], """
+        #!/bin/sh
+        cd `dirname \$0`
+        """)
+    end
 
     for (job_id,) in execute(dbTempJobs, "SELECT DISTINCT job_id FROM plot_job_runs ORDER BY job_id")
 
-        job_dir = joinpath(analysisDir,"plotjobs", "$(job_id)")
+        job_dir = joinpath(SCRIPT_PATH,analysisDir,"plotjobs", "$(job_id)")
         @assert !ispath(job_dir)
         mkpath(job_dir)
 
@@ -146,7 +141,11 @@ function generate_plot_jobs(dbSim,dbTempJobs)
             (job_id,)
         )]
 
-        n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX) #!
+        n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX)
+
+        if n_cores > n_cores_count
+            n_cores_count = n_cores
+        end
 
         # Write out list of runs
         open(joinpath(job_dir, "plot_runs.txt"), "w") do f
@@ -163,10 +162,10 @@ function generate_plot_jobs(dbSim,dbTempJobs)
             #!/bin/sh
             #SBATCH --account=pi-pascualmm
             #SBATCH --partition=broadwl
-            #SBATCH --job-name=crispr-$(analysisType)-plots-$(job_id)
+            #SBATCH --job-name=crispr-plots-$(analysisType)-$(job_id)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
-            #SBATCH --mem-per-cpu=7000m
+            #SBATCH --mem-per-cpu=$(mem_per_cpu)m
             #SBATCH --time=4:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=plot_output.txt
@@ -179,14 +178,21 @@ function generate_plot_jobs(dbSim,dbTempJobs)
         end
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)
 
-        execute(dbTempJobs, "BEGIN TRANSACTION")
         execute(dbTempJobs, "INSERT INTO plot_jobs VALUES (?,?)", (job_id, job_dir))
-        execute(dbTempJobs, "COMMIT")
 
-        println(submit_file, "sbatch $(job_sbatch)")
+        submitScript = (job_id % numSubmits) + 1
+        println(submitScripts[submitScript], "sbatch $(job_sbatch)")
     end
-    close(submit_file)
-    run(`chmod +x submit_plot_jobs.sh`) # Make submit script executable
+    execute(dbTempJobs, "COMMIT")
+    map(close,submitScripts)
+
+    #run(`chmod +x submit_plot_jobs.sh`) # Make submit script executable
+    @info "
+    Sweep will be submitted via $(numSubmits) `plot-analysis_submit_jobs.sh` script(s).
+    Each `plot-analysis_submit_jobs.sh` script submits $(job_count) jobs.
+    Each job will use $(n_cores_count) cpus (cores) at most, where each cpu will use $(mem_per_cpu/1000)GB.
+    Each job therefore will use at most $(n_cores_count*mem_per_cpu/1000)GB of memory in total.
+    "
 end
 
 
