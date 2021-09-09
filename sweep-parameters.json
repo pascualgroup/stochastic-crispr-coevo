@@ -1,22 +1,35 @@
 {
-    "t_final": 20.0,
-    "t_output": 1.0,
-    "n_bstrains": 1,
-    "n_hosts_per_bstrain": 100,
-    "n_vstrains": 1,
-    "n_particles_per_vstrain": 100,
-    "n_protospacers": [15, 16, 17],
-    "n_spacers_max": [10, 20, 30],
-    "crispr_failure_prob": 1e-05,
-    "spacer_acquisition_prob": 1e-05,
-    "microbe_growth_rate": [1, 2, 3],
-    "microbe_carrying_capacity": 316227.7660168379,
-    "viral_burst_size": [50, 100, 150],
-    "adsorption_rate": 1e-07,
-    "viral_decay_rate": 0.1,
-    "viral_mutation_rate": 1e-06,
-    "microbe_death_rate": 0,
-    "microbe_immigration_rate": 1,
-    "rng_seed": 1393314249,
-    "enable_output": true
+  "n_vstrains": 1,
+  "rng_seed": 1,
+  "n_protospacers": [
+    2,
+    5
+  ],
+  "n_bstrains": 1,
+  "viral_mutation_rate": [
+    4.5e-7,
+    5.0e-7
+  ],
+  "n_spacers_max": [
+    2,
+    5
+  ],
+  "n_hosts_per_bstrain": 100,
+  "t_output": 1.0,
+  "viral_decay_rate": 0.1,
+  "adsorption_rate": 1.0e-7,
+  "spacer_acquisition_prob": [
+    1.0e-8
+  ],
+  "microbe_immigration_rate": 0.0,
+  "microbe_death_rate": 0.0,
+  "microbe_carrying_capacity": 316228.0,
+  "microbe_growth_rate": 1.0,
+  "crispr_failure_prob": [
+    1.0e-8
+  ],
+  "enable_output": true,
+  "t_final": 2000.0,
+  "viral_burst_size": 50,
+  "n_particles_per_vstrain": 100
 }
