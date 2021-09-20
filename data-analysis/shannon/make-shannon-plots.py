@@ -35,14 +35,14 @@ PLOT_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','shannon','plots',
 #PLOT_PATH = os.path.abspath(os.path.dirname(__file__)) # local
 
 #print('SQLite Query: virus shannon data') # local
-#virusAnalysis = pd.read_sql_query("SELECT t, vshannon FROM shannon", conAnalysis) # local
+#virusAnalysis = pd.read_sql_query("SELECT t, vhill2 FROM hill_no2", conAnalysis) # local
 #print('SQLite Query: microbe shannon data') # local
-#microbeAnalysis = pd.read_sql_query("SELECT t,bshannon FROM shannon", conAnalysis) # local
+#microbeAnalysis = pd.read_sql_query("SELECT t,bhill2 FROM hill_no2", conAnalysis) # local
 
 print('SQLite Query: virus shannon data') # cluster
-virusAnalysis = pd.read_sql_query("SELECT t, vshannon FROM shannon WHERE run_id = {}".format(run_id), conAnalysis) # cluster
+virusAnalysis = pd.read_sql_query("SELECT t, vhill2 FROM hill_no2 WHERE run_id = {}".format(run_id), conAnalysis) # cluster
 print('SQLite Query: microbe shannon data') # cluster
-microbeAnalysis = pd.read_sql_query("SELECT t,bshannon FROM shannon WHERE run_id = {}".format(run_id), conAnalysis) # cluster
+microbeAnalysis = pd.read_sql_query("SELECT t,bhill2 FROM hill_no2 WHERE run_id = {}".format(run_id), conAnalysis) # cluster
 
 print('SQLite Query: microbial abundance time series data')
 microbeSim = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance WHERE run_id = {}".format(run_id), conSim)
@@ -52,38 +52,38 @@ print('SQLite Query: viral abundance time series data')
 virusSim = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance WHERE run_id = {}".format(run_id), conSim)
 virus_stacked = virusSim.pivot(index='t',columns='vstrain_id',values='abundance')
 
-print('Compiling viral shannon entropy plot')
+print('Compiling viral Hill no. 2 plot')
 pal = sns.color_palette("tab20b")
-virusAnalysis.plot(x='t',xlabel = 'Time t',ylabel = 'Shannon Entropy Hv', legend=False,color=pal[3])
-plt.title('Viral Shannon Entropy (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
+virusAnalysis.plot(x='t',xlabel = 'Time t',ylabel = 'Hill No. 2', legend=False,color=pal[3])
+plt.title('Virus Hill No. 2 (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
 plt.tight_layout()
-plt.savefig(os.path.join(PLOT_PATH,'virus-shannon.png'),dpi=500)
+plt.savefig(os.path.join(PLOT_PATH,'virus-hill2.png'),dpi=500)
 #plt.show()
 
 print('Compiling microbial shannon plot')
-microbeAnalysis.plot(x='t',xlabel = 'Time t',ylabel = 'Shannon Entropy Hn', legend=False, color=pal)
-plt.title('Microbial Shannon Entropy (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
+microbeAnalysis.plot(x='t',xlabel = 'Time t',ylabel = 'Hill No. 2', legend=False, color=pal)
+plt.title('Microbe Hill No. 2 (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
 plt.tight_layout()
-plt.savefig(os.path.join(PLOT_PATH,'microbe-shannon.png'),dpi=500)
+plt.savefig(os.path.join(PLOT_PATH,'microbe-hill2.png'),dpi=500)
 #plt.show()
 
-print('Compiling shannon subplots')
+print('Compiling Hill no. 2 subplots')
 fig, axs = plt.subplots(2,sharex=True)
-axs[0].set(ylabel ='Microbial Shannon Entropy Hn')
-axs[1].set(ylabel ='Viral Shannon Entropy Hv')
-fig.suptitle('Shannon Entropy (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
+axs[0].set(ylabel ='Microbe Hill No. 2')
+axs[1].set(ylabel ='Virus Hill No. 2')
+fig.suptitle('Hill No. 2 (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
 microbeAnalysis.plot(x='t',xlabel = 'Time t',ax = axs[0],legend=False,color=pal[0],linewidth=0.75)
-axs[0].set_ylabel(ylabel ='Microbial Shannon Entropy Hn',labelpad=15,fontsize=7)
+axs[0].set_ylabel(ylabel ='Microbe Hill No. 2',labelpad=15,fontsize=7)
 axs[0].set_xlabel(xlabel = 'Time t',fontsize=7)
 axs[1].ticklabel_format(style='sci',scilimits=(0,0))
 virusAnalysis.plot(x = 't',xlabel = 'Time t',ax = axs[1],legend=False,color=pal[3],linewidth=0.75)
-axs[1].set_ylabel(ylabel ='Viral Shannon Entropy Hv',labelpad=15,fontsize=7)
+axs[1].set_ylabel(ylabel ='Virus Hill No. 2',labelpad=15,fontsize=7)
 axs[1].set_xlabel(xlabel = 'Time t',fontsize=7)
 axs[1].ticklabel_format(style='sci',scilimits=(0,0))
 plt.tight_layout()
-plt.savefig(os.path.join(PLOT_PATH,'microbe-virus-shannon-stacked.png'),dpi=500)
+plt.savefig(os.path.join(PLOT_PATH,'microbe-virus-hill2-stacked.png'),dpi=500)
 
-print('Compiling time series and shannon subplots')
+print('Compiling time series and Hill no. 2 subplots')
 fig, axs = plt.subplots(2,sharex=True)
 fig.suptitle('(run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
 
@@ -92,11 +92,11 @@ axs[0].set_ylabel(ylabel ='Microbial Immune Abundances N_i',labelpad=15,fontsize
 axs[0].set_xlabel(xlabel = 'Time t',fontsize=7)
 axs[0].ticklabel_format(style='sci',scilimits=(0,0))
 microbeAnalysis.plot(x='t',xlabel = 'Time t',ax = axs[1],legend=False,color=pal[0],linewidth=0.75)
-axs[1].set_ylabel(ylabel ='Microbial Shannon Entropy Hn',labelpad=15,fontsize=7)
+axs[1].set_ylabel(ylabel ='Microbe Hill No. 2',labelpad=15,fontsize=7)
 axs[1].set_xlabel(xlabel = 'Time t',fontsize=7)
 axs[1].ticklabel_format(style='sci',scilimits=(0,0))
 plt.tight_layout()
-plt.savefig(os.path.join(PLOT_PATH,'microbe-tSeries-shannon-stacked.png'),dpi=500)
+plt.savefig(os.path.join(PLOT_PATH,'microbe-tSeries-hill2-stacked.png'),dpi=500)
 
 fig, axs = plt.subplots(2,sharex=True)
 fig.suptitle('(run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
@@ -110,11 +110,11 @@ axs[0].set_xlabel(xlabel = 'Time t',fontsize=7)
 axs[0].ticklabel_format(style='sci',scilimits=(0,0))
 virusAnalysis.plot(x = 't',xlabel = 'Time t',ax = axs[1],legend=False,color=pal[3],linewidth=0.75)
 axs[1].yaxis.set_label_position("right")
-axs[1].set_ylabel(ylabel ='Viral Shannon Entropy Hv',rotation=270,labelpad=15,fontsize=7)
+axs[1].set_ylabel(ylabel ='Virus Hill No. 2',rotation=270,labelpad=15,fontsize=7)
 axs[1].yaxis.tick_right()
 axs[1].set_xlabel(xlabel = 'Time t',fontsize=7)
 axs[1].ticklabel_format(style='sci',scilimits=(0,0))
 plt.tight_layout()
-plt.savefig(os.path.join(PLOT_PATH,'virus-tSeries-shannon-stacked.png'),dpi=500)
+plt.savefig(os.path.join(PLOT_PATH,'virus-tSeries-hill2-stacked.png'),dpi=500)
 
 print('Complete!')
