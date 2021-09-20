@@ -7,27 +7,36 @@ using DataFrames
 using SQLite.DBInterface: execute
 
 
-run_id = ARGS[1] # cluster
-
+run_id = ARGS[1] # cluster & local
 #run_id = 1 # local
 
-CARRYING_CAP = 10^(5.5)
-
+## Define Paths ##
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE)) # cluster
 
 dbSimPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db_gathered.sqlite") # cluster
-#dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local machine
+#dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
+
+dbSimInfoPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db.sqlite") # cluster
+#dbSimInfoPath = joinpath("/Volumes/Yadgah/sweep_db.sqlite") # local
 
 if isfile("shannon_output.sqlite") # cluster
     error("shannon_output.sqlite already exists; delete first") # cluster
 end # cluster
 dbOutput = SQLite.DB("shannon_output.sqlite") # cluster
-#dbOutput = SQLite.DB("/Volumes/Yadgah/shannon_output.sqlite") # local machine
-execute(dbOutput, "CREATE TABLE shannon (t REAL, vshannon REAL, bshannon REAL)")
+#dbOutput = SQLite.DB("/Volumes/Yadgah/shannon_output.sqlite") # local
+##
+
+dbSimInfo = SQLite.DB(dbSimInfoPath)
+(combo_id,) = execute(dbSimInfo,"SELECT combo_id FROM runs WHERE run_id = ?",(run_id,))
+combo_id = combo_id.combo_id
+(CARRYING_CAP,) = execute(dbSimInfo,"SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = ?",(combo_id,))
+CARRYING_CAP = CARRYING_CAP.microbe_carrying_capacity
+
+execute(dbOutput, "CREATE TABLE hill_no2 (t REAL, vhill2 REAL, bhill2 REAL)")
 
 # Create temporary database that is a copy of the main database at the run_id value of the script's argument
 #dbTemp = SQLite.DB("/Volumes/Yadgah/timeSeries$(run_id).sqlite") # local
-dbTemp = SQLite.DB() # cluster
+dbTemp = SQLite.DB()
 execute(dbTemp, "CREATE TABLE summary (t REAL, microbial_abundance INTEGER, viral_abundance INTEGER)")
 execute(dbTemp, "CREATE TABLE babundance (t REAL, bstrain_id INTEGER, abundance INTEGER)")
 execute(dbTemp, "CREATE TABLE vabundance (t REAL, vstrain_id INTEGER, abundance INTEGER)")
@@ -68,24 +77,24 @@ function shannon(dbTemp,dbOutput)
             bsubAbunds = [bsubAbunds.abundance for bsubAbunds in execute(dbTemp, "SELECT abundance FROM babundance WHERE t = ?", (time,))]
             brelAbunds = bsubAbunds./btotal
             brelAbunds = brelAbunds[brelAbunds.>=1e-64]
-            bshannon = exp(-1*sum(brelAbunds.*(log.(brelAbunds))))
+            bhill2 = exp(-1*sum(brelAbunds.*(log.(brelAbunds))))
 
-            tempDF = DataFrame(t = Array{Float64,1}(timeDataTrunc),vshannon = Array{Float64,1}(zeros(timesLeft)),bshannon = Array{Float64,1}(bshannon*ones(timesLeft)))
-            tempDF |> SQLite.load!(dbOutput,"shannon",ifnotexists=true)
+            tempDF = DataFrame(t = Array{Float64,1}(timeDataTrunc),vhill2 = Array{Float64,1}(zeros(timesLeft)),bhill2 = Array{Float64,1}(bhill2*ones(timesLeft)))
+            tempDF |> SQLite.load!(dbOutput,"hill_no2",ifnotexists=true)
 
             return
         end
 
         if vtotal == 0 && btotal < CARRYING_CAP
-            vshannon = 0
+            vhill2 = 0
 
             bsubAbunds = [bsubAbunds.abundance for bsubAbunds in execute(dbTemp, "SELECT abundance FROM babundance WHERE t = ?", (time,))]
             brelAbunds = bsubAbunds./btotal
             brelAbunds = brelAbunds[brelAbunds.>=1e-64]
-            bshannon = exp(-1*sum(brelAbunds.*(log.(brelAbunds))))
+            bhill2 = exp(-1*sum(brelAbunds.*(log.(brelAbunds))))
 
             execute(dbOutput, "BEGIN TRANSACTION")
-            execute(dbOutput, "INSERT INTO shannon VALUES (?,?,?)", (time,vshannon,bshannon))
+            execute(dbOutput, "INSERT INTO hill_no2 VALUES (?,?,?)", (time,vhill2,bhill2))
             execute(dbOutput, "COMMIT")
         end
 
@@ -93,15 +102,15 @@ function shannon(dbTemp,dbOutput)
             bsubAbunds = [bsubAbunds.abundance for bsubAbunds in execute(dbTemp, "SELECT abundance FROM babundance WHERE t = ?", (time,))]
             brelAbunds = bsubAbunds./btotal
             brelAbunds = brelAbunds[brelAbunds.>=1e-64]
-            bshannon = exp(-1*sum(brelAbunds.*(log.(brelAbunds))))
+            bhill2 = exp(-1*sum(brelAbunds.*(log.(brelAbunds))))
 
             vsubAbunds = [vsubAbunds.abundance for vsubAbunds in execute(dbTemp, "SELECT abundance FROM vabundance WHERE t = ?", (time,))]
             vrelAbunds = vsubAbunds./vtotal
             vrelAbunds = vrelAbunds[vrelAbunds.>=1e-64]
-            vshannon = exp(-1*sum(vrelAbunds.*(log.(vrelAbunds))))
+            vhill2 = exp(-1*sum(vrelAbunds.*(log.(vrelAbunds))))
 
             execute(dbOutput, "BEGIN TRANSACTION")
-            execute(dbOutput, "INSERT INTO shannon VALUES (?,?,?)", (time,vshannon,bshannon))
+            execute(dbOutput, "INSERT INTO hill_no2 VALUES (?,?,?)", (time,vhill2,bhill2))
             execute(dbOutput, "COMMIT")
         end
     end
