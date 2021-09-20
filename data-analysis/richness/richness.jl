@@ -10,27 +10,34 @@ using SQLite.DBInterface: execute
 run_id = ARGS[1] # cluster & local
 #run_id = 1 # local
 
+## Define Paths ##
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE)) # cluster
 
 dbSimPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db_gathered.sqlite") # cluster
-#dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local machine
+#dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
 
-dbSim = SQLite.DB(dbSimPath)
-(combo_id,) = execute(dbSim,"SELECT combo_id FROM runs WHERE run_id = ?",(run_id,))
-combo_id = combo_id.combo_id
-(CARRYING_CAP,) = execute(dbSim,"SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = ?",(combo_id,))
-CARRYING_CAP = CARRYING_CAP.microbe_carrying_capacity
+dbSimInfoPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db.sqlite") # cluster
+#dbSimInfoPath = joinpath("/Volumes/Yadgah/sweep_db.sqlite") # local
 
 if isfile("richness_output.sqlite") # cluster
     error("richness_output.sqlite already exists; delete first") # cluster
 end # cluster
 dbOutput = SQLite.DB("richness_output.sqlite") # cluster
 #dbOutput = SQLite.DB("/Volumes/Yadgah/richness_output.sqlite") # local machine
+##
+
+dbSimInfo = SQLite.DB(dbSimInfoPath)
+(combo_id,) = execute(dbSimInfo,"SELECT combo_id FROM runs WHERE run_id = ?",(run_id,))
+combo_id = combo_id.combo_id
+(CARRYING_CAP,) = execute(dbSimInfo,"SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = ?",(combo_id,))
+CARRYING_CAP = CARRYING_CAP.microbe_carrying_capacity
+
 execute(dbOutput, "CREATE TABLE richness (t REAL, vrichness INTEGER, brichness INTEGER)")
 
 # Create temporary database that is a copy of the main database at the run_id value of the script's argument
 #dbTemp = SQLite.DB("/Volumes/Yadgah/timeSeries$(run_id).sqlite") # local
-dbTemp = SQLite.DB() # cluster
+
+dbTemp = SQLite.DB()
 execute(dbTemp, "CREATE TABLE summary (t REAL, microbial_abundance INTEGER)")
 execute(dbTemp, "CREATE TABLE babundance (t REAL, bstrain_id INTEGER, abundance INTEGER)")
 execute(dbTemp, "CREATE TABLE vabundance (t REAL, vstrain_id INTEGER, abundance INTEGER)")
