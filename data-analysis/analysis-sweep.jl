@@ -10,13 +10,13 @@ analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
 
 if analysisType == "peaks" && length(ARGS) < 2
-    error("`peaks` analysis needs two arguments: upperThreshold lowerThreshold")
-elseif analysisType == "walls" && length(ARGS) < 2
-    error("`walls` analysis needs two arguments: upperThreshold lowerThreshold")
+    error("`peaks` analysis needs two arguments: upper threshold, lower threshold")
+elseif analysisType == "walls" && length(ARGS) < 3
+    error("`walls` analysis needs three arguments: upper threshold, lower threshold, diversity threshold")
 end
 
-if analysisType == "walls" && !isfile(joinpath(SCRIPT_PATH,"richness","richness.sqlite"))
-    error("`/richness/richness.sqlite` is missing; please analyze richness first.")
+if analysisType == "walls" && !isfile(joinpath(SCRIPT_PATH,"shannon","shannon.sqlite"))
+    error("`/shannon/shannon.sqlite` is missing; please analyze shannon first.")
 end
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
