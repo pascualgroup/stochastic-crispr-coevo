@@ -9,6 +9,11 @@ using SQLite
 analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
 
+SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
+
+if analysisType == "evophases"
+    error("Phase analysis gathers sweep of walls & extinctions; run `julia phases/evophases.jl`")
+end
 if analysisType == "peaks" && length(ARGS) < 2
     error("`peaks` analysis needs two arguments: upper threshold, lower threshold")
 elseif analysisType == "walls" && length(ARGS) < 3
@@ -19,7 +24,6 @@ if analysisType == "walls" && !isfile(joinpath(SCRIPT_PATH,"shannon","shannon.sq
     error("`/shannon/shannon.sqlite` is missing; please analyze shannon first.")
 end
 
-SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"$(analysisType).jl")
 ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)
@@ -100,7 +104,6 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
     # Assign runs to jobs (round-robin)
     job_id = 1
-    job_count = 0
     n_cores_count = 0
 
     execute(dbTempJobs, "BEGIN TRANSACTION")
@@ -108,15 +111,12 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
     for (run_id, run_dir) in execute(dbSim, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
         execute(dbTempJobs, "INSERT INTO job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
-        job_id = (job_id % N_JOBS_MAX*numSubmits) + 1
-        if job_id > job_count
-            job_count = job_id
-        end
+        job_id = mod(job_id,N_JOBS_MAX*numSubmits) + 1
     end
 
     submitScripts = IOStream[]
     for script in 1:numSubmits
-        push!(submitScripts,open("$(script)-analysis_submit_jobs.sh", "w"))
+        push!(submitScripts,open("$(script)_analysis-submit-jobs.sh", "w"))
         println(submitScripts[script], """
         #!/bin/sh
         cd `dirname \$0`
@@ -177,7 +177,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
         execute(dbTempJobs, "INSERT INTO jobs VALUES (?,?)", (job_id, job_dir))
 
-        submitScript = (job_id % numSubmits) + 1
+        submitScript = mod(job_id,numSubmits) + 1
         println(submitScripts[submitScript], "sbatch $(job_sbatch)")
     end
     execute(dbTempJobs, "COMMIT")
@@ -186,7 +186,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
     #run(`chmod +x submit_analysis_jobs.sh`) # Make submit script executable
     @info "
     Sweep will be submitted via $(numSubmits) `analysis_submit_jobs.sh` script(s).
-    Each `analysis_submit_jobs.sh` script submits $(job_count) jobs.
+    Each `analysis_submit_jobs.sh` script submits $(N_JOBS_MAX) jobs.
     Each job will use $(n_cores_count) cpus (cores) at most, where each cpu will use $(mem_per_cpu/1000)GB.
     Each job therefore will use at most $(n_cores_count*mem_per_cpu/1000)GB of memory in total.
     "

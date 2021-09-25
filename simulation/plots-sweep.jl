@@ -119,7 +119,6 @@ function generate_plot_jobs(db::DB,numSubmits::Int64)
 
     # Assign runs to jobs (round-robin)
     job_id = 1
-    job_count = 0
     n_cores_count = 0
 
     execute(db, "BEGIN TRANSACTION")
@@ -127,15 +126,12 @@ function generate_plot_jobs(db::DB,numSubmits::Int64)
     for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
         execute(db, "INSERT INTO plot_job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
-        job_id = (job_id % N_JOBS_MAX*numSubmits) + 1
-        if job_id > job_count
-            job_count = job_id
-        end
+        job_id = mod(job_id,N_JOBS_MAX*numSubmits) + 1
     end
 
     submitScripts = IOStream[]
     for script in 1:numSubmits
-        push!(submitScripts,open("$(script)-plot_submit_jobs.sh", "w"))
+        push!(submitScripts,open("$(script)_plot-submit-jobs.sh", "w"))
         println(submitScripts[script], """
         #!/bin/sh
         cd `dirname \$0`
@@ -196,7 +192,7 @@ function generate_plot_jobs(db::DB,numSubmits::Int64)
 
         execute(db, "INSERT INTO plot_jobs VALUES (?,?)", (job_id, job_dir))
 
-        submitScript = (job_id % numSubmits) + 1
+        submitScript = mod(job_id,numSubmits) + 1
         println(submitScripts[submitScript], "sbatch $(job_sbatch)")
     end
     execute(db, "COMMIT")
@@ -205,7 +201,7 @@ function generate_plot_jobs(db::DB,numSubmits::Int64)
     #run(`chmod +x submit_plot_jobs.sh`) # Make submit script executable
     @info "
     Sweep will be submitted via $(numSubmits) `plot_submit_jobs.sh` script(s).
-    Each `plot_submit_jobs.sh` script submits $(job_count) jobs.
+    Each `plot_submit_jobs.sh` script submits $(N_JOBS_MAX) jobs.
     Each job will use $(n_cores_count) cpus (cores) at most, where each cpu will use $(mem_per_cpu/1000)GB.
     Each job therefore will use at most $(n_cores_count*mem_per_cpu/1000)GB of memory in total.
     "
