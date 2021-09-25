@@ -19,14 +19,10 @@ DBSIM_PATH = os.path.join(SCRIPT_PATH,'..','..','simulation','sweep_db_gathered.
 #home_dir = os.system("cd ~") # local
 #DBSIM_PATH = os.path.join('/Volumes','Yadgah','sweep_db_gathered.sqlite') # local
 
-PLOT_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','peaks','plots','c{}'.format(combo_id),'r{}'.format(replicate)) # cluster
-#PLOT_PATH = os.path.abspath(os.path.dirname(__file__)) # local
-#PLOT_PATH = os.getcwd() # local. run_id fixed; for testing
-
 DBRICH_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','richness','richness.sqlite') # cluster
 #DBRICH_PATH = os.path.join('/Volumes','Yadgah','richness.sqlite') # local
 
-DSHAN_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','shannon','shannon.sqlite') # cluster
+DBSHAN_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','shannon','shannon.sqlite') # cluster
 #DBSHAN_PATH = os.path.join('/Volumes','Yadgah','shannon.sqlite') # local
 
 DBPEAKS_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','peaks','peaks.sqlite') # cluster
@@ -48,6 +44,10 @@ ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.form
 combo_id = ID[0][0]
 replicate = ID[0][1]
 
+#THIS PATH NEEDS TO BE LOCATED HERE BECAUSE OF COMBO_ID DEFINITION ABOVE!
+PLOT_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','peaks','plots','c{}'.format(combo_id),'r{}'.format(replicate)) # cluster
+#PLOT_PATH = os.path.abspath(os.path.dirname(__file__)) # local
+#PLOT_PATH = os.getcwd() # local. run_id fixed; for testing
 
 conRich = sqlite3.connect(DBRICH_PATH)
 curRich = conRich.cursor()
@@ -130,7 +130,7 @@ lim = axes[4].get_ylim()
 axes[4].set_ylim(0,lim[1])
 
 
-microbeRichness.plot(x='t',xlabel = 'Time t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
+microbeRichness.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
 axes[2].set_ylabel(ylabel ='Microbial Immune Richness Sn',labelpad=15,fontsize=7)
 axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[2].ticklabel_format(style='sci',scilimits=(0,0))
@@ -156,7 +156,7 @@ axes[0].set_ylim(0,lim[1])
 lim = axes[1].get_ylim()
 axes[1].set_ylim(0,lim[1])
 
-virusRichness.plot(x='t',xlabel = 'Time t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
+virusRichness.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
 axes[2].set_ylabel(ylabel ='Viral Strain Richness Sv',labelpad=15,fontsize=7)
 axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[2].ticklabel_format(style='sci',scilimits=(0,0))

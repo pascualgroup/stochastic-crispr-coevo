@@ -48,20 +48,44 @@ virusAnalysis = pd.read_sql_query("SELECT t, vrichness FROM richness WHERE run_i
 print('SQLite Query: microbe immune richness data')
 microbeAnalysis = pd.read_sql_query("SELECT t,brichness FROM richness WHERE run_id = {}".format(run_id), conAnalysis)
 
-print('Compiling viral strain richness plot')
 pal = sns.color_palette("tab20b")
-virusAnalysis.plot(x='t',xlabel = 'Time t',ylabel = 'Richness Sv', legend=False,color=pal[3])
-plt.title('Viral Strain Richness (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
-plt.tight_layout()
-plt.savefig(os.path.join(PLOT_PATH,'virus-strain-richness.png'),dpi=500)
-#plt.show()
 
 print('Compiling microbial immune richness plot')
 microbeAnalysis.plot(x='t',xlabel = 'Time t',ylabel = 'Richness Sn', legend=False, color=pal)
 plt.title('Microbial Immune Richness (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
 plt.tight_layout()
 plt.savefig(os.path.join(PLOT_PATH,'microbe-strain-richness.png'),dpi=500)
+
+
+
+print('Compiling microbe time series and richness subplots')
+fig, axs = plt.subplots(2,sharex=True)
+#axs[0,0].set(ylabel ='Microbial Immune Abundances N_i')
+#axs[1,0].set(ylabel ='Microbial Immune Richness Sn')
+#axs[0,1].set(ylabel ='Viral Strain Abundances V_i')
+#axs[1,1].set(ylabel ='Viral Strain Richness Sv')
+fig.suptitle('(run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
+microbe_stacked.plot.area(stacked=True, xlabel = 'Time t',ax = axs[0], legend=False, linewidth=0,color=pal)
+axs[0].set_ylabel(ylabel ='Microbial Immune Abundances N_i',labelpad=15,fontsize=7)
+axs[0].set_xlabel(xlabel = 'Time t',fontsize=7)
+axs[0].ticklabel_format(style='sci',scilimits=(0,0))
+microbeAnalysis.plot(x='t',xlabel = 'Time t',ax = axs[1],legend=False,color=pal[0],linewidth=0.75)
+axs[1].set_ylabel(ylabel ='Microbial Immune Richness Sn',labelpad=15,fontsize=7)
+axs[1].set_xlabel(xlabel = 'Time t',fontsize=7)
+axs[1].ticklabel_format(style='sci',scilimits=(0,0))
+plt.tight_layout()
+plt.savefig(os.path.join(PLOT_PATH,'microbe-tSeries-richness-stacked.png'),dpi=500)
+
+
+
+print('Compiling viral strain richness plot')
+virusAnalysis.plot(x='t',xlabel = 'Time t',ylabel = 'Richness Sv', legend=False,color=pal[3])
+plt.title('Viral Strain Richness (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
+plt.tight_layout()
+plt.savefig(os.path.join(PLOT_PATH,'virus-strain-richness.png'),dpi=500)
 #plt.show()
+
+
 
 print('Compiling richness subplots')
 fig, axs = plt.subplots(2,sharex=True)
@@ -79,25 +103,9 @@ axs[1].ticklabel_format(style='sci',scilimits=(0,0))
 plt.tight_layout()
 plt.savefig(os.path.join(PLOT_PATH,'microbe-virus-richness-stacked.png'),dpi=500)
 
-print('Compiling time series and richness subplots')
-fig, axs = plt.subplots(2,sharex=True)
-#axs[0,0].set(ylabel ='Microbial Immune Abundances N_i')
-#axs[1,0].set(ylabel ='Microbial Immune Richness Sn')
-#axs[0,1].set(ylabel ='Viral Strain Abundances V_i')
-#axs[1,1].set(ylabel ='Viral Strain Richness Sv')
-fig.suptitle('(run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
 
-microbe_stacked.plot.area(stacked=True, xlabel = 'Time t',ax = axs[0], legend=False, linewidth=0,color=pal)
-axs[0].set_ylabel(ylabel ='Microbial Immune Abundances N_i',labelpad=15,fontsize=7)
-axs[0].set_xlabel(xlabel = 'Time t',fontsize=7)
-axs[0].ticklabel_format(style='sci',scilimits=(0,0))
-microbeAnalysis.plot(x='t',xlabel = 'Time t',ax = axs[1],legend=False,color=pal[0],linewidth=0.75)
-axs[1].set_ylabel(ylabel ='Microbial Immune Richness Sn',labelpad=15,fontsize=7)
-axs[1].set_xlabel(xlabel = 'Time t',fontsize=7)
-axs[1].ticklabel_format(style='sci',scilimits=(0,0))
-plt.tight_layout()
-plt.savefig(os.path.join(PLOT_PATH,'microbe-tSeries-richness-stacked.png'),dpi=500)
 
+print('Compiling virus time series and richness subplots')
 fig, axs = plt.subplots(2,sharex=True)
 fig.suptitle('(run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
 virus_stacked.plot.area(stacked=True,xlabel = 'Time t',ax = axs[0], legend=False, linewidth=0,color=pal)
