@@ -15,6 +15,10 @@ import SQLite.DBInterface.execute
 analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
 
+if analysisType == "evophases"
+    error("Phase analysis does not require gathering of data.")
+end
+
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 
 function main()
@@ -22,9 +26,6 @@ function main()
     if !ispath(an_dir)
         mkpath(an_dir)
     end
-
-    # Connect or create data analysis databsase
-    dbAnalysis = SQLite.DB(joinpath(an_dir,"$(analysisType).sqlite"))
 
     if !isfile(joinpath(analysisDir,"$(analysisType)jobs.sqlite")) # cluster
         error("$(analysisType)jobs.sqlite is missing; please run analysis first") # cluster
