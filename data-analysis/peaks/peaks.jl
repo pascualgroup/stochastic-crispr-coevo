@@ -11,6 +11,8 @@ run_id = ARGS[1] # cluster & local
 upperThreshold = Int64(parse(Float64,ARGS[2]))
 lowerThreshold = Int64(parse(Float64,ARGS[3]))
 
+SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
+
 #dbOutputPath = joinpath("peaks_output.sqlite") # cluster
 dbOutputPath = joinpath("/Volumes/Yadgah/peaks_output.sqlite") # local
 if isfile(dbOutputPath)

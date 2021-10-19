@@ -12,6 +12,8 @@ upperThreshold = Int64(parse(Float64,ARGS[2]))
 lowerThreshold = Int64(parse(Float64,ARGS[3]))
 hill2Threshold = parse(Float64,ARGS[4])
 
+SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
+
 dbOutputPath = joinpath("walls_output.sqlite") # cluster
 #dbOutputPath = joinpath("/Volumes/Yadgah/walls_output.sqlite") # local
 if isfile(dbOutputPath)

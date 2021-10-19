@@ -11,7 +11,7 @@ run_id = ARGS[1] # cluster & local
 #run_id = 1 # local
 
 ## Define Paths ##
-SCRIPT_PATH = abspath(dirname(PROGRAM_FILE)) # cluster
+SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 
 dbSimPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db_gathered.sqlite") # cluster
 #dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
