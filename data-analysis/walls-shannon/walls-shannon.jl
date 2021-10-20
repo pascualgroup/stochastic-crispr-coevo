@@ -10,7 +10,7 @@ run_id = ARGS[1]
 
 upperThreshold = Int64(parse(Float64,ARGS[2]))
 lowerThreshold = Int64(parse(Float64,ARGS[3]))
-hill2Threshold = parse(Float64,ARGS[4])
+shannonThreshold = parse(Float64,ARGS[4])
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 
@@ -22,11 +22,11 @@ end
 # Create database for output data
 dbOutput = SQLite.DB(dbOutputPath)
 
-thresholdVals =  DataFrame(upper_threshold = upperThreshold,lower_threshold = lowerThreshold, hill2_threshold = hill2Threshold)
+thresholdVals =  DataFrame(upper_threshold = upperThreshold,lower_threshold = lowerThreshold, shannon_threshold = shannonThreshold)
 thresholdVals |> SQLite.load!(dbOutput,"threshold_values",ifnotexists=true)
 
 # This function counts number of peaks, logs time series of peaks their respective durations
-function peakwallCount(upperThreshold,lowerThreshold,hill2Threshold)
+function peakwallCount(upperThreshold,lowerThreshold,shannonThreshold)
 
     ## Define Paths ##
     SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
@@ -55,20 +55,20 @@ function peakwallCount(upperThreshold,lowerThreshold,hill2Threshold)
     peakSeries = DataFrame(t=series.t, peak_presence=Array{Int64,1}(zeros(length(series.t))))
     peakDurations =  DataFrame(begin_row = Int64[],end_row = Int64[], begin_t = Float64[], end_t = Float64[],
     peak_number=Int64[], wall_number=Int64[], duration=Float64[])
-    wallSeries = DataFrame(t=series.t, wall_presence=Array{Int64,1}(zeros(length(series.t))), bhill2 = Array{Float64,1}(zeros(length(series.t))), vhill2 = Array{Float64,1}(zeros(length(series.t))))
+    wallSeries = DataFrame(t=series.t, wall_presence=Array{Int64,1}(zeros(length(series.t))), bshannon = Array{Float64,1}(zeros(length(series.t))), vshannon = Array{Float64,1}(zeros(length(series.t))))
 
     # Create temporary database that is a copy of the main database at the run_id value of the script's argument
     #dbTemp = SQLite.DB("/Volumes/Yadgah/timeSeries$(run_id).sqlite") # local
     dbTemp = SQLite.DB()
-    execute(dbTemp, "CREATE TABLE hill_no2 (t REAL, vhill2 REAL, bhill2 REAL)")
+    execute(dbTemp, "CREATE TABLE shannon_diversity (t REAL, vshannon REAL, bshannon REAL)")
 
     execute(dbTemp, "BEGIN TRANSACTION")
     execute(dbTemp,"ATTACH DATABASE '$(dbShanPath)' as dbShan")
-    execute(dbTemp,"INSERT INTO hill_no2(t, vhill2, bhill2) SELECT t, vhill2, bhill2 FROM dbShan.hill_no2 WHERE run_id = $(run_id);")
+    execute(dbTemp,"INSERT INTO shannon_diversity(t, vshannon, bshannon) SELECT t, vshannon, bshannon FROM dbShan.shannon_diversity WHERE run_id = $(run_id);")
     execute(dbTemp, "COMMIT")
 
     execute(dbTemp, "BEGIN TRANSACTION")
-    execute(dbTemp, "CREATE INDEX hill2_index ON hill_no2 (t, vhill2, bhill2)")
+    execute(dbTemp, "CREATE INDEX shannon_index ON shannon_diversity (t, vshannon, bshannon)")
     execute(dbTemp, "COMMIT")
 
     peaks = 0
@@ -107,14 +107,14 @@ function peakwallCount(upperThreshold,lowerThreshold,hill2Threshold)
 
                 timeStmt = map(x->string(" OR t = $(x)"), peakSeries.t[(j1+1):j4])
                 timeStmt = append!([string("t = $(peakSeries.t[j1])")],timeStmt)
-                bhill2 = [hill.bhill2 for hill in execute(dbTemp, "SELECT bhill2 FROM hill_no2 WHERE $(timeStmt...) ORDER BY t")]
-                vhill2 = [hill.vhill2 for hill in execute(dbTemp, "SELECT vhill2 FROM hill_no2 WHERE $(timeStmt...) ORDER BY t")]
+                bshannon = [shannon.bshannon for shannon in execute(dbTemp, "SELECT bshannon FROM shannon_diversity WHERE $(timeStmt...) ORDER BY t")]
+                vshannon = [shannon.vshannon for shannon in execute(dbTemp, "SELECT vshannon FROM shannon_diversity WHERE $(timeStmt...) ORDER BY t")]
 
-                if maximum(bhill2) >= hill2Threshold
+                if maximum(bshannon) >= shannonThreshold
                     walls = walls + 1
                     wallSeries.wall_presence[j1:j4] = Array{Int64,1}(ones(length(j1:j4)))
-                    wallSeries.bhill2[j1:j4] = bhill2[:,:]
-                    wallSeries.vhill2[j1:j4] = vhill2[:,:]
+                    wallSeries.bshannon[j1:j4] = bshannon[:,:]
+                    wallSeries.vshannon[j1:j4] = vshannon[:,:]
                     push!(peakDurations,[j1 j4 peakSeries.t[j1] peakSeries.t[j4] peaks walls peak_duration])
                 else
                     push!(peakDurations,[j1 j4 peakSeries.t[j1] peakSeries.t[j4] peaks 0 peak_duration])
@@ -128,7 +128,7 @@ function peakwallCount(upperThreshold,lowerThreshold,hill2Threshold)
 #end
 end
 
-peaks, walls, peakSeries, peakDurations, wallSeries = peakwallCount(upperThreshold,lowerThreshold,hill2Threshold);
+peaks, walls, peakSeries, peakDurations, wallSeries = peakwallCount(upperThreshold,lowerThreshold,shannonThreshold);
 
 count =  DataFrame(num_peaks = peaks, num_walls = walls)
 
@@ -136,23 +136,5 @@ peakSeries |> SQLite.load!(dbOutput,"microbial_peak_series",ifnotexists=true)
 peakDurations |> SQLite.load!(dbOutput,"microbial_peakwall_durations",ifnotexists=true)
 count |> SQLite.load!(dbOutput,"microbial_peakwall_count",ifnotexists=true)
 wallSeries |> SQLite.load!(dbOutput,"microbial_wall_series",ifnotexists=true)
-
-dbSimInfoPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db.sqlite") # cluster
-#run(`cd`) # local
-#dbSimInfoPath = joinpath("/Volumes/Yadgah/sweep_db.sqlite") # local
-dbSimInfo = SQLite.DB(dbSimInfoPath)
-tableNamesTypes = ["$(table_info.name) $(table_info.type)" for table_info in execute(dbSimInfo,"PRAGMA table_info(param_combos)")]
-tableNamesTypes = join(tableNamesTypes,", ")
-
-execute(dbOutput, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER)")
-execute(dbOutput, "CREATE TABLE param_combos ($(tableNamesTypes...))")
-
-tableNames = ["$(table_info.name)" for table_info in execute(dbSimInfo,"PRAGMA table_info(param_combos)")]
-tableNames = join(tableNames,", ")
-execute(dbOutput, "BEGIN TRANSACTION")
-execute(dbOutput,"ATTACH DATABASE '$(dbSimInfoPath)' as dbSimInfo")
-execute(dbOutput,"INSERT INTO param_combos($(tableNames)) SELECT * FROM dbSimInfo.param_combos")
-execute(dbOutput,"INSERT INTO runs (run_id, combo_id, replicate) SELECT run_id, combo_id, replicate FROM dbSimInfo.runs")
-execute(dbOutput, "COMMIT")
 
 println("Complete!")

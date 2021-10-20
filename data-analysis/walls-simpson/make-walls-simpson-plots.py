@@ -22,8 +22,8 @@ DBSIM_PATH = os.path.join(SCRIPT_PATH,'..','..','simulation','sweep_db_gathered.
 DBRICH_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','richness','richness.sqlite') # cluster
 #DBRICH_PATH = os.path.join('/Volumes','Yadgah','richness.sqlite') # local
 
-DBSHAN_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','shannon','shannon.sqlite') # cluster
-#DBSHAN_PATH = os.path.join('/Volumes','Yadgah','shannon.sqlite') # local
+DBSHAN_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','simpson','simpson.sqlite') # cluster
+#DBSHAN_PATH = os.path.join('/Volumes','Yadgah','simpson.sqlite') # local
 
 DBPEAKS_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','walls','walls.sqlite') # cluster
 #DBPEAKS_PATH = os.path.join('/Volumes','Yadgah','walls.sqlite') # local
@@ -58,19 +58,19 @@ microbeRichness = pd.read_sql_query("SELECT t,brichness FROM richness WHERE run_
 
 conShan = sqlite3.connect(DBSHAN_PATH)
 curShan = conRich.cursor()
-print('SQLite Query: virus shannon data')
-virusShannon = pd.read_sql_query("SELECT t, vhill2 FROM hill_no2 WHERE run_id = {}".format(run_id), conShan)
-print('SQLite Query: microbe shannon data')
-microbeShannon = pd.read_sql_query("SELECT t,bhill2 FROM hill_no2 WHERE run_id = {}".format(run_id), conShan)
+print('SQLite Query: virus simpson data')
+virusSimpson = pd.read_sql_query("SELECT t, vsimpson FROM simpson_diversity WHERE run_id = {}".format(run_id), conShan)
+print('SQLite Query: microbe simpson data')
+microbeSimpson = pd.read_sql_query("SELECT t,bsimpson FROM simpson_diversity WHERE run_id = {}".format(run_id), conShan)
 
 conPeaks = sqlite3.connect(DBPEAKS_PATH)
 curPeaks = conPeaks.cursor()
 
-thresholds = curPeaks.execute('SELECT upper_threshold,lower_threshold,hill2_threshold FROM threshold_values WHERE run_id = {}'.format(run_id)).fetchall()
+thresholds = curPeaks.execute('SELECT upper_threshold,lower_threshold,simpson_threshold FROM threshold_values WHERE run_id = {}'.format(run_id)).fetchall()
 
 upperThreshold = thresholds[0][0]
 lowerThreshold = thresholds[0][1]
-hill2Threshold = thresholds[0][2]
+simpsonThreshold = thresholds[0][2]
 
 #upperThreshold = 3e5; # for testing
 #lowerThreshold = 1.2e5; # for testing
@@ -132,7 +132,7 @@ fig.savefig(os.path.join(PLOT_PATH,'microbe-walls.png'),dpi=500)
 
 
 
-print('Compiling microbial peak and Hill no. 2 plot')
+print('Compiling microbial peak and simpson diversity plot')
 fig, ax = plt.subplots(2,sharex=True)
 #fig = plt.figure()
 fig.suptitle('(run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
@@ -153,8 +153,8 @@ lim = axes[1].get_ylim()
 axes[1].set_ylim(0,lim[1])
 lim = axes[4].get_ylim()
 axes[4].set_ylim(0,lim[1])
-microbeShannon.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
-axes[2].set_ylabel(ylabel ='Microbe Hill No. 2',labelpad=15,fontsize=7)
+microbeSimpson.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
+axes[2].set_ylabel(ylabel ='Microbe Simpson Diversity',labelpad=15,fontsize=7)
 axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[2].ticklabel_format(style='sci',scilimits=(0,0))
 axes[3].set_yticks([])
@@ -164,11 +164,11 @@ axes[2].set_ylim(0,lim[1])
 lim = axes[3].get_ylim()
 axes[3].set_ylim(0,lim[1])
 fig.tight_layout()
-fig.savefig(os.path.join(PLOT_PATH,'microbe-peaks-hill2.png'),dpi=500)
+fig.savefig(os.path.join(PLOT_PATH,'microbe-peaks-simpson.png'),dpi=500)
 
 
 
-print('Compiling microbial walls and Hill no. 2 plot')
+print('Compiling microbial walls and simpson diversity plot')
 fig, ax = plt.subplots(2,sharex=True)
 #fig = plt.figure()
 fig.suptitle('(run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
@@ -189,13 +189,13 @@ lim = axes[1].get_ylim()
 axes[1].set_ylim(0,lim[1])
 lim = axes[4].get_ylim()
 axes[4].set_ylim(0,lim[1])
-microbeShannon.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
-axes[2].set_ylabel(ylabel ='Microbe Hill No. 2',labelpad=15,fontsize=7)
+microbeSimpson.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
+axes[2].set_ylabel(ylabel ='Microbe Simpson Diversity',labelpad=15,fontsize=7)
 axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[2].ticklabel_format(style='sci',scilimits=(0,0))
 axes[3].set_yticks([])
 axes[3].fill_between(microbeWalls["t"],0,1, where=microbeWalls["wall_presence"]>0,interpolate=True, color="grey", alpha=0.5, linewidth=0,transform=axes[2].get_xaxis_transform())
-axes[5].axhline(hill2Threshold, color='k', lw=.5, linestyle='dotted')
+axes[5].axhline(simpsonThreshold, color='k', lw=.5, linestyle='dotted')
 axes[5].set_xticks([])
 lim = axes[2].get_ylim()
 axes[2].set_ylim(0,lim[1])
@@ -204,11 +204,11 @@ axes[3].set_ylim(0,lim[1])
 lim = axes[5].get_ylim()
 axes[5].set_ylim(0,lim[1])
 fig.tight_layout()
-fig.savefig(os.path.join(PLOT_PATH,'microbe-walls-hill2.png'),dpi=500)
+fig.savefig(os.path.join(PLOT_PATH,'microbe-walls-simpson.png'),dpi=500)
 
 
 
-print('Compiling microbial wall plot projection on viral abundance and Hill no. 2')
+print('Compiling microbial wall plot projection on viral abundance and simpson diversity')
 fig, ax = plt.subplots(2,sharex=True)
 #fig = plt.figure()
 fig.suptitle('(run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
@@ -223,8 +223,8 @@ lim = axes[0].get_ylim()
 axes[0].set_ylim(0,lim[1])
 lim = axes[1].get_ylim()
 axes[1].set_ylim(0,lim[1])
-virusShannon.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
-axes[2].set_ylabel(ylabel ='Virus Hill No. 2',labelpad=15,fontsize=7)
+virusSimpson.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
+axes[2].set_ylabel(ylabel ='Virus Simpson Diversity',labelpad=15,fontsize=7)
 axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[2].ticklabel_format(style='sci',scilimits=(0,0))
 axes[3].set_yticks([])
@@ -234,11 +234,11 @@ axes[2].set_ylim(0,lim[1])
 lim = axes[3].get_ylim()
 axes[3].set_ylim(0,lim[1])
 fig.tight_layout()
-fig.savefig(os.path.join(PLOT_PATH,'microbe-walls-on-virus-hill2.png'),dpi=500)
+fig.savefig(os.path.join(PLOT_PATH,'microbe-walls-on-virus-simpson.png'),dpi=500)
 
 
 
-print('Compiling microbial peak plot projection on viral abundance and Hill no. 2')
+print('Compiling microbial peak plot projection on viral abundance and simpson diversity')
 fig, ax = plt.subplots(2,sharex=True)
 #fig = plt.figure()
 fig.suptitle('(run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
@@ -253,8 +253,8 @@ lim = axes[0].get_ylim()
 axes[0].set_ylim(0,lim[1])
 lim = axes[1].get_ylim()
 axes[1].set_ylim(0,lim[1])
-virusShannon.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
-axes[2].set_ylabel(ylabel ='Virus Hill No. 2',labelpad=15,fontsize=7)
+virusSimpson.plot(x='t',ax = axes[2],legend=False,color=pal[0],linewidth=0.75)
+axes[2].set_ylabel(ylabel ='Virus Simpson Diversity',labelpad=15,fontsize=7)
 axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[2].ticklabel_format(style='sci',scilimits=(0,0))
 axes[3].set_yticks([])
@@ -264,7 +264,7 @@ axes[2].set_ylim(0,lim[1])
 lim = axes[3].get_ylim()
 axes[3].set_ylim(0,lim[1])
 fig.tight_layout()
-fig.savefig(os.path.join(PLOT_PATH,'microbe-peaks-on-virus-hill2.png'),dpi=500)
+fig.savefig(os.path.join(PLOT_PATH,'microbe-peaks-on-virus-simpson.png'),dpi=500)
 
 
 print('Compiling microbial-virus stacked time series plots')
