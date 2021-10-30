@@ -29,9 +29,9 @@ function main()
     if !isfile(joinpath(analysisType,"mean$(analysisType)jobs.sqlite")) # cluster
         error("mean$(analysisType)jobs.sqlite is missing; please run analysis first") # cluster
     end # cluster
-    run_pairs = let
+    combo_pairs = let
         db = SQLite.DB(joinpath(analysisType,"mean$(analysisType)jobs.sqlite"))
-        [(combo_id, combo_dir) for (combo_id, combo_dir) in execute(db, "SELECT combo_id, combo_dir FROM job_combos")]
+        [(combo_id, combo_dir) for (combo_id, combo_dir) in execute(db, "SELECT combo_id, run_dir FROM job_runs")]
     end
 
     is_first = true
@@ -81,6 +81,23 @@ function main()
 
         execute(db, "COMMIT")
     end
+
+    dbOutput = SQLite.DB(joinpath(an_dir,"mean-$(analysisType).sqlite"))
+    dbSimInfoPath = joinpath(SCRIPT_PATH,"..","simulation","sweep_db.sqlite") # cluster
+    #run(`cd`) # local
+    #dbSimInfoPath = joinpath("/Volumes/Yadgah/sweep_db.sqlite") # local
+    dbSimInfo = SQLite.DB(dbSimInfoPath)
+    tableNamesTypes = ["$(table_info.name) $(table_info.type)" for table_info in execute(dbSimInfo,"PRAGMA table_info(param_combos)")]
+    tableNamesTypes = join(tableNamesTypes,", ")
+    execute(dbOutput, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER)")
+    execute(dbOutput, "CREATE TABLE param_combos ($(tableNamesTypes...))")
+    tableNames = ["$(table_info.name)" for table_info in execute(dbSimInfo,"PRAGMA table_info(param_combos)")]
+    tableNames = join(tableNames,", ")
+    execute(dbOutput, "BEGIN TRANSACTION")
+    execute(dbOutput,"ATTACH DATABASE '$(dbSimInfoPath)' as dbSimInfo")
+    execute(dbOutput,"INSERT INTO param_combos($(tableNames)) SELECT * FROM dbSimInfo.param_combos")
+    execute(dbOutput,"INSERT INTO runs (run_id, combo_id, replicate) SELECT run_id, combo_id, replicate FROM dbSimInfo.runs")
+    execute(dbOutput, "COMMIT")
 end
 
 main()
