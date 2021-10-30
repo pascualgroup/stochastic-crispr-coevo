@@ -53,11 +53,11 @@ execute(dbTemp, "CREATE INDEX bstrain_index ON babundance (t,bstrain_id)")
 execute(dbTemp, "CREATE INDEX vstrain_index ON vabundance (t,vstrain_id)")
 execute(dbTemp, "COMMIT")
 
-println("Processing inverse simpson index of run $(run_id)")
+println("Processing simpson diversity of run $(run_id)")
 function simpson(dbTemp,dbOutput)
     for (time,) in execute(dbTemp, "SELECT DISTINCT t FROM summary")
         #time = time + 400 # for testing
-        println("Computing inverse simpson index at time $(time)")
+        println("Computing simpson index at time $(time)")
 
         (totAbunds,) = execute(dbTemp, "SELECT microbial_abundance,viral_abundance FROM summary WHERE t = ?", (time,))
 

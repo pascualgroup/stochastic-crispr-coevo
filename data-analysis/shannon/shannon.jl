@@ -12,17 +12,17 @@ run_id = ARGS[1]
 ## Define Paths ##
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 
-#dbSimPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db_gathered.sqlite") # cluster
-dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
+dbSimPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db_gathered.sqlite") # cluster
+#dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
 
-#dbSimInfoPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db.sqlite") # cluster
-dbSimInfoPath = joinpath("/Volumes/Yadgah/sweep_db.sqlite") # local
+dbSimInfoPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db.sqlite") # cluster
+#dbSimInfoPath = joinpath("/Volumes/Yadgah/sweep_db.sqlite") # local
 
 if isfile("shannon_output.sqlite")
     error("shannon_output.sqlite already exists; delete first")
 end # cluster
-#dbOutput = SQLite.DB("shannon_output.sqlite") # cluster
-dbOutput = SQLite.DB("/Volumes/Yadgah/shannon_output.sqlite") # local
+dbOutput = SQLite.DB("shannon_output.sqlite") # cluster
+#dbOutput = SQLite.DB("/Volumes/Yadgah/shannon_output.sqlite") # local
 ##
 
 dbSimInfo = SQLite.DB(dbSimInfoPath)
