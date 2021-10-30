@@ -3,159 +3,172 @@
 println("(Annoying Julia compilation delay...)")
 
 using SQLite
+import SQLite.DBInterface.execute
 using DataFrames
-using SQLite.DBInterface: execute
+using StatsBase
+using Statistics
 
 combo_id = ARGS[1]
+analysisType = "walls-shannon"
+divType = "shannon"
 
 ## Define Paths ##
-SCRIPT_PATH = abspath(dirname(PROGRAM_FILE)) # cluster
+SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
+dbAnalysisPath = joinpath(SCRIPT_PATH,"..","gathered-analyses",analysisType,"$(analysisType).sqlite") # cluster
+dbSimInfoPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db.sqlite") # cluster
+dbOutputPath = joinpath("mean-$(analysisType)_output.sqlite") # cluster
 
-#DBOutputPath = joinpath(SCRIPT_PATH,"..","gathered-analyses","walls","mean-walls.sqlite") # cluster
-dbOutputPath = joinpath("/Volumes/Yadgah/mean-walls.sqlite") # local
+#dbAnalysisPath = joinpath("/Volumes/Yadgah/$(analysisType).sqlite") # local
+#dbSimInfoPath = joinpath("/Volumes/Yadgah/sweep_db.sqlite") # local
+#dbOutputPath = joinpath("/Volumes/Yadgah/mean-$(analysisType)_output.sqlite") # local
 
 if isfile(dbOutputPath)
-    error("`mean-walls.sqlite` already exists; please move or delete")
-end
-
-#dbSimInfoPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db.sqlite") # cluster
-dbSimInfoPath = joinpath("/Volumes/Yadgah/sweep_db.sqlite") # local
-
-#dbWallPath = joinpath(SCRIPT_PATH,"..","gathered-analyses","walls","walls.sqlite") # cluster
-dbWallPath = joinpath("/Volumes/Yadgah/walls.sqlite") # local
+    error("mean-$(analysisType)_output.sqlite already exists; delete first")
+end # cluster
 ##
 
+dbAnalysis = SQLite.DB(dbAnalysisPath)
+dbSimInfo = SQLite.DB(dbSimInfoPath)
 dbOutput = SQLite.DB(dbOutputPath)
-dbSimInfo = SQLite.DB(dbSimInfoPath)
-dbWall = SQLite.DB(dbWallPath)
 
-timeStmt = map(x->string(" OR t = $(x)"), peakSeries.t[(j1+1):j4])
-timeStmt = append!([string("t = $(peakSeries.t[j1])")],timeStmt)
-bhill2 = [hill.bhill2 for hill in execute(dbTemp, "SELECT bhill2 FROM hill_no2 WHERE $(timeStmt...) ORDER BY t")]
-vhill2 = [hill.vhill2 for hill in execute(dbTemp, "SELECT vhill2 FROM hill_no2 WHERE $(timeStmt...) ORDER BY t")]
+dbAnalysisTemp = SQLite.DB()
+execute(dbAnalysisTemp, "CREATE TABLE microbial_peakwall_count(num_walls INTEGER, run_id INTEGER)")
+execute(dbAnalysisTemp, "CREATE TABLE microbial_peakwall_durations(wall_number INTEGER, duration REAL, run_id INTEGER)")
+execute(dbAnalysisTemp, "CREATE TABLE threshold_values (upper_threshold INTEGER, lower_threshold INTEGER, $(divType)_threshold REAL)")
 
-execute(dbOutput, "CREATE TABLE average_wall_presence (wall_presence REAL)")
-execute(dbOutput, "CREATE TABLE average_num_walls (num_walls REAL)")
-execute(dbOutput, "CREATE TABLE average_wall_duration (duration REAL)")
-#execute(dbOutput, "CREATE TABLE average_hill2_firstwall (bhill2 REAL)")
-#execute(dbOutput, "CREATE TABLE average_hill2_allwalls (wall_number INTEGER, bhill2 REAL, vhill2)")
+run_ids = ["$(run_id)" for (run_id,) in execute(dbAnalysis, "SELECT run_id FROM runs WHERE combo_id = $(combo_id)")]
+run_idStmt = join(run_ids,", ")
+const numReplicates = length(run_ids)
 
-##CHANGE FOR GIVEN combo_ID
-dbTemp = SQLite.DB()
-execute(dbTemp, "CREATE TABLE summary (t REAL, microbial_abundance INTEGER)")
-execute(dbTemp, "CREATE TABLE babundance (t REAL, bstrain_id INTEGER, abundance INTEGER)")
-execute(dbTemp, "CREATE TABLE vabundance (t REAL, vstrain_id INTEGER, abundance INTEGER)")
+execute(dbAnalysisTemp, "BEGIN TRANSACTION")
+execute(dbAnalysisTemp,"ATTACH DATABASE '$(dbAnalysisPath)' as dbAnalysis")
+execute(dbAnalysisTemp,
+"INSERT INTO microbial_peakwall_count(num_walls, run_id)
+SELECT num_walls, run_id FROM dbAnalysis.microbial_peakwall_count WHERE run_id in ($(run_idStmt))"
+)
+execute(dbAnalysisTemp,
+"INSERT INTO microbial_peakwall_durations(wall_number, duration, run_id)
+SELECT wall_number, duration, run_id FROM dbAnalysis.microbial_peakwall_durations WHERE run_id in ($(run_idStmt))"
+)
+execute(dbAnalysisTemp,
+"INSERT INTO threshold_values(upper_threshold, lower_threshold, $(divType)_threshold)
+SELECT upper_threshold, lower_threshold, $(divType)_threshold FROM dbAnalysis.threshold_values WHERE run_id in ($(run_ids[1]))"
+)
+execute(dbAnalysisTemp, "CREATE INDEX wall_counts ON microbial_peakwall_count (num_walls,run_id)")
+execute(dbAnalysisTemp, "CREATE INDEX durations ON microbial_peakwall_durations (wall_number,duration,run_id)")
+execute(dbAnalysisTemp, "COMMIT")
 
-execute(dbTemp, "BEGIN TRANSACTION")
-execute(dbTemp,"ATTACH DATABASE '$(dbSimPath)' as dbSim")
-execute(dbTemp,"INSERT INTO summary(t, microbial_abundance) SELECT t, microbial_abundance FROM dbSim.summary WHERE run_id = $(run_id);")
-execute(dbTemp,"INSERT INTO babundance (t, bstrain_id, abundance) SELECT t, bstrain_id, abundance FROM dbSim.babundance WHERE run_id = $(run_id);")
-execute(dbTemp,"INSERT INTO vabundance (t, vstrain_id, abundance) SELECT t, vstrain_id, abundance FROM dbSim.vabundance WHERE run_id = $(run_id);")
-execute(dbTemp, "COMMIT")
+function wallstats(dbAnalysisTemp)
+    execute(dbOutput, "
+    CREATE TABLE microbial_mean_walldurations
+    (num_walls INTEGER, mean_wallduration REAL, mean_duration_of_longest_wall REAL, num_replicates INTEGER,
+    total_replicates_of_combo INTEGER, proportion_of_total_replicates REAL)
+    ")
+    execute(dbOutput, "
+    CREATE TABLE microbial_most_frequent_num_walls
+    (most_frequent_num_walls INTEGER, expected_wallduration_of_most_frequents REAL,
+    num_replicates_with_most_frequent INTEGER,total_replicates_of_combo INTEGER,
+    proportion_of_total_replicates REAL)
+    ")
+    execute(dbOutput, "
+    CREATE TABLE microbial_wall_statistics
+    (wall_occurence REAL, num_replicates_with_walls INTEGER, total_replicates_of_combo INTEGER,
+    expected_num_walls REAL, std_num_walls REAL, expected_num_walls_5percentThreshold REAL, std_num_walls_5percentThreshold REAL,
+    expected_num_walls_per_replicate_with_walls REAL, expected_num_walls_per_replicate_with_walls_5percentThreshold REAL,
+    avg_of_most_frequent_num_walls REAL, mean_wallduration_of_avg_most_frequents REAL)
+    ")
+    execute(dbOutput, "
+    CREATE TABLE threshold_values
+    (upper_threshold INTEGER, lower_threshold INTEGER, $(divType)_threshold REAL)
+    ")
 
-execute(dbTemp, "BEGIN TRANSACTION")
-execute(dbTemp, "CREATE INDEX summary_index ON summary (t,microbial_abundance)")
-execute(dbTemp, "CREATE INDEX bstrain_index ON babundance (t,bstrain_id)")
-execute(dbTemp, "CREATE INDEX vstrain_index ON vabundance (t,vstrain_id)")
-execute(dbTemp, "COMMIT")
-##
-
-
-# YOU ARE HERE!!
-meanWalls = 0
-meanPresence = 0
-run_count = 0
-for (run_id,) in execute(dbSimInfo, "SELECT run_id FROM runs WHERE combo_id = ?", (combo_id,))
-    meanWalls += execute(dbWall,"SELECT num_walls FROM microbial_peakwall_count WHERE run_id = ?",(run_id,))
-    if meanWalls > 0
-        meanPresence += 1
-    end
-    durations = [duration for (duration,) in  execute(dbWall,"SELECT duration FROM microbial_peakwall_durations WHERE run_id = ?",(run_id,))]
-    run_count += 1
-end
-meanWalls = meanWalls/run_count
-meanPresence = meanPresence/run_count
-execute(dbOutput,"INSERT INTO average_wall_presence VALUES (?)",(meanPresence,))
-execute(dbOutput,"INSERT INTO average_num_walls VALUES (?)",(meanWalls,))
-
-
-
-
-(CARRYING_CAP,) = execute(dbSimInfo,"SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = ?",(combo_id,))
-CARRYING_CAP = CARRYING_CAP.microbe_carrying_capacity
-
-execute(dbOutput, "CREATE TABLE richness (t REAL, vrichness INTEGER, brichness INTEGER)")
-
-# Create temporary database that is a copy of the main database at the run_id value of the script's argument
-#dbTemp = SQLite.DB("/Volumes/Yadgah/timeSeries$(run_id).sqlite") # local
-
-println("Processing richness of run $(run_id)")
-function richness(dbTemp,dbOutput)
-    for (time,) in execute(dbTemp, "SELECT DISTINCT t FROM summary")
-        #time = time + 400 # for testing
-        println("Computing richness at time $(time)")
-        bstrains = [strain.bstrain_id for strain in execute(dbTemp, "SELECT DISTINCT bstrain_id FROM babundance WHERE t = ?", (time,))]
-        brichness = length(bstrains)
-
-        #bstrains = DataFrame(execute(dbTemp, "SELECT DISTINCT bstrain_id FROM babundance WHERE t = ?", (time,)))
-        #brichness = length(bstrains.bstrain_id)
-
-        (babund,) = execute(dbTemp, "SELECT microbial_abundance FROM summary WHERE t = ?", (time,))
-        #THE EXPRESSION ABOVE DOESN'T SAVE AS A NUMBER,
-        #IT ONLY SAVES AS A NUMBER WHEN A LOOP ARGUMENT
-        babund = babund.microbial_abundance
-        #println(brichness)
-
-        vstrains = [strain.vstrain_id for strain in execute(dbTemp, "SELECT DISTINCT vstrain_id FROM vabundance WHERE t = ?", (time,))]
-        vrichness = length(vstrains)
-
-        #vstrains = DataFrame(execute(dbTemp, "SELECT DISTINCT vstrain_id FROM vabundance WHERE t = ?", (time,)))
-        #vrichness = length(vstrains.vstrain_id)
-        #println([brichness,vrichness])
-
-        execute(dbOutput, "BEGIN TRANSACTION")
-        execute(dbOutput, "INSERT INTO richness VALUES (?,?,?)", (time,vrichness,brichness))
-        execute(dbOutput, "COMMIT")
-
-        if vrichness == 0 && babund >= CARRYING_CAP
-            println("Virus has gone extinct! Also, microbes are at carrying capacity. Truncating data and projecting rest of computation...")
-
-            timeData = [summary.t for summary in execute(dbTemp, "SELECT DISTINCT t FROM summary")]
-            timeDataTrunc = timeData[timeData.>time]
-            timesLeft = length(timeDataTrunc)
-            tempDF = DataFrame(t = Array{Float64,1}(timeDataTrunc),vrichness = Array{Int64,1}(zeros(timesLeft)),brichness = Array{Int64,1}(brichness*ones(timesLeft)))
-
-            #timeData = DataFrame(execute(dbTemp, "SELECT DISTINCT t FROM summary"))
-            #timeDataTrunc = timeData[check.t.>time,:]
-            #timesLeft = nrow(timeDataTrunc)
-            #tempDF = DataFrame(t = timeDataTrunc[:,"t"],vrichness = Array{Int64,1}(zeros(timesLeft)),brichness = Array{Int64,1}(babund*ones(timesLeft)))
-
-            tempDF |> SQLite.load!(dbOutput,"richness",ifnotexists=true)
-
-            return
+    execute(dbOutput, "BEGIN TRANSACTION")
+    for (numWalls,) in execute(dbAnalysisTemp, "SELECT DISTINCT num_walls FROM microbial_peakwall_count ORDER BY num_walls")
+        if numWalls > 0
+            reps = ["$(run_id)" for (run_id,) in execute(dbAnalysisTemp, "SELECT run_id FROM microbial_peakwall_count WHERE num_walls = $(numWalls)")]
+            numReps = length(reps)
+            repStmt = join(reps,", ")
+            wallDuration = DataFrame(execute(dbAnalysisTemp,
+            "SELECT wall_number, duration, run_id FROM microbial_peakwall_durations WHERE run_id in ($(repStmt))"))
+            durations = wallDuration[wallDuration.wall_number.>0,:][:,:duration]
+            longests = [maximum(wallDuration[(wallDuration.wall_number.>0) .& (wallDuration.run_id .== run_id),:][:,:duration])
+                for run_id in unique(wallDuration[wallDuration.wall_number.>0,:][:,:run_id])]
+            execute(dbOutput,"INSERT INTO microbial_mean_walldurations VALUES (?,?,?,?,?,?)",
+            (numWalls,mean(durations),mean(longests),numReps,numReplicates,numReps/numReplicates)
+            )
         end
-
     end
+    execute(dbOutput, "COMMIT")
+
+    numWalls = DataFrame(execute(dbAnalysisTemp, "SELECT num_walls,run_id FROM microbial_peakwall_count"))
+    mostFrequents = modes(numWalls.num_walls)
+    countWalls = countmap(numWalls.num_walls)
+
+    execute(dbOutput, "BEGIN TRANSACTION")
+    for i in 1:lastindex(mostFrequents)
+        (meanDuration,) = execute(dbOutput,"SELECT mean_duration_per_wall FROM microbial_mean_walldurations WHERE num_walls = $(mostFrequents[i])")
+        execute(dbOutput, "INSERT INTO microbial_most_frequent_num_walls
+        VALUES (?,?,?,?,?)",
+        (mostFrequents[i],meanDuration.mean_duration_per_wall,
+        countWalls[mostFrequents[i]],numReplicates,countWalls[mostFrequents[i]]/numReplicates)
+        )
+    end
+    execute(dbOutput, "COMMIT")
+
+    numReps = length(numWalls[(numWalls.num_walls .> 0),:][:,:num_walls])
+    wall_occurence = numReps/numReplicates
+    avgNumWallsPerRepWithWall = sum(numWalls[(numWalls.num_walls .> 0),:][:,:num_walls])/numReps
+    numWallsThresh = filter(x->countWalls[x]/numReplicates>0.05,numWalls.num_walls)
+    durationMostFrequents = [duration for (duration,) in execute(dbOutput,
+    "SELECT expected_wallduration_of_most_frequents FROM microbial_most_frequent_num_walls")
+    ]
+    execute(dbOutput, "BEGIN TRANSACTION")
+    execute(dbOutput, "
+    INSERT INTO microbial_wall_statistics
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    (wall_occurence, numReps, numReplicates,
+    mean(numWalls.num_walls), std(numWalls.num_walls), mean(numWallsThresh), std(numWallsThresh),
+    avgNumWallsPerRepWithWall,mean(numWallsThresh[numWallsThresh .> 0]),mean(mostFrequents),mean(durationMostFrequents))
+    )
+    execute(dbOutput, "COMMIT")
+
+    (threshold,) = execute(dbAnalysisTemp,"SELECT * FROM threshold_values")
+
+    execute(dbOutput, "BEGIN TRANSACTION")
+    execute(dbOutput, "
+    INSERT INTO threshold_values
+    VALUES (?,?,?)",
+    (threshold[1],threshold[2],threshold[3])
+    )
+    execute(dbOutput, "COMMIT")
+
 end
 
-richness(dbTemp,dbOutput)
-
-dbSimInfoPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db.sqlite") # cluster
-#run(`cd`) # local
-#dbSimInfoPath = joinpath("/Volumes/Yadgah/sweep_db.sqlite") # local
-dbSimInfo = SQLite.DB(dbSimInfoPath)
-tableNamesTypes = ["$(table_info.name) $(table_info.type)" for table_info in execute(dbSimInfo,"PRAGMA table_info(param_combos)")]
-tableNamesTypes = join(tableNamesTypes,", ")
-
-execute(dbOutput, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER)")
-execute(dbOutput, "CREATE TABLE param_combos ($(tableNamesTypes...))")
-
-tableNames = ["$(table_info.name)" for table_info in execute(dbSimInfo,"PRAGMA table_info(param_combos)")]
-tableNames = join(tableNames,", ")
-execute(dbOutput, "BEGIN TRANSACTION")
-execute(dbOutput,"ATTACH DATABASE '$(dbSimInfoPath)' as dbSimInfo")
-execute(dbOutput,"INSERT INTO param_combos($(tableNames)) SELECT * FROM dbSimInfo.param_combos")
-execute(dbOutput,"INSERT INTO runs (run_id, combo_id, replicate) SELECT run_id, combo_id, replicate FROM dbSimInfo.runs")
-execute(dbOutput, "COMMIT")
+wallstats(dbAnalysisTemp)
 
 println("Complete!")
+
+# for (table_name,) in execute(
+#     dbAnalysisTemp, "SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name;"
+#     )
+#     if table_name == "microbial_peakwall_count"
+#         tableCols = ["$(table_info.name)" for table_info in execute(dbAnalysisTemp,"PRAGMA table_info($(table_name))")]
+#         tableColsType = ["$(table_info.name) $(table_info.type)" for table_info in execute(dbAnalysisTemp,"PRAGMA table_info($(table_name))")]
+#         numCols = length(tableCols)
+#         colStmt = join(tableCols,", ")
+#         colTypeStmt = join(tableColsType,", ")
+#         execute(dbOutput, "CREATE TABLE $(table_name) ($(colTypeStmt...))")
+#
+#         analyses = execute(dbAnalysisTemp, "SELECT $(colStmt...) FROM $(table)")
+#         meanVals = []
+#         for i in 1:numCols
+#             analysesVec = [analyses[j][i] for j in 1:numReplicates]
+#             meanVal = sum(analysesVec)/numReplicates
+#             push!(meanVals,meanVal)
+#         end
+#         valSpaces = ["?" for 1:numCols]
+#         valSpaces = join(valSpaces,", ")
+#         execute(dbOutput, "BEGIN TRANSACTION")
+#         execute(dbOutput,"INSERT INTO $(table_name) VALUES ($(valSpaces))",(meanVals...))
+#         execute(dbOutput, "COMMIT")
+# end
