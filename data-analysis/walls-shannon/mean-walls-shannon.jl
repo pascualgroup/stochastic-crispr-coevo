@@ -61,7 +61,7 @@ execute(dbAnalysisTemp, "COMMIT")
 function wallstats(dbAnalysisTemp)
     execute(dbOutput, "
     CREATE TABLE microbial_mean_walldurations
-    (num_walls INTEGER, mean_wallduration REAL, mean_duration_of_longest_wall REAL, num_replicates INTEGER,
+    (num_walls INTEGER, mean_wallduration REAL, mean_longest_wallduration REAL, num_replicates INTEGER,
     total_replicates_of_combo INTEGER, proportion_of_total_replicates REAL)
     ")
     execute(dbOutput, "
@@ -72,7 +72,7 @@ function wallstats(dbAnalysisTemp)
     ")
     execute(dbOutput, "
     CREATE TABLE microbial_wall_statistics
-    (wall_occurence REAL, num_replicates_with_walls INTEGER, total_replicates_of_combo INTEGER,
+    (wall_occurrence REAL, num_replicates_with_walls INTEGER, total_replicates_of_combo INTEGER,
     expected_num_walls REAL, std_num_walls REAL, expected_num_walls_5percentThreshold REAL, std_num_walls_5percentThreshold REAL,
     expected_num_walls_per_replicate_with_walls REAL, expected_num_walls_per_replicate_with_walls_5percentThreshold REAL,
     avg_of_most_frequent_num_walls REAL, mean_wallduration_of_avg_most_frequents REAL)
@@ -96,6 +96,13 @@ function wallstats(dbAnalysisTemp)
             execute(dbOutput,"INSERT INTO microbial_mean_walldurations VALUES (?,?,?,?,?,?)",
             (numWalls,mean(durations),mean(longests),numReps,numReplicates,numReps/numReplicates)
             )
+        else
+            reps = ["$(run_id)" for (run_id,) in execute(dbAnalysisTemp, "SELECT run_id FROM microbial_peakwall_count WHERE num_walls = $(numWalls)")]
+            numReps = length(reps)
+            repStmt = join(reps,", ")
+            execute(dbOutput,"INSERT INTO microbial_mean_walldurations VALUES (?,?,?,?,?,?)",
+            (numWalls,0,0,numReps,numReplicates,numReps/numReplicates)
+            )
         end
     end
     execute(dbOutput, "COMMIT")
@@ -106,31 +113,41 @@ function wallstats(dbAnalysisTemp)
 
     execute(dbOutput, "BEGIN TRANSACTION")
     for i in 1:lastindex(mostFrequents)
-        (meanDuration,) = execute(dbOutput,"SELECT mean_duration_per_wall FROM microbial_mean_walldurations WHERE num_walls = $(mostFrequents[i])")
+        (meanDuration,) = execute(dbOutput,"SELECT mean_wallduration FROM microbial_mean_walldurations WHERE num_walls = $(mostFrequents[i])")
         execute(dbOutput, "INSERT INTO microbial_most_frequent_num_walls
         VALUES (?,?,?,?,?)",
-        (mostFrequents[i],meanDuration.mean_duration_per_wall,
+        (mostFrequents[i],meanDuration.mean_wallduration,
         countWalls[mostFrequents[i]],numReplicates,countWalls[mostFrequents[i]]/numReplicates)
         )
     end
     execute(dbOutput, "COMMIT")
 
     numReps = length(numWalls[(numWalls.num_walls .> 0),:][:,:num_walls])
-    wall_occurence = numReps/numReplicates
-    avgNumWallsPerRepWithWall = sum(numWalls[(numWalls.num_walls .> 0),:][:,:num_walls])/numReps
-    numWallsThresh = filter(x->countWalls[x]/numReplicates>0.05,numWalls.num_walls)
-    durationMostFrequents = [duration for (duration,) in execute(dbOutput,
-    "SELECT expected_wallduration_of_most_frequents FROM microbial_most_frequent_num_walls")
-    ]
-    execute(dbOutput, "BEGIN TRANSACTION")
-    execute(dbOutput, "
-    INSERT INTO microbial_wall_statistics
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-    (wall_occurence, numReps, numReplicates,
-    mean(numWalls.num_walls), std(numWalls.num_walls), mean(numWallsThresh), std(numWallsThresh),
-    avgNumWallsPerRepWithWall,mean(numWallsThresh[numWallsThresh .> 0]),mean(mostFrequents),mean(durationMostFrequents))
-    )
-    execute(dbOutput, "COMMIT")
+    if numReps > 0
+        wall_occurrence = numReps/numReplicates
+        avgNumWallsPerRepWithWall = sum(numWalls[(numWalls.num_walls .> 0),:][:,:num_walls])/numReps
+        numWallsThresh = filter(x->countWalls[x]/numReplicates>0.05,numWalls.num_walls)
+        durationMostFrequents = [duration for (duration,) in execute(dbOutput,
+        "SELECT expected_wallduration_of_most_frequents FROM microbial_most_frequent_num_walls")
+        ]
+        execute(dbOutput, "BEGIN TRANSACTION")
+        execute(dbOutput, "
+        INSERT INTO microbial_wall_statistics
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (wall_occurrence, numReps, numReplicates,
+        mean(numWalls.num_walls), std(numWalls.num_walls), mean(numWallsThresh), std(numWallsThresh),
+        avgNumWallsPerRepWithWall,mean(numWallsThresh[numWallsThresh .> 0]),mean(mostFrequents),mean(durationMostFrequents))
+        )
+        execute(dbOutput, "COMMIT")
+    else
+        execute(dbOutput, "BEGIN TRANSACTION")
+        execute(dbOutput, "
+        INSERT INTO microbial_wall_statistics
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (0, numReps, numReplicates, 0, 0, 0, 0, 0, 0, 0, 0))
+        execute(dbOutput, "COMMIT")
+    end
+
 
     (threshold,) = execute(dbAnalysisTemp,"SELECT * FROM threshold_values")
 
