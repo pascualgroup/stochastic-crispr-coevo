@@ -14,22 +14,11 @@
     "Enable output?"
     enable_output::Union{Bool, Nothing}
 
-    # REMOVE COMMENTED BLOCK BELOW
-    #function RunParameters()
-        #p = new()
-        #p.rng_seed = nothing
-        #p.enable_output = true
-        #p
-    #end
-
     "Number of initial bacterial strains"
     n_bstrains::Union{UInt64, Nothing}
 
     "Number of initial hosts per bacterial strain"
     n_hosts_per_bstrain::Union{UInt64, Nothing}
-
-    # "Number of initial spacers per bacterial strain"
-    # n_spacers::UInt64
 
     "Number of initial virus strains"
     n_vstrains::Union{UInt64, Nothing}
@@ -74,23 +63,10 @@
 
     "Constant immigration rate (not in Childs model) [eta]"
     microbe_immigration_rate::Union{Float64, Nothing}
-
-    #function Params() #this function is important for proper function of JSON2
-        #new()
-        ##p = new()
-        ##p.rng_seed = nothing # when feeding json script, with pre-defined entry,
-        ###this function will not successfully change values
-        ##p.enable_output = true # applies to this as well...
-        ##p
-    #end
 end
 
 
 ### SIMULATION STATE ###
-
-
-
-
 
 mutable struct Strains
     next_id::UInt64
@@ -177,20 +153,12 @@ mutable struct State
     end
 end
 
-
-
-
-
 function State(p::Params)
     State(
         p.n_bstrains, p.n_hosts_per_bstrain,
         p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers
     )
 end
-
-
-
-
 
 #########################################################
 

@@ -37,7 +37,7 @@ const P = let
     Params(; d_symb...)
 end
 
-
+# println(P)
 # Run simulation
 function main(P::Params)
     sim = Simulation(P)
