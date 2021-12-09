@@ -100,4 +100,23 @@ function main()
     execute(dbOutput, "COMMIT")
 end
 
+function createindices()
+    println("(Creating combo_id indices...)")
+    db = SQLite.DB("sweep_db_gathered.sqlite")
+    execute(db, "BEGIN TRANSACTION")
+    for (table_name,) in execute(
+        db, "SELECT name FROM sqlite_schema
+        WHERE type='table' ORDER BY name;")
+        cols = [info.name for info in execute(db,"PRAGMA table_info($(table_name))")]
+        if !issubset("combo_id",cols)
+            continue
+        end
+        execute(dbSim, "CREATE INDEX $(table_name)_index ON $(table_name) (combo_id)")
+    end
+    execute(db, "COMMIT")
+end
+
+
 main()
+createindices()
+println("Complete!")
