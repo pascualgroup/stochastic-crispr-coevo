@@ -75,6 +75,9 @@ function generate_plot_runs(dbSim::DB) # This function generates the directories
     for (run_id, combo_id, replicate) in execute(dbSim, "SELECT run_id,combo_id,replicate FROM runs")
         #println("Processing analysis plot script for combination $(combo_id)/replicate $(replicate)"
         #) # local
+        #if !issubset(run_id,[1343, 1344, 1345, 1455, 1550, 1160, 1657, 2950, 2954])
+            #continue
+        #end
         run_dir = joinpath(SCRIPT_PATH,analysisDir,"runs", "c$(combo_id)", "r$(replicate)")
         @assert ispath(run_dir)
 
@@ -108,6 +111,9 @@ function generate_plot_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
     execute(dbTempJobs, "BEGIN TRANSACTION")
 
     for (run_id, run_dir) in execute(dbSim, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
+        #if !issubset(run_id,[1343, 1344, 1345, 1455, 1550, 1160, 1657, 2950, 2954])
+            #continue
+        #end
         execute(dbTempJobs, "INSERT INTO plot_job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
         job_id = mod(job_id,N_JOBS_MAX*numSubmits) + 1

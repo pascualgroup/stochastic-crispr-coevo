@@ -77,6 +77,9 @@ function generate_analysis_runs(dbSim::DB) # This function generates the directo
     for (run_id, combo_id, replicate) in execute(dbSim, "SELECT run_id,combo_id,replicate FROM runs")
         #println("Processing analysis script for combination $(combo_id)/replicate $(replicate)"
         #) # local
+        #if !issubset(run_id,[1343, 1344, 1345])
+            #continue
+        #end
         run_dir = joinpath(analysisDir,"runs", "c$(combo_id)", "r$(replicate)")
         @assert !ispath(run_dir)
         mkpath(run_dir)
@@ -109,6 +112,9 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
     execute(dbTempJobs, "BEGIN TRANSACTION")
 
     for (run_id, run_dir) in execute(dbSim, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
+        #if !issubset(run_id,[1343, 1344, 1345, 1455, 1550, 1160, 1657, 2950, 2954])
+            #continue
+        #end
         execute(dbTempJobs, "INSERT INTO job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
         job_id = mod(job_id,N_JOBS_MAX*numSubmits) + 1
