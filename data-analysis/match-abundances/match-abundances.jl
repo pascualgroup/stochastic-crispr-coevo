@@ -31,24 +31,29 @@ end # cluster
 # dbSim = SQLite.DB(dbSimPath)
 dbOutput = SQLite.DB(dbOutputPath)
 
-execute(dbOutput, "CREATE TABLE total_matched_bstrain_abundances (t REAL, bstrain_match_length INTEGER,
-num_bstrains INTEGER, bfrequency REAL, babundance INTEGER,
-num_vstrains_matched INTEGER, vfrequency_matched REAL, vabundance_matched INTEGER)")
+# execute(dbOutput, "CREATE TABLE total_matched_bstrain_abundances (t REAL, bstrain_match_length INTEGER,
+# num_bstrains INTEGER, bfrequency REAL, babundance INTEGER,
+# num_vstrains_matched INTEGER, vfrequency_matched REAL, vabundance_matched INTEGER)")
 
 execute(dbOutput, "CREATE TABLE bclades_match_type_abundances (t REAL, bclade_id INTEGER,
 match_type INTEGER, matched_bfrequency REAL, matched_vfrequency REAL,
 matched_babundance INTEGER, matched_vabundance INTEGER,
 num_bstrains_matched INTEGER, num_vstrains_matched INTEGER)")
 
-execute(dbOutput, "CREATE TABLE bmatch_type_abundances (t REAL, bmatch_type INTEGER,
-matched_bfrequency REAL, matched_to_vfrequency REAL,
-matched_babundance INTEGER, matched_to_vabundance INTEGER,
+execute(dbOutput, "CREATE TABLE match_type_abundances (t REAL, match_type INTEGER,
+matched_bfrequency REAL, matched_vfrequency REAL,
+matched_babundance INTEGER, matched_vabundance INTEGER,
 num_bstrains_matched INTEGER, num_vstrains_matched_to INTEGER)")
 
-execute(dbOutput, "CREATE TABLE vmatch_type_abundances (t REAL, vmatch_type INTEGER,
-matched_vfrequency REAL, matched_to_bfrequency REAL,
-matched_vabundance INTEGER, matched_to_babundance INTEGER,
-num_vstrains_matched INTEGER, num_bstrains_matched_to INTEGER)")
+# execute(dbOutput, "CREATE TABLE bmatch_type_abundances (t REAL, bmatch_type INTEGER,
+# matched_bfrequency REAL, matched_to_vfrequency REAL,
+# matched_babundance INTEGER, matched_to_vabundance INTEGER,
+# num_bstrains_matched INTEGER, num_vstrains_matched_to INTEGER)")
+#
+# execute(dbOutput, "CREATE TABLE vmatch_type_abundances (t REAL, vmatch_type INTEGER,
+# matched_vfrequency REAL, matched_to_bfrequency REAL,
+# matched_vabundance INTEGER, matched_to_babundance INTEGER,
+# num_vstrains_matched INTEGER, num_bstrains_matched_to INTEGER)")
 
 # execute(dbOutput, "CREATE TABLE matched_bstrain_abundances (t REAL, bstrain_match_length INTEGER,
 # bstrain_id INTEGER, bfrequency REAL, babundance INTEGER,
@@ -65,7 +70,7 @@ num_vstrains_matched INTEGER, num_bstrains_matched_to INTEGER)")
 
 # Create temporary database that is a copy of the main database at the run_id value of the script's argument
 dbTempSim = SQLite.DB()
-#dbTempSim = SQLite.DB("/Volumes/Yadgah/testSim.sqlite") # local
+# dbTempSim = SQLite.DB("/Volumes/Yadgah/testSim.sqlite") # local
 execute(dbTempSim, "CREATE TABLE summary (t REAL, microbial_abundance INTEGER, viral_abundance INTEGER)")
 execute(dbTempSim, "CREATE TABLE babundance (t REAL, bstrain_id INTEGER, abundance INTEGER)")
 execute(dbTempSim, "CREATE TABLE vabundance (t REAL, vstrain_id INTEGER, abundance INTEGER)")
@@ -82,7 +87,7 @@ execute(dbTempSim, "CREATE INDEX vabundance_index ON vabundance (t,vstrain_id)")
 execute(dbTempSim, "COMMIT")
 
 dbTempClades = SQLite.DB()
-#dbTempClades = SQLite.DB("/Volumes/Yadgah/testClades.sqlite") # local
+# dbTempClades = SQLite.DB("/Volumes/Yadgah/testClades.sqlite") # local
 execute(dbTempClades, "CREATE TABLE babundances (t REAL, clade_id INTEGER, bstrain_id INTEGER, abundance INTEGER)")
 execute(dbTempClades, "BEGIN TRANSACTION")
 execute(dbTempClades,"ATTACH DATABASE '$(dbCladePath)' as dbClade")
@@ -95,7 +100,7 @@ execute(dbTempClades, "COMMIT")
 
 
 dbTempMatches = SQLite.DB()
-#dbTempMatches = SQLite.DB("/Volumes/Yadgah/testMatches.sqlite") # local
+# dbTempMatches = SQLite.DB("/Volumes/Yadgah/testMatches.sqlite") # local
 execute(dbTempMatches, "CREATE TABLE bstrain_num_matched_spacers (t REAL, bstrain_id INTEGER, num_matched_spacers INTEGER)")
 execute(dbTempMatches, "CREATE TABLE bstrain_to_vstrain_matches (t REAL, bstrain_id INTEGER, vstrain_id INTEGER, match_length INTEGER)")
 execute(dbTempMatches, "BEGIN TRANSACTION")
@@ -245,70 +250,91 @@ function matchAbundances()
         btotal = btotal.microbial_abundance
         (vtotal,) = execute(dbTempSim, "SELECT viral_abundance FROM summary WHERE t = $(time)")
         vtotal = vtotal.viral_abundance
-        vstrains = [vstrain for (vstrain,) in execute(dbTempSim,
-        "SELECT DISTINCT vstrain_id FROM vabundance WHERE t = $(time)")]
-        vstrainsMatched = [vstrain for (vstrain,) in execute(dbTempMatches,
-        "SELECT DISTINCT vstrain_id FROM bstrain_to_vstrain_matches
-        WHERE t = $(time)")]
-        setdiff!(vstrains,vstrainsMatched)
-        println(vstrains)
-        zeroMatches(time,btotal,vtotal,vstrains)
+        zeroMatches(time,btotal,vtotal)
         matchTypes(time,btotal,vtotal)
     end
 end
 
-function zeroMatches(time,btotal,vtotal,vstrains)
-    totalNumVstrainsMatched = length(vstrains)
-    vstrainAbundances = [abundance for (abundance,) in execute(dbTempSim,
-    "SELECT abundance FROM vabundance WHERE t = $(time)
-    AND vstrain_id in ($(join(vstrains,", ")))")]
-    if totalNumVstrainsMatched == 0
-        totalvstrainAbundances = 0
-    else
-        totalvstrainAbundances = sum(vstrainAbundances)
-    end
-
+function zeroMatches(time,btotal,vtotal)
+    vstrains = [vstrain for (vstrain,) in execute(dbTempSim,
+    "SELECT DISTINCT vstrain_id FROM vabundance WHERE t = $(time)")]
     totalbstrainAbundances = 0
-    totalNumBstrainsMatched = 0
+    totalNumBstrains0 = 0
+    allVstrains0 = []
     for (clade_id,) in execute(dbTempClades,"SELECT DISTINCT clade_id
         FROM babundances WHERE t = $(time) ORDER BY clade_id")
-        bstrains = [bstrain for (bstrain,) in execute(dbTempClades,
+        # bstrains = [bstrain for (bstrain,) in execute(dbTempClades,
+        # "SELECT DISTINCT bstrain_id FROM babundances WHERE t = $(time)
+        # AND clade_id = $(clade_id)")]
+        vstrains0 = []
+        bstrains0 = []
+        for (bstrain,) in execute(dbTempClades,
         "SELECT DISTINCT bstrain_id FROM babundances WHERE t = $(time)
-        AND clade_id = $(clade_id)")]
-        bstrainsMatched = [bstrain for (bstrain,) in execute(dbTempMatches,
-        "SELECT DISTINCT bstrain_id FROM bstrain_to_vstrain_matches
-        WHERE t = $(time)")]
-        setdiff!(bstrains,bstrainsMatched)
-        numBstrains = length(bstrains)
-        if numBstrains == 0
-            execute(dbOutput, "INSERT INTO bclades_match_type_abundances
-            VALUES (?,?,?,?,?,?,?,?,?)",
-            (time, clade_id, 0,
-            0, totalvstrainAbundances/vtotal,
-            0, totalvstrainAbundances,
-            numBstrains, totalNumVstrainsMatched))
+        AND clade_id = $(clade_id) ORDER BY bstrain_id")
+            vstrains0Temp = vstrains[:]
+            vstrainsMatched = [vstrain for (vstrain,) in execute(dbTempMatches,
+            "SELECT DISTINCT vstrain_id FROM bstrain_to_vstrain_matches
+            WHERE t = $(time)
+            AND bstrain_id = $(bstrain)")]
+            setdiff!(vstrains0Temp,vstrainsMatched)
+            if length(vstrains0Temp) == 0
+                continue
+            end
+            push!(bstrains0,bstrain)
+            union!(vstrains0,vstrains0Temp)
+        end
+
+        union!(allVstrains0,vstrains0)
+
+        numBstrains0 = length(bstrains0)
+        if numBstrains0 == 0
             continue
         end
-        totalNumBstrainsMatched += numBstrains
-        bstrainAbundances = [abundance for (abundance,) in execute(dbTempSim,
-        "SELECT abundance FROM babundance WHERE t = $(time)
-        AND bstrain_id in ($(join(bstrains,", ")))")]
+
+        totalNumBstrains0 += numBstrains0
+        bstrainAbundances = [abundance for (abundance,) in
+        execute(dbTempSim, "SELECT abundance FROM babundance
+        WHERE t = $(time)
+        AND bstrain_id in ($(join(bstrains0,", ")))")]
         bstrainTotal = sum(bstrainAbundances)
         totalbstrainAbundances += bstrainTotal
+
+        vstrainAbundances = [abundance for (abundance,) in
+        execute(dbTempSim, "SELECT abundance FROM vabundance
+        WHERE t = $(time)
+        AND vstrain_id in ($(join(vstrains0,", ")))")]
+        vstrainTotal = sum(vstrainAbundances)
 
         execute(dbOutput, "INSERT INTO bclades_match_type_abundances
         VALUES (?,?,?,?,?,?,?,?,?)",
         (time, clade_id, 0,
-        bstrainTotal/btotal, totalvstrainAbundances/vtotal,
-        bstrainTotal, totalvstrainAbundances,
-        numBstrains, totalNumVstrainsMatched))
+        bstrainTotal/btotal, vstrainTotal/vtotal,
+        bstrainTotal, vstrainTotal,
+        numBstrains0, length(vstrains0)))
     end
+
+    if length(allVstrains0) == 0
+        execute(dbOutput, "INSERT INTO match_type_abundances
+        VALUES (?,?,?,?,?,?,?,?)",
+        (time, 0,
+        totalbstrainAbundances/btotal, 0,
+        totalbstrainAbundances, 0,
+        totalNumBstrains0, 0))
+        return
+    end
+
+    vstrainAbundances = [abundances for (abundances,)
+    in execute(dbTempSim, "SELECT abundance FROM vabundance WHERE t = $(time)
+    AND vstrain_id in ($(join(allVstrains0,", ")))")]
+
+    totalvstrainAbundances = sum(vstrainAbundances)
+
     execute(dbOutput, "INSERT INTO match_type_abundances
     VALUES (?,?,?,?,?,?,?,?)",
     (time, 0,
     totalbstrainAbundances/btotal, totalvstrainAbundances/vtotal,
     totalbstrainAbundances, totalvstrainAbundances,
-    totalNumBstrainsMatched, totalNumVstrainsMatched))
+    totalNumBstrains0, length(allVstrains0)))
 end
 
 function matchTypes(time,btotal,vtotal)
@@ -347,7 +373,6 @@ function matchTypes(time,btotal,vtotal)
             AND bstrain_id in ($(join(bstrains,", ")))")]
             union!(allVstrains,vstrains)
             numVstrains = length(vstrains)
-            totalNumVstrainsMatched += numVstrains
             vstrainAbundances = [abundance for (abundance,) in
             execute(dbTempSim, "SELECT abundance FROM vabundance
             WHERE t = $(time)
@@ -362,34 +387,18 @@ function matchTypes(time,btotal,vtotal)
             numBstrains, numVstrains))
         end
 
-        totalvstrainAbundances = [abundances for (abundances,)
+        vstrainAbundances = [abundances for (abundances,)
         in execute(dbTempSim, "SELECT abundance FROM vabundance WHERE t = $(time)
         AND vstrain_id in ($(join(allVstrains,", ")))")]
+        totalvstrainAbundances = sum(vstrainAbundances)
 
-        execute(dbOutput, "INSERT INTO bmatch_type_abundances
+        execute(dbOutput, "INSERT INTO match_type_abundances
         VALUES (?,?,?,?,?,?,?,?)",
         (time, match_type,
         totalbstrainAbundances/btotal, totalvstrainAbundances/vtotal,
         totalbstrainAbundances, totalvstrainAbundances,
         totalNumBstrainsMatched, length(allVstrains)))
 
-        vstrains = [vstrain for (vstrain,) in execute(dbTempSim,
-        "SELECT DISTINCT vstrain_id FROM vabundances WHERE t = $(time)")]
-        vstrainsMatchType = [vstrain for (vstrain,) in execute(dbTempMatches,
-        "SELECT DISTINCT vstrain_id FROM bstrain_to_vstrain_matches
-        WHERE t = $(time)
-        AND match_length = $(match_type)")]
-        intersect!(vstrains,vstrainsMatchType)
-
-        if length(vstrains) == 0
-            ?
-        end
-        execute(dbOutput, "INSERT INTO match_type_abundances
-        VALUES (?,?,?,?,?,?,?,?)",
-        (time, match_type,
-        totalbstrainAbundances/btotal, totalvstrainAbundances/vtotal,
-        totalbstrainAbundances, totalvstrainAbundances,
-        totalNumBstrainsMatched, totalNumVstrainsMatched))
     end
 end
 
