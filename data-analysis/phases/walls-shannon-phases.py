@@ -14,6 +14,8 @@ import os
 import seaborn as sns
 from scipy import stats
 import sqlite3
+from scipy.interpolate import griddata
+from scipy.interpolate import interp1d
 
 analysisType = "walls-shannon"
 
