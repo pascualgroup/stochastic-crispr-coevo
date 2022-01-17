@@ -31,12 +31,26 @@ dbOutput = SQLite.DB(dbOutputPath)
 
 execute(dbOutput, "CREATE TABLE total_abundances (t REAL, babundance INTEGER, vabundance INTEGER,
 total_num_matches_w_redundancy INTEGER, total_match_richness INTEGER)")
+execute(dbOutput, "CREATE TABLE strain_matches (t REAL, bstrain_id INTEGER, vstrain_id INTEGER,
+match_id INTEGER, match_type INTEGER,
+bstrain_frequency REAL, vstrain_frequency REAL,
+bstrain_abundance INTEGER, vstrain_abundance INTEGER)")
+execute(dbOutput, "CREATE TABLE match_types (t REAL, match_id INTEGER, spacer_id INTEGER, match_type INTEGER)")
+execute(dbOutput, "CREATE TABLE IDI (t REAL, IDI REAL)")
+execute(dbOutput, "CREATE TABLE PDI (t REAL, PDI REAL, maxPDI REAL, DRI REAL, PDI_degree1 REAL,
+PDI_degree2 REAL, PDI_degree3 REAL, PDI_degree4 REAL, PDI_degree5 REAL)")
+execute(dbOutput, "CREATE TABLE HVI (t REAL, HVI REAL)")
+
 
 execute(dbOutput, "CREATE TABLE match_abundances (t REAL, match_type INTEGER,
-num_match_ids INTEGER, match_type_richness INTEGER, num_unique_spacers INTEGER,
+num_match_ids INTEGER, proportion_of_total_matches_w_redundancy REAL, match_type_richness INTEGER, num_unique_spacers INTEGER,
 matched_bfrequency REAL, matched_vfrequency REAL,
 matched_babundance INTEGER, matched_vabundance INTEGER,
 num_bstrains_matched INTEGER, num_vstrains_matched INTEGER)")
+
+execute(dbOutput, "CREATE TABLE spacer_match_frequencies (t REAL, spacer_id INTEGER,
+bfrequency_with_spacer_id REAL, vfrequency_with_spacer_id REAL,
+babundance_with_spacer_id INTEGER, vabundance_with_spacer_id INTEGER)")
 
 
 # Create temporary database that is a copy of the main database at the run_id value of the script's argument
