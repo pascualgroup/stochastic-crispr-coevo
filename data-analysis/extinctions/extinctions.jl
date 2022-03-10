@@ -25,6 +25,7 @@ dbOutput = SQLite.DB(dbOutputPath)
 ##
 
 execute(dbOutput, "CREATE TABLE extinction_occurrence (microbes INTEGER, viruses INTEGER)")
+execute(dbOutput, "CREATE TABLE simulation_end_time (microbe_end_time REAL, virus_end_time REAL)")
 
 # Create temporary database that is a copy of the main database at the run_id value of the script's argument
 #dbTemp = SQLite.DB("/Volumes/Yadgah/timeSeries$(run_id).sqlite") # local
@@ -44,27 +45,35 @@ println("Processing extinction occurrences of run $(run_id)")
 function extinction()
     microbesDF = DataFrame(execute(dbTemp, "SELECT t,microbial_abundance FROM summary ORDER BY t"))
     virusesDF = DataFrame(execute(dbTemp, "SELECT t,viral_abundance FROM summary ORDER by t"))
-
+    microbesDF = microbesDF[(microbesDF.t .!=0),:]
+    virusesDF = virusesDF[(virusesDF.t .!=0),:]
     microbeExt = 0
     virusExt = 0
-    if issubset(0,microbesDF[(microbesDF.t .!=0),:][:,:microbial_abundance])
+    simEndTime = 0
+
+    if issubset(0,microbesDF[:,:microbial_abundance])
         microbeExt = 1
+        mSimEndTime = maximum(microbesDF[(microbesDF.microbial_abundance .!=0),:].t) + 1
         println(microbeExt)
     else
         microbeExt = 0
+        mSimEndTime = maximum(microbesDF.t)
         println(microbeExt)
     end
 
-    if issubset(0,virusesDF[(microbesDF.t .!=0),:][:,:viral_abundance])
+    if issubset(0,virusesDF[:,:viral_abundance])
         virusExt = 1
+        vSimEndTime = maximum(virusesDF[(virusesDF.viral_abundance .!=0),:].t) + 1
         println(virusExt)
     else
         virusExt = 0
+        vSimEndTime = maximum(virusesDF.t)
         println(virusExt)
     end
 
     execute(dbOutput, "BEGIN TRANSACTION")
     execute(dbOutput, "INSERT INTO extinction_occurrence VALUES (?,?)", (microbeExt,virusExt))
+    execute(dbOutput, "INSERT INTO simulation_end_time VALUES ($(mSimEndTime),$(vSimEndTime))")
     execute(dbOutput, "COMMIT")
 end
 
