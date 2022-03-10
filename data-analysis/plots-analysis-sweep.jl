@@ -168,7 +168,7 @@ function generate_plot_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m
-            #SBATCH --time=4:00:00
+            #SBATCH --time=1-12:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=plot_output.txt
             #SBATCH --mail-user=armun@uchicago.edu

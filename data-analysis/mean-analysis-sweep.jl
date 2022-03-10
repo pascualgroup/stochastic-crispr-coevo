@@ -15,7 +15,7 @@ cd(SCRIPT_PATH)
 
 # Number of SLURM jobs to generate
 const N_JOBS_MAX = 100
-const N_CORES_PER_JOB_MAX = 20 # Half a node (14) is easier to get scheduled than a whole one
+const N_CORES_PER_JOB_MAX = 28 # Half a node (14) is easier to get scheduled than a whole one
 const mem_per_cpu = 2000 # in MB 100MB = 1 GB
 
 
@@ -163,7 +163,7 @@ function generate_mean_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
     #run(`chmod +x submit_analysis_jobs.sh`) # Make submit script executable
     @info "
-    Sweep will be submitted via $(numSubmits) `analysis_submit_jobs.sh` script(s).
+    Sweep will be submitted via $(numSubmits) `mean-analysis-submit-jobs.sh` script(s).
     Each `analysis_submit_jobs.sh` script submits $(N_JOBS_MAX) jobs.
     Each job will use $(n_cores_count) cpus (cores) at most, where each cpu will use $(mem_per_cpu/1000)GB.
     Each job therefore will use at most $(n_cores_count*mem_per_cpu/1000)GB of memory in total.

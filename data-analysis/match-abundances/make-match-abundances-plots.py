@@ -35,8 +35,8 @@ DBSIM_PATH = os.path.join(SCRIPT_PATH,'..','..','simulation','sweep_db_gathered.
 # DBSIM_PATH = os.path.join('/Volumes','Yadgah','run_id1344_combo68_replicate4.sqlite')
 # DBSIM_PATH = os.path.join('/Volumes','Yadgah','run_id1345_combo68_replicate5.sqlite')
 
-# DBMATCH_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','match-abundances','match-abundances.sqlite') # cluster
-#DBMATCH_PATH = os.path.join('/Volumes','Yadgah','match-abundances.sqlite') # local
+DBMATCH_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','match-abundances','match-abundances.sqlite') # cluster
+# DBMATCH_PATH = os.path.join('/Volumes','Yadgah','match-abundances.sqlite') # local
 # DBMATCH_PATH = os.path.join('/Volumes','Yadgah','match-abundances_output.sqlite') # local. run_id fixed; for testing
 
 
@@ -126,6 +126,8 @@ FROM clade_vabundances WHERE run_id = {}".format(run_id), conClade)
 
 conMatch = sqlite3.connect(DBMATCH_PATH)
 curMatch = conMatch.cursor()
+
+## for runs with run_id
 # print('SQLite Query: match data')
 # bcladematchTypesB = pd.read_sql_query(
 # "SELECT t, bclade_id, match_type, matched_babundance \

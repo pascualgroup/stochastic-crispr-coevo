@@ -52,8 +52,8 @@ const N_REPLICATES = 20
 
 # Number of SLURM jobs to generate
 const N_JOBS_MAX = 100
-const N_CORES_PER_JOB_MAX = 20 # Half a node, easier to get scheduled than a whole one
-const mem_per_cpu = 3000 # in MB 100MB = 1 GB
+const N_CORES_PER_JOB_MAX = 28 # Half a node, easier to get scheduled than a whole one
+const mem_per_cpu = 2000 # in MB 100MB = 1 GB
 
 db = SQLite.DB(joinpath(SCRIPT_PATH,"sweep_db.sqlite")) # the function of this database
 # is to log run and job ids of individual simulation directory names
@@ -234,7 +234,7 @@ function generate_jobs(db::DB,numCombos::Int64)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m
-            #SBATCH --time=4:00:00
+            #SBATCH --time=1-12:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=output.txt
             #SBATCH --mail-user=armun@uchicago.edu
