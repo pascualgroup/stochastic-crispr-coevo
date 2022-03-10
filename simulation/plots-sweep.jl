@@ -45,9 +45,9 @@ ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)
 
 # Number of SLURM jobs to generate
-const N_JOBS_MAX = 100
-const N_CORES_PER_JOB_MAX = 20 # Half a node, easier to get scheduled than a whole one
-const mem_per_cpu = 8000 # in MB 100MB = 1 GB
+const N_JOBS_MAX = 50
+const N_CORES_PER_JOB_MAX = 28 # Half a node, easier to get scheduled than a whole one
+const mem_per_cpu = 2000 # in MB 1000MB = 1 GB
 
 
 
@@ -98,6 +98,8 @@ function generate_plot_runs(db::DB) # This function generates the directories
         @assert !ispath(plot_dir)
         mkpath(plot_dir)
 
+        argString = map(x->string("$(x) "), ARGS) # the space after $(x) is important
+
         # Generate shell script to perform a single run
         run_script = joinpath(run_dir, "runplotmaker.sh")
         open(run_script, "w") do f
@@ -105,7 +107,7 @@ function generate_plot_runs(db::DB) # This function generates the directories
             #!/bin/sh
             cd `dirname \$0`
             module load python/anaconda-2021.05
-            python $(ROOT_RUN_SCRIPT) $(run_id) &> plot_output.txt
+            python $(ROOT_RUN_SCRIPT) $(run_id) $(argString...) &> plot_output.txt
             """)
         end
         run(`chmod +x $(run_script)`)
@@ -178,7 +180,7 @@ function generate_plot_jobs(db::DB,numSubmits::Int64)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m
-            #SBATCH --time=4:00:00
+            #SBATCH --time=1-12:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=plot_output.txt
             #SBATCH --mail-user=armun@uchicago.edu
