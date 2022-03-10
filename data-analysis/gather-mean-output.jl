@@ -13,6 +13,7 @@ using SQLite
 import SQLite.DBInterface.execute
 
 analysisType = ARGS[1]
+analysisDir = "$(analysisType)"
 
 if analysisType == "evophases"
     error("Phase analysis does not require gathering of data.")
@@ -102,16 +103,17 @@ end
 
 function createindices()
     println("(Creating combo_id indices...)")
-    db = SQLite.DB("sweep_db_gathered.sqlite")
+    an_dir = joinpath("gathered-analyses",analysisDir)
+    db = SQLite.DB(joinpath(an_dir,"mean-$(analysisType).sqlite"))
     execute(db, "BEGIN TRANSACTION")
     for (table_name,) in execute(
         db, "SELECT name FROM sqlite_schema
         WHERE type='table' ORDER BY name;")
         cols = [info.name for info in execute(db,"PRAGMA table_info($(table_name))")]
-        if !issubset("combo_id",cols)
+        if !in("combo_id",cols)
             continue
         end
-        execute(dbSim, "CREATE INDEX $(table_name)_index ON $(table_name) (combo_id)")
+        execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (combo_id)")
     end
     execute(db, "COMMIT")
 end

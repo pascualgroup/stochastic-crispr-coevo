@@ -93,10 +93,10 @@ function createindices()
         db, "SELECT name FROM sqlite_schema
         WHERE type='table' ORDER BY name;")
         cols = [info.name for info in execute(db,"PRAGMA table_info($(table_name))")]
-        if !issubset("run_id",cols)
+        if !in("run_id",cols)
             continue
         end
-        execute(dbSim, "CREATE INDEX $(table_name)_index ON $(table_name) (run_id)")
+        execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (run_id)")
     end
     execute(db, "COMMIT")
 end
