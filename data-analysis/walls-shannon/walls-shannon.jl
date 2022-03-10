@@ -8,42 +8,49 @@ using SQLite.DBInterface: execute
 
 run_id = ARGS[1]
 
-upperThreshold = Int64(parse(Float64,ARGS[2]))
-lowerThreshold = Int64(parse(Float64,ARGS[3]))
+uPercent = parse(Float64,ARGS[2])/100
+lPercent = parse(Float64,ARGS[3])/100
 shannonThreshold = parse(Float64,ARGS[4])
 
+##
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 
-dbOutputPath = joinpath("walls_output.sqlite") # cluster
-#dbOutputPath = joinpath("/Volumes/Yadgah/walls_output.sqlite") # local
+dbOutputPath = joinpath("walls-shannon_output.sqlite") # cluster
+# dbOutputPath = joinpath("/Volumes/Yadgah/walls-shannon_output.sqlite") # local
 if isfile(dbOutputPath)
     error("$(dbOutputPath) already exists")
 end
-# Create database for output data
+
+dbSimPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db_gathered.sqlite") # cluster
+# dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
+# dbSimPath = joinpath("/Volumes/Yadgah","run_id1455_combo73_replicate15.sqlite") # local
+
+dbShanPath = joinpath(SCRIPT_PATH,"..","gathered-analyses","shannon","shannon.sqlite") # cluster
+# dbShanPath = joinpath("/Volumes/Yadgah/shannon.sqlite") # local
+# dbShanPath = joinpath("/Volumes/Yadgah","shannon_output.sqlite") # local
+##
+
+dbSim = SQLite.DB(dbSimPath)
 dbOutput = SQLite.DB(dbOutputPath)
 
-thresholdVals =  DataFrame(upper_threshold = upperThreshold,lower_threshold = lowerThreshold, shannon_threshold = shannonThreshold)
-thresholdVals |> SQLite.load!(dbOutput,"threshold_values",ifnotexists=true)
-
 # This function counts number of peaks, logs time series of peaks their respective durations
-function peakwallCount(upperThreshold,lowerThreshold,shannonThreshold)
-
-    ## Define Paths ##
-    SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
-
-    dbSimPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db_gathered.sqlite") # cluster
-    #run(`cd`) # local
-    #dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
-
-    #dbShanPath = joinpath("/Volumes/Yadgah/shannon.sqlite") # local
-    dbShanPath = joinpath(SCRIPT_PATH,"..","gathered-analyses","shannon","shannon.sqlite") # cluster
-    ##
-
-    # Connect to time series data of abundances
-    dbSim = SQLite.DB(dbSimPath)
+function peakwallCount(uPercent,lPercent,shannonThreshold,dbOutput,dbSim)
+    (comboID,) = execute(dbSim,"SELECT combo_id FROM runs WHERE run_id = $(run_id)")
+    comboID = comboID.combo_id
+    (cCapacity,) = execute(dbSim, "SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = $(comboID)")
+    cCapacity = cCapacity.microbe_carrying_capacity
 
     # Save as data frame
     series = DataFrame(execute(dbSim, "SELECT t, microbial_abundance FROM summary WHERE run_id = $(run_id)"))
+
+    upperThreshold = floor(cCapacity*uPercent)
+    lowerThreshold = floor(cCapacity*lPercent)
+
+    thresholdVals =  DataFrame(carrying_capacity = cCapacity,
+    upper_percent =  uPercent, lower_percent = lPercent,
+    upper_threshold = upperThreshold, lower_threshold = lowerThreshold,
+    shannon_threshold = shannonThreshold)
+    thresholdVals |> SQLite.load!(dbOutput,"threshold_values",ifnotexists=true)
 
     # Identify crossings of thresholds
     coarseSeries = series[(series.microbial_abundance .>= upperThreshold) .| (series.microbial_abundance .<= lowerThreshold),:]
@@ -65,6 +72,7 @@ function peakwallCount(upperThreshold,lowerThreshold,shannonThreshold)
     execute(dbTemp, "BEGIN TRANSACTION")
     execute(dbTemp,"ATTACH DATABASE '$(dbShanPath)' as dbShan")
     execute(dbTemp,"INSERT INTO shannon_diversity(t, vshannon, bshannon) SELECT t, vshannon, bshannon FROM dbShan.shannon_diversity WHERE run_id = $(run_id);")
+    # execute(dbTemp,"INSERT INTO shannon_diversity(t, vshannon, bshannon) SELECT t, vshannon, bshannon FROM dbShan.shannon_diversity;")
     execute(dbTemp, "COMMIT")
 
     execute(dbTemp, "BEGIN TRANSACTION")
@@ -128,7 +136,7 @@ function peakwallCount(upperThreshold,lowerThreshold,shannonThreshold)
 #end
 end
 
-peaks, walls, peakSeries, peakDurations, wallSeries = peakwallCount(upperThreshold,lowerThreshold,shannonThreshold);
+peaks, walls, peakSeries, peakDurations, wallSeries = peakwallCount(uPercent,lPercent,shannonThreshold,dbOutput,dbSim);
 
 count =  DataFrame(num_peaks = peaks, num_walls = walls)
 

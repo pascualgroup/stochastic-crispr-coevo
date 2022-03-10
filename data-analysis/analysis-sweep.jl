@@ -11,17 +11,22 @@ analysisDir = "$(analysisType)"
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 
-if analysisType == "evophases"
-    error("Phase analysis gathers sweep of walls & extinctions; run `julia phases/evophases.jl`")
-end
 if analysisType == "peaks" && length(ARGS) < 2
     error("`peaks` analysis needs two arguments: upper threshold, lower threshold")
-elseif analysisType == "walls" && length(ARGS) < 3
-    error("`walls` analysis needs three arguments: upper threshold, lower threshold, diversity threshold")
+elseif analysisType == "walls-shannon" && length(ARGS) < 3
+    error("`walls` analysis needs three arguments: upper percent threshold, lower percent threshold, diversity threshold")
 end
 
-if analysisType == "walls" && !isfile(joinpath(SCRIPT_PATH,"shannon","shannon.sqlite"))
+if analysisType == "walls-shannon" && !isfile(joinpath(SCRIPT_PATH,"shannon","shannon.sqlite"))
     error("`/shannon/shannon.sqlite` is missing; please analyze shannon first.")
+end
+
+if analysisType == "walls-shannon" && ARGS[2] <= ARGS[3]
+    error("upper percent threshold must be greater than lower percent threshold")
+end
+
+if analysisType == "walls-shannon" && ARGS[2] > 100
+    error("upper percent cannot be greater than 100%")
 end
 
 ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"$(analysisType).jl")
@@ -30,7 +35,7 @@ cd(SCRIPT_PATH)
 
 # Number of SLURM jobs to generate
 const N_JOBS_MAX = 100
-const N_CORES_PER_JOB_MAX = 20 # Half a node (14) is easier to get scheduled than a whole one
+const N_CORES_PER_JOB_MAX = 28 # Half a node (14) is easier to get scheduled than a whole one
 const mem_per_cpu = 2000 # in MB 100MB = 1 GB
 
 function main()
@@ -169,7 +174,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m
-            #SBATCH --time=4:00:00
+            #SBATCH --time=1-12:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=output.txt
             #SBATCH --mail-user=armun@uchicago.edu
@@ -191,7 +196,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
     #run(`chmod +x submit_analysis_jobs.sh`) # Make submit script executable
     @info "
-    Sweep will be submitted via $(numSubmits) `analysis_submit_jobs.sh` script(s).
+    Sweep will be submitted via $(numSubmits) `analysis-submit-jobs.sh` script(s).
     Each `analysis_submit_jobs.sh` script submits $(N_JOBS_MAX) jobs.
     Each job will use $(n_cores_count) cpus (cores) at most, where each cpu will use $(mem_per_cpu/1000)GB.
     Each job therefore will use at most $(n_cores_count*mem_per_cpu/1000)GB of memory in total.
