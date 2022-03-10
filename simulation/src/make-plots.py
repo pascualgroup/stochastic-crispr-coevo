@@ -14,9 +14,12 @@ import matplotlib.ticker as ticker
 
 run_id = sys.argv[1]
 
+threshold = sys.argv[2]/100
+
 #con = sqlite3.connect('/Volumes/Yadgah/sweep_db_gathered.sqlite')
 SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(SCRIPT_PATH,'..','sweep_db_gathered.sqlite')
+# DB_PATH = os.path.join('/Volumes','Yadgah','run_id1455_combo73_replicate15.sqlite')
 con = sqlite3.connect(DB_PATH)
 cur = con.cursor()
 
@@ -31,12 +34,23 @@ PLOT_PATH = os.path.join(SCRIPT_PATH,'..', 'plots','c{}'.format(combo_id),'r{}'.
 #PLOT_PATH = os.path.abspath(os.path.dirname(__file__))
 
 print('SQLite Query: microbe abundance data')
-microbe = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance WHERE run_id = {}".format(run_id), con)
-microbe_stacked = microbe.pivot(index='t',columns='bstrain_id',values='abundance')
+microbe_stacked = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance WHERE run_id = {}".format(run_id), con)
+microbe_stacked = microbe_stacked.pivot(index='t',columns='bstrain_id',values='abundance')
+microbe_stacked = microbe_stacked.fillna(0)
+thresholdAbundances = threshold*microbe_stacked.sum(axis=1).values
+dfSums = pd.DataFrame(list(zip(*[thresholdAbundances for i in range(len(microbe_stacked.columns))])),
+    index=microbe_stacked.index, columns=microbe_stacked.columns)
+microbe_stacked = microbe_stacked.where(microbe_stacked >= dfSums, None)
 
 print('SQLite Query: virus abundance data')
-virus = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance WHERE run_id = {}".format(run_id), con)
-virus_stacked = virus.pivot(index='t',columns='vstrain_id',values='abundance')
+virus_stacked = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance WHERE run_id = {}".format(run_id), con)
+virus_stacked = virus_stacked.pivot(index='t',columns='vstrain_id',values='abundance')
+virus_stacked = virus_stacked.fillna(0)
+thresholdAbundances = threshold*virus_stacked.sum(axis=1).values
+dfSums = pd.DataFrame(list(zip(*[thresholdAbundances for i in range(len(virus_stacked.columns))])),
+    index=virus_stacked.index, columns=virus_stacked.columns)
+virus_stacked = virus_stacked.where(virus_stacked >= dfSums, None)
+
 
 if microbe['t'][microbe['t'].size-1] not in virus_stacked.index:
     microbe_stacked.drop(microbe['t'][microbe['t'].size-1],inplace=True)
