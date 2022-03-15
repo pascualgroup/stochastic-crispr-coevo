@@ -21,11 +21,11 @@ if analysisType == "walls-shannon" && !isfile(joinpath(SCRIPT_PATH,"shannon","sh
     error("`/shannon/shannon.sqlite` is missing; please analyze shannon first.")
 end
 
-if analysisType == "walls-shannon" && ARGS[2] <= ARGS[3]
+if analysisType == "walls-shannon" && parse(Float64,ARGS[2]) <= parse(Float64,ARGS[3])
     error("upper percent threshold must be greater than lower percent threshold")
 end
 
-if analysisType == "walls-shannon" && ARGS[2] > 100
+if analysisType == "walls-shannon" && parse(Float64,ARGS[2]) > 100
     error("upper percent cannot be greater than 100%")
 end
 
