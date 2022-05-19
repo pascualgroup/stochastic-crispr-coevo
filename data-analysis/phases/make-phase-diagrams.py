@@ -18,7 +18,18 @@ from scipy.interpolate import griddata
 from scipy.interpolate import interp1d
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+if len(sys.argv[1]) != 0:
+    sweepDate = sys.argv[1]
 analysisType = "walls-shannon"
+xaxis = 'microbe_carrying_capacity'
+xvar = 'K'
+xaxlabel = 'Microbial Carrying Capacity: K'
+yaxis = 'viral_burst_size'
+yvar = 'beta'
+yaxlabel = r'Viral Burst Size:   $\beta$'
+resolve = 500
+interpMethod ='cubic'
+
 
 SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__)) # cluster
 
@@ -36,16 +47,18 @@ DBWALLS_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','{}','mean-{}.s
 # DBWALLS_PATH = os.path.join('/Volumes','Yadgah','mean-{}.sqlite'.format(analysisType)) # local
 # DBWALLS_PATH = os.path.join('/Volumes','Yadgah','mean-{}_output.sqlite'.format(analysisType)) # local. combo_id fixed; for testing
 # DBWALLS_PATH = os.path.join('mean-{}.sqlite'.format(analysisType)) # local
+DBWALLS_PATH = os.path.join('/Volumes/Yadgah/crispr-sweep-{0}/mean-walls-shannon.sqlite'.format(sweepDate))
 
 DBEXT_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','{}','mean-{}.sqlite'.format('extinctions')) # cluster
 #DBEXT_PATH = os.path.join('/Volumes','Yadgah','mean-{}.sqlite'.format('extinctions')) # local
 #DBEXT_PATH = os.path.join('/Volumes','Yadgah','mean-{}_output.sqlite'.format('extinctions')) # local. run_id fixed; for testing
 # DBEXT_PATH = os.path.join('mean-{}.sqlite'.format('extinctions')) # local
+DBEXT_PATH = os.path.join('/Volumes/Yadgah/crispr-sweep-{0}/mean-extinctions.sqlite'.format(sweepDate))
 
 conWalls = sqlite3.connect(DBWALLS_PATH)
 curWalls = conWalls.cursor()
 print('SQLite Query: mean microbial wall occurences per parameter combination')
-extOccurrences = pd.read_sql_query("SELECT wall_occurrence, combo_id FROM microbial_wall_statistics ORDER BY combo_id", conWalls)
+wallOccurrences = pd.read_sql_query("SELECT wall_occurrence, combo_id FROM microbial_wall_statistics ORDER BY combo_id", conWalls)
 numWalls = pd.read_sql_query("SELECT expected_num_walls, combo_id FROM microbial_wall_statistics ORDER BY combo_id", conWalls)
 meanWallDurations = pd.read_sql_query("SELECT mean_wallduration, num_replicates, total_replicates_of_combo, combo_id \
 FROM microbial_mean_walldurations ORDER BY combo_id", conWalls)
@@ -54,7 +67,7 @@ FROM microbial_mean_walldurations ORDER BY combo_id", conWalls)
 conExt = sqlite3.connect(DBEXT_PATH)
 curExt = conExt.cursor()
 extOccurrences = pd.read_sql_query("SELECT microbes,viruses,combo_id FROM mean_extinction_occurrences ORDER BY combo_id", conExt)
-simEndTimes = pd.read_sql_query("SELECT time,combo_id FROM mean_simulation_end_times ORDER BY combo_id", conExt)
+simEndTimes = pd.read_sql_query("SELECT microbe_end_time,virus_end_time,combo_id FROM mean_simulation_end_times ORDER BY combo_id", conExt)
 # simEndTimes = pd.read_sql_query("SELECT microbe_end_time,virus_end_time,combo_id FROM mean_simulation_end_times ORDER BY combo_id", conExt)
 
 
@@ -65,6 +78,150 @@ for i in np.unique(meanWallDurations.combo_id):
     mwd = mwd*meanWallDurations[meanWallDurations['combo_id']==i].mean_wallduration
     expectedWallDurations = expectedWallDurations.append({'expected_wallduration' : sum(mwd), 'combo_id' : i},
                     ignore_index = True)
+
+
+
+
+# make this more general for other parameters!!!!
+print('SQLite Query: parameter space spanning combinations')
+comboSpace = pd.read_sql_query(
+"SELECT combo_id, {0}, {1} \
+FROM param_combos ORDER BY combo_id".format(xaxis,yaxis), conWalls)
+minX = min(comboSpace[xaxis])
+maxX = max(comboSpace[xaxis])
+minY = min(comboSpace[yaxis])
+maxY = max(comboSpace[yaxis])
+grid_x, grid_y = np.mgrid[minX:maxX:50j, minY:maxY:50j]
+
+grid_wallOccurrences = griddata((comboSpace[xaxis].values,comboSpace[yaxis].values),
+wallOccurrences.wall_occurrence.values, (grid_x, grid_y), method=interpMethod)
+grid_numWalls = griddata((comboSpace[xaxis].values,comboSpace[yaxis].values),
+numWalls.expected_num_walls.values, (grid_x, grid_y), method=interpMethod)
+grid_expectedDuration = griddata((comboSpace[xaxis].values,comboSpace[yaxis].values),
+expectedWallDurations.expected_wallduration.values, (grid_x, grid_y), method=interpMethod)
+
+grid_vExt = griddata((comboSpace[xaxis].values,comboSpace[yaxis].values),
+extOccurrences.viruses.values, (grid_x, grid_y), method=interpMethod)
+grid_bExt = griddata((comboSpace[xaxis].values,comboSpace[yaxis].values),
+extOccurrences.microbes.values, (grid_x, grid_y), method=interpMethod)
+grid_vEndTimes = griddata((comboSpace[xaxis].values,comboSpace[yaxis].values),
+simEndTimes.virus_end_time.values, (grid_x, grid_y), method=interpMethod)
+grid_bEndTimes = griddata((comboSpace[xaxis].values,comboSpace[yaxis].values),
+simEndTimes.microbe_end_time.values, (grid_x, grid_y), method=interpMethod)
+
+
+orig_map=plt.cm.get_cmap('viridis')
+# reversing the original colormap using reversed() function
+reversed_map = orig_map.reversed()
+lowerY = minY
+upperY = maxY
+
+
+fig = plt.figure(figsize=(10,10))
+ax = fig.add_subplot(111)
+im = ax.imshow(grid_wallOccurrences.T, extent=[minX,maxX,minY,maxY], aspect = 'auto', origin='lower',cmap = reversed_map)
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="2%", pad=0.2)
+fig.colorbar(im, cax)
+ax.set_xlabel(xaxlabel, labelpad = 20)
+ax.set_ylabel(yaxlabel, labelpad = 20)
+ax.set_ylim(lowerY,upperY)
+ax.set_title('Probability of Wall Occurence', pad = 20)
+# fig.savefig(os.path.join('/Volumes/Yadgah','test.png'),dpi=resolve)
+fig.savefig(os.path.join('{0}-{1}-phase-diagram_wall-occurrences.png'.format(xvar,yvar)),dpi=resolve)
+
+
+fig = plt.figure(figsize=(10,10))
+ax = fig.add_subplot(111)
+im = ax.imshow(grid_numWalls.T, extent=[minX,maxX,minY,maxY], aspect='auto', origin='lower',cmap = reversed_map)
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="2%", pad=0.2)
+fig.colorbar(im, cax)
+ax.set_xlabel(xaxlabel, labelpad = 20)
+ax.set_ylabel(yaxlabel, labelpad = 20)
+ax.set_ylim(lowerY,upperY)
+ax.set_title('Expected Number of Walls', pad = 20)
+# fig.savefig(os.path.join('/Volumes/Yadgah','test.png'),dpi=resolve)
+fig.savefig(os.path.join('{0}-{1}-phase-diagram_expected-num-walls.png'.format(xvar,yvar)),dpi=resolve)
+
+
+fig = plt.figure(figsize=(10,10))
+ax = fig.add_subplot(111)
+im = ax.imshow(grid_expectedDuration.T, extent=(minX,maxX,minY,maxY), aspect='auto', origin='lower',cmap = reversed_map)
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="2%", pad=0.2)
+fig.colorbar(im, cax)
+ax.set_xlabel(xaxlabel, labelpad = 20)
+ax.set_ylabel(yaxlabel, labelpad = 20)
+ax.set_ylim(lowerY,upperY)
+ax.set_title('Expected Duration of Walls', pad = 20)
+# fig.savefig(os.path.join('/Volumes/Yadgah','test.png'),dpi=resolve)
+fig.savefig(os.path.join('{0}-{1}-phase-diagram_expected-wall-durations.png'.format(xvar,yvar)),dpi=resolve)
+
+
+
+
+fig = plt.figure(figsize=(10,10))
+ax = fig.add_subplot(111)
+im = ax.imshow(grid_vExt.T, extent=(minX,maxX,minY,maxY), aspect='auto', origin='lower',cmap = reversed_map)
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="2%", pad=0.2)
+fig.colorbar(im, cax)
+ax.set_xlabel(xaxlabel, labelpad = 20)
+ax.set_ylabel(yaxlabel, labelpad = 20)
+ax.set_ylim(lowerY,upperY)
+ax.set_title('Probability of Viral Extinction', pad=20)
+# fig.savefig(os.path.join('/Volumes/Yadgah','test.png'),dpi=resolve)
+fig.savefig(os.path.join('{0}-{1}-phase-diagram_virus-ext-occurrences.png'.format(xvar,yvar)),dpi=resolve)
+
+fig = plt.figure(figsize=(10,10))
+ax = fig.add_subplot(111)
+im = ax.imshow(grid_vEndTimes.T, extent=(minX,maxX,minY,maxY), aspect='auto', origin='lower',cmap = reversed_map)
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="2%", pad=0.2)
+fig.colorbar(im, cax)
+ax.set_xlabel(xaxlabel, labelpad = 20)
+ax.set_ylabel(yaxlabel, labelpad = 20)
+ax.set_ylim(lowerY,upperY)
+ax.set_title('Mean Viral Simulation End Time', pad=20)
+# fig.savefig(os.path.join('/Volumes/Yadgah','test.png'),dpi=resolve)
+fig.savefig(os.path.join('{0}-{1}-phase-diagram_virus-sim-end-times.png'.format(xvar,yvar)),dpi=resolve)
+
+fig = plt.figure(figsize=(10,10))
+ax = fig.add_subplot(111)
+im = ax.imshow(grid_bExt.T, extent=(minX,maxX,minY,maxY), aspect='auto', origin='lower',cmap = reversed_map)
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="2%", pad=0.2)
+fig.colorbar(im, cax)
+ax.set_xlabel(xaxlabel, labelpad = 20)
+ax.set_ylabel(yaxlabel, labelpad = 20)
+ax.set_ylim(lowerY,upperY)
+ax.set_title('Probability of Microbial Extinction', pad=20)
+# fig.savefig(os.path.join('/Volumes/Yadgah','test.png'),dpi=resolve)
+fig.savefig(os.path.join('{0}-{1}-phase-diagram_microbe-ext-occurrences.png'.format(xvar,yvar)),dpi=resolve)
+
+fig = plt.figure(figsize=(10,10))
+ax = fig.add_subplot(111)
+im = ax.imshow(grid_bEndTimes.T, extent=(minX,maxX,minY,maxY), aspect='auto', origin='lower',cmap = reversed_map)
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="2%", pad=0.2)
+fig.colorbar(im, cax)
+ax.set_xlabel(xaxlabel, labelpad = 20)
+ax.set_ylabel(yaxlabel, labelpad = 20)
+ax.set_ylim(lowerY,upperY)
+ax.set_title('Mean Microbial Simulation End Time', pad=20)
+# fig.savefig(os.path.join('/Volumes/Yadgah','test.png'),dpi=resolve)
+fig.savefig(os.path.join('{0}-{1}-phase-diagram_microbe-sim-end-times.png'.format(xvar,yvar)),dpi=resolve)
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -85,19 +242,15 @@ grid_x, grid_y = np.mgrid[minX:maxX:20j, minY:maxY:20j]
 
 grid_wallOccurrences = griddata((comboSpace.spacer_acquisition_prob.values,comboSpace.virion_mutation_prob.values),
 wallOccurrences.wall_occurrence.values, (grid_x, grid_y), method='nearest')
-
 grid_numWalls = griddata((comboSpace.spacer_acquisition_prob.values,comboSpace.virion_mutation_prob.values),
 numWalls.expected_num_walls.values, (grid_x, grid_y), method='nearest')
-
-grid_vExt = griddata((comboSpace.spacer_acquisition_prob.values,comboSpace.virion_mutation_prob.values),
-extOccurrences.viruses.values, (grid_x, grid_y), method='nearest')
-
-grid_mExt = griddata((comboSpace.spacer_acquisition_prob.values,comboSpace.virion_mutation_prob.values),
-extOccurrences.microbes.values, (grid_x, grid_y), method='nearest')
-
 grid_expectedDuration = griddata((comboSpace.spacer_acquisition_prob.values,comboSpace.virion_mutation_prob.values),
 expectedWallDurations.expected_wallduration.values, (grid_x, grid_y), method='nearest')
 
+grid_vExt = griddata((comboSpace.spacer_acquisition_prob.values,comboSpace.virion_mutation_prob.values),
+extOccurrences.viruses.values, (grid_x, grid_y), method='nearest')
+grid_mExt = griddata((comboSpace.spacer_acquisition_prob.values,comboSpace.virion_mutation_prob.values),
+extOccurrences.microbes.values, (grid_x, grid_y), method='nearest')
 grid_vEndTimes = griddata((comboSpace.spacer_acquisition_prob.values,comboSpace.virion_mutation_prob.values),
 simEndTimes.time.values, (grid_x, grid_y), method='nearest')
 
@@ -109,7 +262,7 @@ simEndTimes.time.values, (grid_x, grid_y), method='nearest')
 
 orig_map=plt.cm.get_cmap('viridis')
 # reversing the original colormap using reversed() function
-reversed_map = orig_map.reversed()
+reversed_map = orig_map
 lowerY = 2.0e-06
 upperY = 2.8e-05
 
