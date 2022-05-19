@@ -10,8 +10,6 @@ import os
 import seaborn as sns
 from scipy import stats
 import sqlite3
-# from scipy.interpolate import griddata
-# from scipy.interpolate import interp1d
 import matplotlib.ticker as ticker
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
@@ -21,43 +19,41 @@ from matplotlib.collections import LineCollection
 
 run_id = sys.argv[1]
 
+if len(sys.argv[2]) == 0:
+    lifeTimeThreshold = 0
+else:
+    lifeTimeThreshold = float(sys.argv[2])
+
+resolve = 500
+imgType = "pdf" #or "png"
+
 SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__)) # cluster
 
 DBSIM_PATH = os.path.join(SCRIPT_PATH,'..','..','..','simulation','sweep_db_gathered.sqlite') # cluster
-#home_dir = os.system("cd ~") # local
-# DBSIM_PATH = os.path.join('/Volumes','Yadgah','sweep_db_gathered.sqlite') # local
-# DBSIM_PATH = os.path.join('/Volumes/Yadgah/crispr-sweep-19-1-2022','simulation','sweep_db_gathered.sqlite')
-# DBSIM_PATH = os.path.join('/home/armun/scratch/crispr-sweep-13-9-2021/data-analysis/match-abundances','..','..','simulation','sweep_db_gathered.sqlite')
-# DBSIM_PATH = os.path.join('/Volumes','Yadgah','run_id1455_combo73_replicate15.sqlite')
-# DBSIM_PATH = os.path.join('/Volumes','Yadgah','run_id1550_combo78_replicate10.sqlite')
-# DBSIM_PATH = os.path.join('/Volumes','Yadgah','run_id1343_combo68_replicate3.sqlite')
-# DBSIM_PATH = os.path.join('/Volumes','Yadgah','run_id1344_combo68_replicate4.sqlite')
-# DBSIM_PATH = os.path.join('/Volumes','Yadgah','run_id1345_combo68_replicate5.sqlite')
+# DBSIM_PATH = os.path.join('/Volumes','Yadgah','crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/runID3297-c66-r47.sqlite')
 
+conSim = sqlite3.connect(DBSIM_PATH)
+curSim = conSim.cursor()
 # Designating plot path from simulation data
 ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
 combo_id = ID[0][0]
 replicate = ID[0][1]
-
 RUN_DIR = os.path.join('runID{0}-c{1}-r{2}'.format(run_id,combo_id,replicate))
 
 DBCLADE_PATH = os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'clade-abundances_output.sqlite') # cluster
-# DBCLADE_PATH = os.path.join('/Volumes','Yadgah','clade-abundances.sqlite') # local
 # DBCLADE_PATH = os.path.join('/Volumes','Yadgah','clade-abundances_output.sqlite') # local. run_id fixed; for testing
-
+# DBCLADE_PATH = os.path.join('/Volumes','Yadgah','crispr-sweep-7-2-2022/isolates/runID3297-c66-r47','clade-abundances_output.sqlite') # local. run_id fixed; for testing
 DBTREE_PATH = os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'trees_output.sqlite') # cluster
-# DBTREE_PATH = os.path.join('/Volumes','Yadgah','trees.sqlite') # local
 # DBTREE_PATH = os.path.join('/Volumes','Yadgah','trees_output.sqlite') # local. run_id fixed; for testing
+# DBTREE_PATH = os.path.join('/Volumes','Yadgah','crispr-sweep-7-2-2022/isolates/runID3297-c66-r47','trees_output.sqlite') # local. run_id fixed; for testing
 
-
-conSim = sqlite3.connect(DBSIM_PATH)
-curSim = conSim.cursor()
 print('SQLite Query: microbial abundance time series data')
 microbeSim = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance WHERE run_id = {}".format(run_id), conSim)
 microbe_stacked = microbeSim.pivot(index='t',columns='bstrain_id',values='abundance')
 print('SQLite Query: viral abundance time series data')
 virusSim = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance WHERE run_id = {}".format(run_id), conSim)
 virus_stacked = virusSim.pivot(index='t',columns='vstrain_id',values='abundance')
+
 if (microbeSim['t'][microbeSim['t'].size-1] not in virus_stacked.index):
     microbe_stacked.drop(microbeSim['t'][microbeSim['t'].size-1],inplace=True)
 
@@ -67,6 +63,8 @@ if (virusSim['t'][virusSim['t'].size-1] not in microbe_stacked.index):
 
 conClade = sqlite3.connect(DBCLADE_PATH)
 curClade = conClade.cursor()
+conTree = sqlite3.connect(DBTREE_PATH)
+curTree = conTree.cursor()
 print('SQLite Query: clade data')
 microbeClades = pd.read_sql_query("SELECT DISTINCT clade_id, bstrain_id \
 FROM babundances", conClade)
@@ -74,7 +72,6 @@ microbeCladeIDs = pd.read_sql_query("SELECT DISTINCT clade_id \
 FROM babundances", conClade)
 microbeCladeAbundances = pd.read_sql_query("SELECT t, clade_id, abundance \
 FROM clade_babundances", conClade)
-
 virusClades = pd.read_sql_query("SELECT DISTINCT clade_id, vstrain_id \
 FROM vabundances", conClade)
 virusCladeIDs = pd.read_sql_query("SELECT DISTINCT clade_id \
@@ -82,9 +79,7 @@ FROM vabundances", conClade)
 virusCladeAbundances = pd.read_sql_query("SELECT t, clade_id, abundance \
 FROM clade_vabundances", conClade)
 
-
-conTree = sqlite3.connect(DBTREE_PATH)
-curTree = conTree.cursor()
+print('SQLite Query: tree data')
 bStrainTimes = pd.read_sql_query(
 "SELECT tree_bstrain_id, t_creation, t_extinction, tree_parent_bstrain_id \
 FROM tree_bstrain_creation_extinction", conTree)
@@ -97,26 +92,12 @@ FROM tree_vstrain_creation_extinction", conTree)
 vTreeAbundances = pd.read_sql_query(
 "SELECT t, tree_vstrain_id, abundance \
 FROM tree_vabundance", conTree)
+
 if bTreeAbundances['t'][bTreeAbundances['t'].size-1] not in vTreeAbundances.t.values:
     bTreeAbundances = bTreeAbundances[bTreeAbundances.t != bTreeAbundances['t'][bTreeAbundances['t'].size-1]]
 
 if vTreeAbundances['t'][vTreeAbundances['t'].size-1] not in bTreeAbundances.t.values:
     vTreeAbundances = vTreeAbundances[vTreeAbundances.t != vTreeAbundances['t'][vTreeAbundances['t'].size-1]]
-
-
-
-
-
-# Designating plot path from simulation data
-ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
-combo_id = ID[0][0]
-replicate = ID[0][1]
-
-#THIS PATH NEEDS TO BE LOCATED HERE BECAUSE OF COMBO_ID DEFINITION ABOVE!
-PLOT_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','trees','plots','c{}'.format(combo_id),'r{}'.format(replicate)) # cluster
-# PLOT_PATH = os.path.abspath(os.path.dirname(__file__)) # local
-# PLOT_PATH = os.getcwd() # local. run_id fixed; for testing
-
 
 
 print('Compiling microbial tree plots')
@@ -129,22 +110,17 @@ cladeColorDict = {}
 cladeDict = {}
 colorInd = 0
 for clade_id in microbeCladeIDs.values:
-    # print(id[0])
     cladeColorDict[clade_id[0]] = colorInd
     cladeDict[clade_id[0]] = []
     colorInd += 1
-
 for strain in microbeClades.bstrain_id.values:
     clade = microbeClades[microbeClades['bstrain_id']==strain]['clade_id'].values[0]
     cladeDict[clade] = np.append(cladeDict[clade],strain)
-
 columnOrder = []
 for clade_id in microbeCladeIDs.values[::-1]:
     columnOrder = np.append(columnOrder,cladeDict[clade_id[0]])
-
 columnOrder = columnOrder.astype(int)
 microbe_stacked = microbe_stacked[columnOrder]
-
 for strain in microbe_stacked.columns.values:
     clade = microbeClades[microbeClades['bstrain_id']==strain]['clade_id'].values[0]
     microbeColorDict[strain] = Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade]]
@@ -162,14 +138,9 @@ maxAbundanceMicrobe = np.max(bTreeAbundances.abundance.values)
 markerIncMicrobe = maxTickSizeMicrobe/maxAbundanceMicrobe
 markerColorsMicrobe = []
 for clade_id in np.unique(microbeClades.clade_id):
-    # strainsOfClade = curClade.execute("SELECT DISTINCT bstrain_id FROM babundances \
-    # WHERE clade_id = {} AND run_id = {}".format(clade_id,run_id))
     strainsOfClade = curClade.execute("SELECT DISTINCT bstrain_id FROM babundances \
     WHERE clade_id = {}".format(clade_id))
     strainsOfClade = [i[0] for i in strainsOfClade.fetchall()]
-    # treeStrainsOfClade = curTree.execute("SELECT DISTINCT tree_bstrain_id FROM tree_bstrain_order \
-    # WHERE bstrain_id in ({}) AND run_id = {}"
-    # .format(', '.join(map(str,strainsOfClade)),run_id))
     treeStrainsOfClade = curTree.execute("SELECT DISTINCT tree_bstrain_id FROM tree_bstrain_order \
     WHERE bstrain_id in ({}) ORDER BY tree_bstrain_id".format(', '.join(map(str,strainsOfClade))))
     treeStrainsOfClade = [i[0] for i in treeStrainsOfClade.fetchall()]
@@ -177,9 +148,9 @@ for clade_id in np.unique(microbeClades.clade_id):
     bTreeAbundances[bTreeAbundances['tree_bstrain_id'].isin(treeStrainsOfClade)]['tree_bstrain_id'],
     lw=.5,
     s=bTreeAbundances[bTreeAbundances['tree_bstrain_id'].isin(treeStrainsOfClade)]['abundance'].values*markerIncMicrobe,
-    c = Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade_id]],marker='|')
+    c = np.array([Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade_id]]]),marker='|')
     for strain in treeStrainsOfClade:
-        print(strain)
+        # print(strain)
         tCreate = bStrainTimes[bStrainTimes.tree_bstrain_id == strain].t_creation.values[0]
         tExtinct = bStrainTimes[bStrainTimes.tree_bstrain_id == strain].t_extinction.values[0]
         parent = bStrainTimes[bStrainTimes.tree_bstrain_id == strain].tree_parent_bstrain_id.values[0]
@@ -196,9 +167,10 @@ strainLineages = LineCollection(hlinecMicrobe, linestyles='solid', colors=hcolor
 creationLines = LineCollection(vlinecMicrobe, linestyles='solid', colors=vcolorsMicrobe, linewidths=(0.35))
 ax1.add_collection(strainLineages)
 ax1.add_collection(creationLines)
-# fig1.savefig(os.path.join(PLOT_PATH,'..','..','isolates',RUN_DIR,'microbe-tree.pdf'),dpi=1000)
-fig1.savefig(os.path.join('/Volumes/Yadgah','microbe-tree.pdf'),dpi=1000)
-plt.show()
+fig1.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'microbe-tree.{}'.format(imgType)),dpi=resolve)
+plt.close(fig1)
+# fig1.savefig(os.path.join('/Volumes/Yadgah','microbe-tree.{}'.format(imgType)),dpi=resolve)
+# plt.show()
 
 
 
@@ -211,14 +183,14 @@ microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',sort_
 axes[0].set_ylabel(ylabel ='Microbial Strain Abundances',labelpad=15,fontsize=7)
 axes[0].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(50))
+axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
 lim = axes[0].get_ylim()
 axes[0].set_ylim(0,lim[1])
 axes[0].set_xlim(0,np.min([np.max(vTreeAbundances.t.values),np.max(bTreeAbundances.t.values)]))
 axes[1].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[1].set_ylim(0,np.max(bStrainTimes.tree_bstrain_id)+1)
 axes[1].set_xlim(0,np.min([np.max(vTreeAbundances.t.values),np.max(bTreeAbundances.t.values)]))
-axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(50))
+axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(25))
 axes[1].set_yticks([])
 hlinecMicrobe = []
 vlinecMicrobe = []
@@ -229,22 +201,17 @@ maxAbundanceMicrobe = np.max(bTreeAbundances.abundance.values)
 markerIncMicrobe = maxTickSizeMicrobe/maxAbundanceMicrobe
 markerColorsMicrobe = []
 for clade_id in np.unique(microbeClades.clade_id):
-    # strainsOfClade = curClade.execute("SELECT DISTINCT bstrain_id FROM babundances \
-    # WHERE clade_id = {} AND run_id = {}".format(clade_id,run_id))
     strainsOfClade = curClade.execute("SELECT DISTINCT bstrain_id FROM babundances \
     WHERE clade_id = {}".format(clade_id))
     strainsOfClade = [i[0] for i in strainsOfClade.fetchall()]
-    # treeStrainsOfClade = curTree.execute("SELECT DISTINCT tree_bstrain_id FROM tree_bstrain_order \
-    # WHERE bstrain_id in ({}) AND run_id = {}"
-    # .format(', '.join(map(str,strainsOfClade)),run_id))
     treeStrainsOfClade = curTree.execute("SELECT DISTINCT tree_bstrain_id FROM tree_bstrain_order \
     WHERE bstrain_id in ({}) ORDER BY tree_bstrain_id".format(', '.join(map(str,strainsOfClade))))
     treeStrainsOfClade = [i[0] for i in treeStrainsOfClade.fetchall()]
     axes[1].scatter(bTreeAbundances[bTreeAbundances['tree_bstrain_id'].isin(treeStrainsOfClade)]['t'],
     bTreeAbundances[bTreeAbundances['tree_bstrain_id'].isin(treeStrainsOfClade)]['tree_bstrain_id'],
-    lw=.8,
+    lw=.5,
     s=bTreeAbundances[bTreeAbundances['tree_bstrain_id'].isin(treeStrainsOfClade)]['abundance'].values*markerIncMicrobe,
-    c = Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade_id]],marker='|')
+    c = np.array([Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade_id]]]),marker='|')
     for strain in treeStrainsOfClade:
         tCreate = bStrainTimes[bStrainTimes.tree_bstrain_id == strain].t_creation.values[0]
         tExtinct = bStrainTimes[bStrainTimes.tree_bstrain_id == strain].t_extinction.values[0]
@@ -261,15 +228,28 @@ axes[1].add_collection(strainLineages)
 axes[1].add_collection(creationLines)
 
 fig.tight_layout()
-# fig.savefig(os.path.join(PLOT_PATH,'..','..','isolates',RUN_DIR,'microbe-clades-abundances-and-trees.pdf'),dpi=1000)
-fig.savefig(os.path.join('/Volumes/Yadgah','microbe-clades-abundances-and-trees.pdf'),dpi=1000)
-plt.show()
+fig.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'microbe-clades-abundances-and-trees.{}'.format(imgType)),dpi=resolve)
+# fig.savefig(os.path.join('/Volumes/Yadgah','microbe-clades-abundances-and-trees.{}'.format(imgType)),dpi=resolve)
+# plt.show()
+plt.close(fig)
+
+
+pal = sns.color_palette("tab20b")
+print('Compiling microbial strain time series plot')
+fig, ax = plt.subplots(1)
+microbe_stacked.plot.area(ax=ax, stacked=True, legend=False, linewidth=0,color=pal)
+ax.set_ylabel(ylabel ='Microbial Strain Abundances',labelpad=15,fontsize=7)
+ax.set_xlabel(xlabel = 'Time t',fontsize=7)
+ax.ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
+ax.xaxis.set_minor_locator(ticker.MultipleLocator(25))
+lim = ax.get_ylim()
+ax.set_ylim(0,lim[1])
+plt.tight_layout()
+fig.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'microbe-strain-abundances.{}'.format(imgType)),dpi=resolve)
+plt.close(fig)
 
 
 
-
-
-lifeTimeThreshold = 0
 Vcmap = cm.get_cmap('turbo')
 # Get normalize function (takes data in range [vmin, vmax] -> [0, 1])
 Vnorm = Normalize(vmin=1, vmax=len(virusCladeIDs))
@@ -296,7 +276,7 @@ virus_stacked = virus_stacked[columnOrder]
 
 for strain in virus_stacked.columns.values:
     clade = virusClades[virusClades['vstrain_id']==strain]['clade_id'].values[0]
-    print('strain: {}, clade: {}'.format(strain,clade))
+    # print('strain: {}, clade: {}'.format(strain,clade))
     virusColorDict[strain] = Vcmap(Vnorm(np.arange(1, len(virusCladeIDs)+1, 1)))[cladeColorDict[clade]]
 
 fig2, ax2 = plt.subplots(1,sharex=True,figsize=(20,20))
@@ -311,14 +291,9 @@ maxAbundanceVirus = np.max(vTreeAbundances.abundance.values)
 markerIncVirus = maxTickSizeVirus/maxAbundanceVirus
 markerColorsVirus = []
 for clade_id in np.unique(virusClades.clade_id):
-    # strainsOfClade = curClade.execute("SELECT DISTINCT vstrain_id FROM vabundances \
-    # WHERE clade_id = {} AND run_id = {}".format(clade_id,run_id))
     strainsOfClade = curClade.execute("SELECT DISTINCT vstrain_id FROM vabundances \
     WHERE clade_id = {}".format(clade_id))
     strainsOfClade = [i[0] for i in strainsOfClade.fetchall()]
-    # treeStrainsOfClade = curTree.execute("SELECT DISTINCT tree_vstrain_id FROM tree_vstrain_order \
-    # WHERE vstrain_id in ({}) AND run_id = {}"
-    # .format(', '.join(map(str,strainsOfClade)),run_id))
     treeStrainsOfCladeAll = curTree.execute("SELECT DISTINCT tree_vstrain_id FROM tree_vstrain_order \
     WHERE vstrain_id in ({}) ORDER BY tree_vstrain_id".format(', '.join(map(str,strainsOfClade))))
     treeStrainsOfClade = []
@@ -331,7 +306,7 @@ for clade_id in np.unique(virusClades.clade_id):
     vTreeAbundances[vTreeAbundances['tree_vstrain_id'].isin(treeStrainsOfClade)]['tree_vstrain_id'],
     lw=.5,
     s=vTreeAbundances[vTreeAbundances['tree_vstrain_id'].isin(treeStrainsOfClade)]['abundance'].values*markerIncVirus,
-    c = Vcmap(Vnorm(np.arange(1, len(virusCladeIDs)+1, 1)))[cladeColorDict[clade_id]],marker='|')
+    c = np.array([Vcmap(Vnorm(np.arange(1, len(virusCladeIDs)+1, 1)))[cladeColorDict[clade_id]]]),marker='|')
     for strain in treeStrainsOfClade:
         tCreate = vStrainTimes[vStrainTimes.tree_vstrain_id == strain].t_creation.values[0]
         tExtinct = vStrainTimes[vStrainTimes.tree_vstrain_id == strain].t_extinction.values[0]
@@ -347,9 +322,10 @@ strainLineages = LineCollection(hlinecVirus, linestyles='solid', colors=hcolorsV
 creationLines = LineCollection(vlinecVirus, linestyles='solid', colors=vcolorsVirus, linewidths=(0.35))
 ax2.add_collection(strainLineages)
 ax2.add_collection(creationLines)
-# fig2.savefig(os.path.join(PLOT_PATH,'..','..','isolates',RUN_DIR,'virus-tree.pdf'),dpi=1000)
-fig2.savefig(os.path.join('/Volumes/Yadgah','virus-tree.pdf'),dpi=1000)
-plt.show()
+fig2.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'virus-tree.{}'.format(imgType)),dpi=resolve)
+# fig2.savefig(os.path.join('/Volumes/Yadgah','virus-tree.{}'.format(imgType)),dpi=resolve)
+# plt.show()
+plt.close(fig2)
 
 
 print('Compiling stacked virus clade abundances and tree plots')
@@ -361,14 +337,14 @@ virus_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',sort_co
 axes[0].set_ylabel(ylabel ='Viral Strain Abundances',labelpad=15,fontsize=7)
 axes[0].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(50))
+axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
 lim = axes[0].get_ylim()
 axes[0].set_ylim(0,lim[1])
 axes[0].set_xlim(0,np.min([np.max(vTreeAbundances.t.values),np.max(bTreeAbundances.t.values)]))
 axes[1].set_xlabel(xlabel = 'Time t',fontsize=7)
-axes[1].set_ylim(0,np.max(vStrainTimes.tree_bstrain_id)+1)
+axes[1].set_ylim(0,np.max(vStrainTimes.tree_vstrain_id)+1)
 axes[1].set_xlim(0,np.min([np.max(vTreeAbundances.t.values),np.max(bTreeAbundances.t.values)]))
-axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(50))
+axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(25))
 axes[1].set_yticks([])
 hlinecVirus = []
 vlinecVirus = []
@@ -379,14 +355,9 @@ maxAbundanceVirus = np.max(vTreeAbundances.abundance.values)
 markerIncVirus = maxTickSizeVirus/maxAbundanceVirus
 markerColorsVirus = []
 for clade_id in np.unique(virusClades.clade_id):
-    # strainsOfClade = curClade.execute("SELECT DISTINCT vstrain_id FROM vabundances \
-    # WHERE clade_id = {} AND run_id = {}".format(clade_id,run_id))
     strainsOfClade = curClade.execute("SELECT DISTINCT vstrain_id FROM vabundances \
     WHERE clade_id = {}".format(clade_id))
     strainsOfClade = [i[0] for i in strainsOfClade.fetchall()]
-    # treeStrainsOfClade = curTree.execute("SELECT DISTINCT tree_vstrain_id FROM tree_vstrain_order \
-    # WHERE vstrain_id in ({}) AND run_id = {}"
-    # .format(', '.join(map(str,strainsOfClade)),run_id))
     treeStrainsOfCladeAll = curTree.execute("SELECT DISTINCT tree_vstrain_id FROM tree_vstrain_order \
     WHERE vstrain_id in ({}) ORDER BY tree_vstrain_id".format(', '.join(map(str,strainsOfClade))))
     treeStrainsOfClade = []
@@ -399,7 +370,7 @@ for clade_id in np.unique(virusClades.clade_id):
     vTreeAbundances[vTreeAbundances['tree_vstrain_id'].isin(treeStrainsOfClade)]['tree_vstrain_id'],
     lw=.5,
     s=vTreeAbundances[vTreeAbundances['tree_vstrain_id'].isin(treeStrainsOfClade)]['abundance'].values*markerIncVirus,
-    c = Vcmap(Vnorm(np.arange(1, len(virusCladeIDs)+1, 1)))[cladeColorDict[clade_id]],marker='|')
+    c = np.array([Vcmap(Vnorm(np.arange(1, len(virusCladeIDs)+1, 1)))[cladeColorDict[clade_id]]]),marker='|')
     for strain in treeStrainsOfClade:
         tCreate = vStrainTimes[vStrainTimes.tree_vstrain_id == strain].t_creation.values[0]
         tExtinct = vStrainTimes[vStrainTimes.tree_vstrain_id == strain].t_extinction.values[0]
@@ -417,12 +388,24 @@ axes[1].add_collection(strainLineages)
 axes[1].add_collection(creationLines)
 
 fig.tight_layout()
-# fig.savefig(os.path.join(PLOT_PATH,'..','..','isolates',RUN_DIR,'virus-clades-abundances-two-plot-types.pdf'),dpi=1000)
-fig.savefig(os.path.join('/Volumes/Yadgah','virus-clades-abundances-and-trees.pdf'),dpi=1000)
+fig.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'virus-clades-abundances-and-trees.{}'.format(imgType)),dpi=resolve)
+# fig.savefig(os.path.join('/Volumes/Yadgah','virus-clades-abundances-and-trees.{}'.format(imgType)),dpi=resolve)
 # plt.show()
+plt.close(fig)
 
-
-
+print('Compiling viral strain time series plot')
+fig, ax = plt.subplots(1)
+virus_stacked.plot.area(ax=ax, stacked=True, legend=False, linewidth=0,color=pal)
+ax.set_ylabel(ylabel ='Viral Strain Abundances',labelpad=15,fontsize=7)
+ax.set_xlabel(xlabel = 'Time t',fontsize=7)
+ax.ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
+ax.xaxis.set_minor_locator(ticker.MultipleLocator(25))
+lim = ax.get_ylim()
+ax.set_ylim(0,lim[1])
+plt.tight_layout()
+fig.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'virus-strain-abundances.{}'.format(imgType)),dpi=resolve)
+# fig.savefig(os.path.join('/Volumes/Yadgah','virus-strain-abundances.{}'.format(imgType)),dpi=resolve)
+plt.close(fig)
 
 print('Compiling stacked microbial and viral clade abundance plots')
 fig, ax = plt.subplots(2,sharex=True)
@@ -433,7 +416,7 @@ microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',sort_
 axes[0].set_ylabel(ylabel ='Microbial Strain Abundances',labelpad=15,fontsize=7)
 axes[0].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(50))
+axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
 lim = axes[0].get_ylim()
 axes[0].set_ylim(0,lim[1])
 virus_stacked.plot.area(ax = axes[1],stacked=True,legend=False, linewidth=0,color=virusColorDict,sort_columns=True)
@@ -441,9 +424,37 @@ virus_stacked.plot(stacked=True, ax=axes[1], legend=False, color='black',sort_co
 axes[1].set_ylabel(ylabel ='Viral Strain Abundances',labelpad=15,fontsize=7)
 axes[1].set_xlabel(xlabel = 'Time t',fontsize=7)
 axes[1].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(50))
+axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(25))
 lim = axes[1].get_ylim()
 axes[1].set_ylim(0,lim[1])
 fig.tight_layout()
-# fig.savefig(os.path.join(PLOT_PATH,'..','..','isolates',RUN_DIR,'microbe-virus-clades-stacked-abundances.pdf'),dpi=1000)
-fig.savefig(os.path.join('/Volumes/Yadgah','microbe-virus-clades-stacked-abundances.pdf'),dpi=1000)
+fig.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'microbe-virus-clades-stacked-abundances.{}'.format(imgType)),dpi=resolve)
+# fig.savefig(os.path.join('/Volumes/Yadgah','microbe-virus-clades-stacked-abundances.{}'.format(imgType)),dpi=resolve)
+plt.close(fig)
+
+print('Compiling microbial-virus stacked time series plots')
+fig, ax = plt.subplots(2,sharex=True)
+#fig = plt.figure()
+fig.suptitle('Strain Abundances (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
+axes = [ax[0], ax[1]]
+microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=pal)
+axes[0].set_ylabel(ylabel ='Microbial Immune Abundances N_i',labelpad=15,fontsize=7)
+axes[0].set_xlabel(xlabel = 'Time t',fontsize=7)
+axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
+axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+lim = axes[0].get_ylim()
+axes[0].set_ylim(0,lim[1])
+virus_stacked.plot.area(ax = axes[1],stacked=True,legend=False, linewidth=0,color=pal)
+axes[1].set_ylabel(ylabel ='Viral Strain Abundances V_i',labelpad=15,fontsize=7)
+axes[1].set_xlabel(xlabel = 'Time t',fontsize=7)
+axes[1].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
+axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+lim = axes[1].get_ylim()
+axes[1].set_ylim(0,lim[1])
+
+fig.tight_layout()
+fig.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'microbe-virus-stacked-abundances.{}'.format(imgType)),dpi=resolve)
+# fig.savefig(os.path.join('/Volumes/Yadgah','microbe-virus-stacked-abundances.{}'.format(imgType)),dpi=resolve)
+plt.close(fig)
+
+print('Complete!')

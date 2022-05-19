@@ -20,27 +20,27 @@ import colorsys
 
 run_id = sys.argv[1]
 
+resolve = 500
+
 SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__)) # cluster
 
 DBSIM_PATH = os.path.join(SCRIPT_PATH,'..','..','..','simulation','sweep_db_gathered.sqlite') # cluster
-#DBSIM_PATH = os.path.join('/Volumes','Yadgah','sweep_db_gathered.sqlite') # local
 # DBSIM_PATH = os.path.join('/Volumes','Yadgah','run_id1455_combo73_replicate15.sqlite')
-# DBSIM_PATH = os.path.join('/Volumes','Yadgah','run_id1550_combo78_replicate10.sqlite')
-
-# Designating plot path from simulation data
-ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
-combo_id = ID[0][0]
-replicate = ID[0][1]
-
-RUN_DIR = os.path.join('runID{0}-c{1}-r{2}'.format(run_id,combo_id,replicate))
-
+# DBSIM_PATH = os.path.join('/Volumes','Yadgah','crispr-sweep-7-2-2022/isolates/runID1723-c35-r23/runID1723-c35-r23.sqlite')
 DBCLADE_PATH = os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'clade-abundances_output.sqlite') # cluster
-# DBCLADE_PATH = os.path.join('/Volumes','Yadgah','clade-abundances.sqlite') # local
 # DBCLADE_PATH = os.path.join('/Volumes','Yadgah','clade-abundances_output.sqlite') # local. run_id fixed; for testing
-
+# DBCLADE_PATH = os.path.join('/Volumes','Yadgah','crispr-sweep-7-2-2022/isolates/runID1723-c35-r23','clade-abundances_output.sqlite') # local. run_id fixed; for testing
 
 conSim = sqlite3.connect(DBSIM_PATH)
 curSim = conSim.cursor()
+conClade = sqlite3.connect(DBCLADE_PATH)
+curClade = conClade.cursor()
+ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
+combo_id = ID[0][0]
+replicate = ID[0][1]
+RUN_DIR = os.path.join('runID{0}-c{1}-r{2}'.format(run_id,combo_id,replicate))
+
+
 print('SQLite Query: microbial abundance time series data')
 microbeSim = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance WHERE run_id = {}".format(run_id), conSim)
 microbe_stacked = microbeSim.pivot(index='t',columns='bstrain_id',values='abundance')
@@ -49,30 +49,20 @@ print('SQLite Query: viral abundance time series data')
 virusSim = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance WHERE run_id = {}".format(run_id), conSim)
 virus_stacked = virusSim.pivot(index='t',columns='vstrain_id',values='abundance')
 
-conClade = sqlite3.connect(DBCLADE_PATH)
-curClade = conClade.cursor()
-print('SQLite Query: virus shannon data')
 
+print('SQLite Query: virus shannon data')
 microbeClades = pd.read_sql_query("SELECT DISTINCT clade_id, bstrain_id \
 FROM babundances", conClade)
 microbeCladeAbundances = pd.read_sql_query("SELECT t, clade_id, abundance \
 FROM clade_babundances", conClade)
-
 microbeCladeIDs = pd.read_sql_query("SELECT DISTINCT clade_id \
 FROM babundances", conClade)
-
 virusClades = pd.read_sql_query("SELECT DISTINCT clade_id, vstrain_id \
 FROM vabundances", conClade)
 virusCladeIDs = pd.read_sql_query("SELECT DISTINCT clade_id \
 FROM vabundances", conClade)
 virusCladeAbundances = pd.read_sql_query("SELECT t, clade_id, abundance \
 FROM clade_vabundances", conClade)
-
-
-#THIS PATH NEEDS TO BE LOCATED HERE BECAUSE OF COMBO_ID DEFINITION ABOVE!
-#PLOT_PATH = os.path.join(SCRIPT_PATH,'..','gathered-analyses','clade-abundances','plots','c{}'.format(combo_id),'r{}'.format(replicate)) # cluster
-PLOT_PATH = os.path.abspath(os.path.dirname(__file__)) # local
-# PLOT_PATH = os.getcwd() # local. run_id fixed; for testing
 
 
 print('Compiling microbial clade abundance plots')
@@ -119,7 +109,7 @@ lim = ax.get_ylim()
 ax.set_ylim(0,lim[1])
 fig.tight_layout()
 # plt.show()
-fig.savefig(os.path.join(PLOT_PATH,'..','..','isolates',RUN_DIR,'microbe-clade-abundances.png'),dpi=500)
+fig.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'microbe-clade-abundances.png'),dpi=resolve)
 # plt.show()
 
 
@@ -166,7 +156,7 @@ ax.xaxis.set_minor_locator(ticker.MultipleLocator(50))
 lim = ax.get_ylim()
 ax.set_ylim(0,lim[1])
 fig.tight_layout()
-fig.savefig(os.path.join(PLOT_PATH,'..','..','isolates',RUN_DIR,'virus-clade-abundances.png'),dpi=500)
+fig.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'virus-clade-abundances.png'),dpi=resolve)
 # plt.show()
 
 
@@ -191,5 +181,5 @@ axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(50))
 lim = axes[1].get_ylim()
 axes[1].set_ylim(0,lim[1])
 fig.tight_layout()
-fig.savefig(os.path.join(PLOT_PATH,'..','..','isolates',RUN_DIR,'microbe-virus-clades-stacked-abundances.png'),dpi=500)
+fig.savefig(os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'microbe-virus-clades-stacked-abundances.png'),dpi=resolve)
 # plt.show()
