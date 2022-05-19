@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 using SQLite
 using DataFrames
