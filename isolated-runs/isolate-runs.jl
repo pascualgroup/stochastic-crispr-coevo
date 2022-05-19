@@ -7,7 +7,7 @@ This is probably more than you want, but it shows generally how to consolidate
 things.
 """
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 using SQLite
 import SQLite.DBInterface.execute
@@ -19,8 +19,8 @@ dbSimPath = joinpath(SCRIPT_PATH,"..","simulation","sweep_db_gathered.sqlite") #
 dbSim = SQLite.DB(dbSimPath)
 ##
 
+run_ids = map(x->parse(Int64,x), ARGS)
 function main()
-    run_ids = [1]
     for run in run_ids
         println("Isolating run $(run)...")
         (cr,) = execute(dbSim,"SELECT combo_id,replicate FROM runs WHERE run_id = $(run)")
@@ -28,7 +28,7 @@ function main()
         if !ispath(joinpath(SCRIPT_PATH,"isolates",repDir))
             mkpath(joinpath(SCRIPT_PATH,"isolates",repDir))
         end
-        dbOutput = SQLite.DB(joinpath(SCRIPT_PATH,"isolated-runs",repDir,"$(repDir).sqlite"))
+        dbOutput = SQLite.DB(joinpath(SCRIPT_PATH,"isolates",repDir,"$(repDir).sqlite"))
         #dbOutput = SQLite.DB(joinpath("/Volumes/Yadgah/","run_id$(run)_combo$(cr[1])_replicate$(cr[2]).sqlite"))
         println("...attaching database...")
         execute(dbOutput, "ATTACH DATABASE '$(dbSimPath)' as dbSim")

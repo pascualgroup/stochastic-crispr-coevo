@@ -151,7 +151,7 @@ def microbeCladeTreePlot(microbe_stacked,colorpalClades,maxTickSizeMicrobe,figxy
     vlinecMicrobe = []
     hcolorsMicrobe = []
     vcolorsMicrobe = []
-    # maxTickSizeMicrobe = 500
+    maxTickSizeMicrobe = 500
     maxAbundanceMicrobe = np.max(bTreeAbundances.abundance.values)
     markerIncMicrobe = maxTickSizeMicrobe/maxAbundanceMicrobe
     markerColorsMicrobe = []

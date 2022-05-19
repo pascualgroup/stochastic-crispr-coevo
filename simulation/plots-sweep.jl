@@ -88,7 +88,7 @@ function generate_plot_runs(db::DB) # This function generates the directories
     # `plots/c<combo_id>/r<replicate>` for each one.
     run_count = 0
     println("Processing plot script for each run")
-    for (run_id, combo_id, replicate) in execute(db, "SELECT run_id,combo_id,replicate FROM runs")
+    for (run_id, combo_id, replicate) in execute(db, "SELECT run_id,combo_id,replicate FROM runs ORDER BY combo_id,replicate")
         #println("Processing plot script for combination $(combo_id)/replicate $(replicate)"
         #) # local
         run_dir = joinpath(SCRIPT_PATH,"runs", "c$(combo_id)", "r$(replicate)")
@@ -125,7 +125,7 @@ function generate_plot_jobs(db::DB,numSubmits::Int64)
 
     execute(db, "BEGIN TRANSACTION")
 
-    for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
+    for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY combo_id, replicate")
         execute(db, "INSERT INTO plot_job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
         job_id = mod(job_id,N_JOBS_MAX*numSubmits) + 1

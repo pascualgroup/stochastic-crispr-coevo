@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 using SQLite
 import SQLite.DBInterface.execute
@@ -46,8 +46,8 @@ SELECT microbes, viruses FROM dbAnalysis.extinction_occurrence WHERE run_id in (
 )
 execute(dbAnalysisTemp, "CREATE INDEX occurrences ON extinction_occurrence (microbes,viruses)")
 execute(dbAnalysisTemp,
-"INSERT INTO simulation_end_time(time)
-SELECT time FROM dbAnalysis.simulation_end_time WHERE run_id in ($(run_idStmt)) ORDER BY run_id"
+"INSERT INTO simulation_end_time(microbe_end_time, virus_end_time)
+SELECT microbe_end_time, virus_end_time FROM dbAnalysis.simulation_end_time WHERE run_id in ($(run_idStmt)) ORDER BY run_id"
 )
 execute(dbAnalysisTemp, "CREATE INDEX end_times ON simulation_end_time (microbe_end_time, virus_end_time)")
 execute(dbAnalysisTemp, "COMMIT")

@@ -176,7 +176,7 @@ function generate_jobs(db::DB,numCombos::Int64)
 
     execute(db, "BEGIN TRANSACTION")
 
-    for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
+    for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY combo_id, replicate")
         execute(db, "INSERT INTO job_runs VALUES (?,?)", (job_id, run_id))
 
         # Mod-increment job ID

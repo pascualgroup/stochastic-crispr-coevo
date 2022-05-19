@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 include(joinpath("..","simulation","src","setup.jl"))
 
@@ -85,6 +85,8 @@ function generate_plot_runs(dbSim::DB) # This function generates the directories
         @assert !ispath(plot_dir)
         mkpath(plot_dir)
 
+        argString = map(x->string("$(x) "), ARGS) # the space after $(x) is important
+
         # Generate shell script to perform a single run
         run_script = joinpath(run_dir, "runplotmaker.sh")
         open(run_script, "w") do f
@@ -92,7 +94,7 @@ function generate_plot_runs(dbSim::DB) # This function generates the directories
             #!/bin/sh
             cd `dirname \$0`
             module load python/anaconda-2021.05
-            python $(ROOT_RUN_SCRIPT) $(run_id) &> plot_output.txt
+            python $(ROOT_RUN_SCRIPT) $(run_id) $(argString...) &> plot_output.txt
             """)
         end
         run(`chmod +x $(run_script)`) # Make run script executable

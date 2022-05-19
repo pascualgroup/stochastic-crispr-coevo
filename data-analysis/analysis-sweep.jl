@@ -29,6 +29,10 @@ if analysisType == "walls-shannon" && parse(Float64,ARGS[2]) > 100
     error("upper percent cannot be greater than 100%")
 end
 
+if analysisType == "match-diversity" && !isfile(joinpath(SCRIPT_PATH,"matches","matches.sqlite"))
+    error("`/matches/matches.sqlite` is missing; please analyze matches first.")
+end
+
 ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"$(analysisType).jl")
 ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)

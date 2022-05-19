@@ -141,7 +141,7 @@ function generate_mean_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m
-            #SBATCH --time=4:00:00
+            #SBATCH --time=1-12:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=output.txt
             #SBATCH --mail-user=armun@uchicago.edu
@@ -164,7 +164,7 @@ function generate_mean_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
     #run(`chmod +x submit_analysis_jobs.sh`) # Make submit script executable
     @info "
     Sweep will be submitted via $(numSubmits) `mean-analysis-submit-jobs.sh` script(s).
-    Each `analysis_submit_jobs.sh` script submits $(N_JOBS_MAX) jobs.
+    Each `mean-analysis_submit_jobs.sh` script submits $(N_JOBS_MAX) jobs.
     Each job will use $(n_cores_count) cpus (cores) at most, where each cpu will use $(mem_per_cpu/1000)GB.
     Each job therefore will use at most $(n_cores_count*mem_per_cpu/1000)GB of memory in total.
     "
