@@ -7,29 +7,39 @@ This is probably more than you want, but it shows generally how to consolidate
 things.
 """
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
+
+include(joinpath("model","setup.jl"))
 
 using SQLite
-import SQLite.DBInterface.execute
 
 ## Define Paths ##
 analysisType = "$(ARGS[1])"
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 dbSimPath = joinpath(SCRIPT_PATH,"..","simulation","sweep_db_gathered.sqlite") # cluster
 analysisDir = joinpath(SCRIPT_PATH,"analyses",analysisType) # cluster
-# dbSimPath = joinpath("/Volumes/Yadgah/crispr-sweep-13-1-2021/simulation/sweep_db_gathered.sqlite") # local
-dbSim = SQLite.DB(dbSimPath)
 ##
 
-if analysisType == "tripartite-network"
-    if length(ARGS) < 1
-        error("at least one time point is need for networks to be generated")
+if length(ARGS[2:end]) == 0
+    error("please include more info as arguments")
+end
+
+if analysisType == "tripartite-networks"
+    if in(ARGS[2],["plots","plot","data"])
+        error("`data` and `plots` are not valid options for $(analysisType) analysis")
     end
-    println("Please enter the run ids to be analyzed...")
-    ids_entered = readline()
+    # if length(ARGS[2:end]) == 0
+    #     error("at least one time point is need for networks to be generated")
+    # end
+    println("Please enter the run ids to be analyzed; press Ctrl-D when done.")
+    ids_entered = readlines()
     run_ids = map(x->parse(Int64,x), ids_entered)
+    ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,"analyses","networks","$(analysisType).py")
 elseif analysisType == "walls-shannon"
-    if length(ARGS) < 3
+    if !in(ARGS[2],["plots","plot","data"])
+        error("`please indicate the second argument as `data` or `plots`")
+    end
+    if length(ARGS[3:end]) < 3
         error("at least 1 of 3 wall threshold values are missing")
     end
     if analysisType == "walls-shannon" && parse(Float64,ARGS[2]) <= parse(Float64,ARGS[3])
@@ -39,35 +49,61 @@ elseif analysisType == "walls-shannon"
     if analysisType == "walls-shannon" && parse(Float64,ARGS[2]) > 100
         error("upper percent cannot be greater than 100%")
     end
-    println("Please enter the run ids to be analyzed...")
-    ids_entered = readline()
+    println("Please enter the run ids to be analyzed; press Ctrl-D when done.")
+    ids_entered = readlines()
     run_ids = map(x->parse(Int64,x), ids_entered)
+    if ARGS[2] == "plots" || ARGS[2] == "plot"
+        ROOT_RUN_SCRIPT = joinpath(analysisDir,"make-$(analysisType)-plots.py")
+    elseif ARGS[2] == "data"
+        ROOT_RUN_SCRIPT = joinpath(analysisDir,"$(analysisType).jl")
+    else
+        error("invalid input")
+    end
 else
-    println("Please enter the run ids to be analyzed...")
-    ids_entered = readline()
+    if !in(ARGS[2],["plots","plot","data"])
+        error("`please indicate the second argument as `data` or `plots`")
+    end
+    println("Please enter the run ids to be analyzed; press Ctrl-D when done.")
+    ids_entered = readlines()
     run_ids = map(x->parse(Int64,x), ids_entered)
+    if ARGS[2] == "plots" || ARGS[2] == "plot"
+        if analysisType == "matches"
+            error("plots for `matches.jl` does not exist")
+        end
+        ROOT_RUN_SCRIPT = joinpath(analysisDir,"make-$(analysisType)-plots.py")
+        # println(ROOT_RUN_SCRIPT)
+    elseif ARGS[2] == "data"
+        ROOT_RUN_SCRIPT = joinpath(analysisDir,"$(analysisType).jl")
+    else
+        error("invalid input")
+    end
 end
 
 
-ROOT_RUN_SCRIPT = joinpath(analysisDir,"$(analysisType).jl")
+
 ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"model", "runmany.jl")
 cd(SCRIPT_PATH)
 
 # Number of SLURM jobs to generate
-const N_JOBS_MAX = 10
-const N_CORES_PER_JOB_MAX = 28 # Half a node (14) is easier to get scheduled than a whole one
-const mem_per_cpu = 2000 # in MB 100MB = 1 GB
+const N_JOBS_MAX = 1
+const N_CORES_PER_JOB_MAX = 2 # Half a node (14) is easier to get scheduled than a whole one
+const mem_per_cpu = 26000 # in MB 100MB = 1 GB
 
-function main(dbSim::DB)
+function main()
     # Root run directory
     if isfile(joinpath("isolates","$(analysisType)jobs.sqlite"))
-        error("Please move, delete, or rename `/isolates/$(analysisType)jobs.sqlite`.")
+        rm(joinpath("isolates","$(analysisType)jobs.sqlite"),force=true)
+        println("deleted `/isolates/$(analysisType)jobs.sqlite`.")
     end
 
-    if ispath(joinpath("isolates","jobs"))
-        error("Please move, delete, or rename `/isolates/jobs`.")
+    if ispath(joinpath("isolates","$(analysisType)-jobs"))
+        rm(joinpath("isolates","$(analysisType)-jobs"),force=true,recursive=true)
+        println("deleted `/isolates/$(analysisType)-jobs`.")
     end
-
+    if !ispath(joinpath("isolates"))
+        mkpath(joinpath("isolates"))
+    end
+    dbSim = SQLite.DB(dbSimPath)
     # Create little database that corresponds analysis runs to jobIDs for troubleshooting
     dbTempJobs = SQLite.DB(joinpath("isolates","$(analysisType)jobs.sqlite"))
     execute(dbTempJobs, "DROP TABLE IF EXISTS jobs")
@@ -89,32 +125,59 @@ function generate_analysis_runs(dbSim::DB) # This function generates the directo
     println("Processing analysis script for each run")
     for run_id in run_ids
         (cr,) = execute(dbSim, "SELECT combo_id,replicate FROM runs WHERE run_id = $(run_id)")
-        run_dir = joinpath("isolates", "runID$(run)-c$(cr[1])-r$(cr[2])")
-        if isfile(joinpath(run_dir,"$(analysisType)_output.sqlite"))
-            error("Please move, delete, or rename `/isolates/runID$(run)-c$(cr[1])-r$(cr[2])/$(analysisType)_output.sqlite`.")
+        run_dir = joinpath("isolates", "runID$(run_id)-c$(cr[1])-r$(cr[2])")
+        if ARGS[2] == "data"
+            if isfile(joinpath(run_dir,"$(analysisType)_output.sqlite"))
+                error("Please move, delete, or rename `/isolates/runID$(run_id)-c$(cr[1])-r$(cr[2])/$(analysisType)_output.sqlite`.")
+            end
         end
         if !ispath(run_dir)
             mkpath(run_dir)
         end
 
         # Generate shell script to perform a single run
-        run_script = joinpath(run_dir, "run.sh")
-        if length(ARGS[2:end]) > 0
-            argString = map(x->string("$(x) "), ARGS) # the space after $(x) is important
-            open(run_script, "w") do f
-                print(f, """
-                #!/bin/sh
-                cd `dirname \$0`
-                julia $(ROOT_RUN_SCRIPT) $(run_id) $(argString...) &> run-output.txt
-                """)
+        run_script = joinpath(run_dir, "run-$(analysisType).sh")
+        if length(ARGS[3:end]) > 0
+            if ARGS[2] == "data"
+                argString = map(x->string("$(x) "), ARGS[3:end]) # the space after $(x) is important
+                open(run_script, "w") do f
+                    print(f, """
+                    #!/bin/sh
+                    cd `dirname \$0`
+                    julia $(ROOT_RUN_SCRIPT) $(run_id) $(argString...) &> run-output-$(analysisType).txt
+                    """)
+                end
+            end
+            if in(ARGS[2], ["plot","plots"])
+                argString = map(x->string("$(x) "), ARGS[3:end]) # the space after $(x) is important
+                open(run_script, "w") do f
+                    print(f, """
+                    #!/bin/sh
+                    cd `dirname \$0`
+                    module load python/anaconda-2021.05
+                    python $(ROOT_RUN_SCRIPT) $(run_id) $(argString...) &> run-output-$(analysisType).txt
+                    """)
+                end
             end
         else
-            open(run_script, "w") do f
-                print(f, """
-                #!/bin/sh
-                cd `dirname \$0`
-                julia $(ROOT_RUN_SCRIPT) $(run_id) &> run-output.txt
-                """)
+            if ARGS[2] == "data"
+                open(run_script, "w") do f
+                    print(f, """
+                    #!/bin/sh
+                    cd `dirname \$0`
+                    julia $(ROOT_RUN_SCRIPT) $(run_id) &> run-output-$(analysisType).txt
+                    """)
+                end
+            end
+            if in(ARGS[2], ["plot","plots"])
+                open(run_script, "w") do f
+                    print(f, """
+                    #!/bin/sh
+                    cd `dirname \$0`
+                    module load python/anaconda-2021.05
+                    python $(ROOT_RUN_SCRIPT) $(run_id) &> run-output-$(analysisType).txt
+                    """)
+                end
             end
         end
         run(`chmod +x $(run_script)`) # Make run script executable
@@ -134,7 +197,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
     for run_id in run_ids
         (cr,) = execute(dbSim, "SELECT combo_id,replicate FROM runs WHERE run_id = $(run_id)")
-        run_dir = joinpath("isolates", "runID$(run)-c$(cr[1])-r$(cr[2])")
+        run_dir = joinpath("isolates", "runID$(run_id)-c$(cr[1])-r$(cr[2])")
         execute(dbTempJobs, "INSERT INTO job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
         job_id = mod(job_id,N_JOBS_MAX*numSubmits) + 1
@@ -151,7 +214,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
     for (job_id,) in execute(dbTempJobs, "SELECT DISTINCT job_id FROM job_runs ORDER BY job_id")
 
-        job_dir = joinpath("isolates","jobs", "$(job_id)")
+        job_dir = joinpath("isolates","$(analysisType)-jobs", "$(job_id)")
         @assert !ispath(job_dir)
         mkpath(job_dir)
 
@@ -173,7 +236,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
         # Write out list of runs
         open(joinpath(job_dir, "runs.txt"), "w") do f
             for run_dir in run_dirs
-                run_script = joinpath(SCRIPT_PATH, analysisDir, run_dir, "run.sh")
+                run_script = joinpath(SCRIPT_PATH, run_dir, "run-$(analysisType).sh")
                 println(f, run_script)
             end
         end
@@ -197,7 +260,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
             # Uncomment this to use the Midway-provided Julia:
             module load julia
             julia $(ROOT_RUNMANY_SCRIPT) $(n_cores) runs.txt
-            """) # runs.txt is for parallel processing
+            """)
         end
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)
 
@@ -219,4 +282,4 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 end
 
 
-main(dbSim::DB)
+main()
