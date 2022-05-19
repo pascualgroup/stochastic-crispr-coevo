@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 using SQLite
 using DataFrames
@@ -173,5 +173,29 @@ end
 
 microbeCladeAbundances()
 virusCladeAbundances()
+
+function createindices()
+    println("(Creating run_id indices...)")
+    db = SQLite.DB(dbOutputPath)
+    execute(db, "BEGIN TRANSACTION")
+    for (table_name,) in execute(
+        db, "SELECT name FROM sqlite_schema
+        WHERE type='table' ORDER BY name;")
+        # cols = [info.name for info in execute(db,"PRAGMA table_info($(table_name))")]
+        if in(table_name,["clade_babundances","clade_vabundances"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, clade_id)")
+        end
+        if in(table_name,["babundances","vabundances"])
+            if table_name == "babundances"
+                execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, clade_id, bstrain_id)")
+            end
+            if table_name == "vabundances"
+                execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, clade_id, vstrain_id)")
+            end
+        end
+    end
+    execute(db, "COMMIT")
+end
+createindices()
 
 println("Complete!")

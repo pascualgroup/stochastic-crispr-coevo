@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 using SQLite
 using DataFrames
@@ -31,29 +31,19 @@ dbOutput = SQLite.DB(dbOutputPath)
 
 execute(dbOutput, "CREATE TABLE bstrain_to_vstrain_matches (t REAL, bstrain_id INTEGER, vstrain_id INTEGER,
 time_specific_match_id INTEGER, match_length INTEGER)")
-
 execute(dbOutput, "CREATE TABLE matches_spacers (t REAL, time_specific_match_id INTEGER, match_type INTEGER, spacer_id INTEGER)")
-
 execute(dbOutput, "CREATE TABLE bstrain_matched_spacers
 (t REAL, bstrain_id INTEGER, matched_spacer_id INTEGER)")
-
 execute(dbOutput, "CREATE TABLE vstrain_matched_pspacers
 (t REAL, vstrain_id INTEGER, matched_pspacer_id INTEGER)")
-
 execute(dbOutput, "CREATE TABLE bstrain_num_matched_spacers (t REAL, bstrain_id INTEGER,
 num_matched_spacers INTEGER)")
-
 execute(dbOutput, "CREATE TABLE vstrain_num_matched_pspacers (t REAL, vstrain_id INTEGER,
 num_matched_pspacers INTEGER)")
-
 execute(dbOutput, "CREATE TABLE bstrain_to_vstrain_0matches (t REAL, bstrain_id INTEGER, vstrain_id INTEGER,
 time_specific_0match_id INTEGER)")
-
 execute(dbOutput, "CREATE TABLE bstrain_num_total_spacers (bstrain_id INTEGER, num_total_spacers INTEGER)")
 
-# Create temporary database that is a copy of the main database at the run_id value of the script's argument
-# @btime begin
-# @time begin
 dbTemp = SQLite.DB()
 # dbTemp = SQLite.DB("/Volumes/Yadgah/test.sqlite") # local
 execute(dbTemp, "CREATE TABLE babundance (t REAL, bstrain_id INTEGER)")
@@ -199,7 +189,30 @@ end
 identifyMatches()
 numTotalSpacers()
 
-# end # @btime
-# end # @time
+function createindices()
+    println("(Creating run_id indices...)")
+    db = SQLite.DB(dbOutputPath)
+    execute(db, "BEGIN TRANSACTION")
+    for (table_name,) in execute(
+        db, "SELECT name FROM sqlite_schema
+        WHERE type='table' ORDER BY name;")
+        # cols = [info.name for info in execute(db,"PRAGMA table_info($(table_name))")]
+        if in(table_name,["bstrain_to_vstrain_matches","bstrain_to_vstrain_0matches"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, bstrain_id, vstrain_id)")
+        end
+        if in(table_name,["matches_spacers"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, time_specific_match_id, match_type)")
+        end
+        if in(table_name,["bstrain_num_total_spacers"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (bstrain_id)")
+        end
+        if !in(table_name,["bstrain_to_vstrain_matches","bstrain_to_vstrain_0matches",
+            "matches_spacers","bstrain_num_total_spacers"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t)")
+        end
+    end
+    execute(db, "COMMIT")
+end
+createindices()
 
 println("Complete!")
