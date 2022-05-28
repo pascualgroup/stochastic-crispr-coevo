@@ -205,26 +205,18 @@ function currentStructure!(matchStructure::matchHierarchy)
     time = matchStructure.time
     dbTempSim = matchStructure.dbSim
     dbTempMatch = matchStructure.dbMatch
-    for (vstrain_id,) in execute(dbTempMatch,"SELECT DISTINCT vstrain_id
-            FROM vstrain_matched_pspacers WHERE t = $(time)
+    for (matchID,) in execute(dbTempTri,"SELECT DISTINCT match_id
+            FROM vmatch_phenotypes WHERE t = $(time)
             ORDER BY vstrain_id")
-        phenotype = [type for (type,) in
-        execute(dbTempMatch,"SELECT matched_pspacer_id
-        FROM vstrain_matched_pspacers
-        WHERE t = $(time) AND vstrain_id = $(vstrain_id)
-        ORDER BY matched_pspacer_id")]
+        phenotype = [spacerID for (spacerID,) in
+        execute(dbTempTri,"SELECT phenotype
+        FROM vmatch_phenotypes
+        WHERE t = $(time) AND match_id = $(matchID)
+        ORDER BY phenotype")]
         # println("phenotype is $(phenotype)")
-        if in(phenotype,matchStructure.phenotypes.current)
-            push!(matchStructure.strainclasses[phenotype],Int64(vstrain_id))
-        else
-            matchStructure.strainclasses[phenotype] = [Int64(vstrain_id)]
-        end
-
-        if !in(phenotype,matchStructure.phenotypes.current)
-            identifyCurrentMatches!(matchStructure,phenotype,vstrain_id)
-            push!(matchStructure.phenotypes.current,phenotype)
-            union!(matchStructure.matchtypes,length(phenotype))
-        end
+        identifyCurrentMatches!(matchStructure)
+        push!(matchStructure.phenotypes.current,matchID)
+        union!(matchStructure.matchtypes,length(phenotype))
     end
 end
 
@@ -232,10 +224,11 @@ end
 function identifyCurrentMatches!(
     matchStructure::matchHierarchy,phenotype::Vector{Int64},vstrain_id::Int64)
     time = matchStructure.time
+    matchID = matchStructure.matchID
     dbTempSim = matchStructure.dbSim
     dbTempMatch = matchStructure.dbMatch
 
-    matchStructure.sBstrains.current[phenotype] = [Int64(strain)
+    matchStructure.sBstrains.current[matchID] = [Int64(strain)
         for (strain,) in execute(dbTempMatch, "SELECT bstrain_id
             FROM bstrain_to_vstrain_0matches
             WHERE t = $(time) AND vstrain_id = $(vstrain_id)")]
@@ -274,7 +267,7 @@ function identifyCurrentMatches!(
                 FROM babundance
                 WHERE t = $(time) AND bstrain_id in
                 ($(join(matchStructure.iBstrains.current[phenotype],", ")))")])
-        matchStructure.iBiomass.current[phenotype] =
+        matchStructure.iBiomass.potential[phenotype] =
             copy(matchStructure.iBiomass.current[phenotype])
     end
 end
@@ -306,6 +299,9 @@ function potentialStructure!(matchStructure::matchHierarchy)
     end
 end
 
+
+# This just gets a (sub-)phenotype and checks for
+# and logs susceptible and immune host strains
 function identifyPotentialMatches!(
     matchStructure::matchHierarchy,subPhenotype::Vector{Int64})
     time = matchStructure.time
@@ -633,3 +629,36 @@ for (t,) in execute(dbTempSim,"SELECT DISTINCT t FROM vabundance")
     matchStructure = structure(dbTempMatch,dbTempSim,dbOutput,t)
     phenotypeStats!(matchStructure)
 end
+
+
+function createindices()
+    println("(Creating run_id indices...)")
+    db = SQLite.DB(dbOutputPath)
+    execute(db, "BEGIN TRANSACTION")
+    for (table_name,) in execute(
+        db, "SELECT name FROM sqlite_schema
+        WHERE type='table' ORDER BY name;")
+        # cols = [info.name for info in execute(db,"PRAGMA table_info($(table_name))")]
+        if in(table_name,["bmatch_phenotypes","vmatch_phenotypes"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (match_id)")
+        end
+        if in(table_name,["single_match_tripartite_networks"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t)")
+        end
+        if in(table_name,["bmatch_phenotypes_singles","vmatch_phenotypes_singles",
+                            "bmatches","vmatches","bmatches_abundance","vmatches_abundance"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, match_id)")
+        end
+        if in(table_name,["vmatches_susceptible_babundance","vmatches_susceptible_bstrains"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, vmatch_id)")
+        end
+    end
+    execute(db, "COMMIT")
+end
+
+createindices()
+
+
+
+
+println("Complete!")
