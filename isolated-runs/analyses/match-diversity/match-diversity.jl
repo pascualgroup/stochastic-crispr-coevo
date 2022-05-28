@@ -12,11 +12,9 @@ run_id = ARGS[1]
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 
 dbSimPath = joinpath(SCRIPT_PATH,"..","..","..","simulation","sweep_db_gathered.sqlite") # cluster
-dbMatchPath = #######
 dbOutputPath = joinpath("match-diversity_output.sqlite") # cluster
 
-# # dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
-# dbSimPath = joinpath("/Volumes/Yadgah","run_id1455_combo73_replicate15.sqlite") # local
+# dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
 # dbSimPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/runID3297-c66-r47.sqlite") # local
 # dbMatchPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/matches_output.sqlite")
 # dbOutputPath = joinpath("/Volumes/Yadgah/crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/match-diversity_output.sqlite") # local
@@ -26,14 +24,18 @@ if isfile(dbOutputPath)
 end # cluster
 ##
 
-dbSim = SQLite.DB(dbSimPath)
-# dbTempSim = SQLite.DB(dbSimPath)
-# dbTempMatch = SQLite.DB(dbMatchPath)
+dbTempSim = SQLite.DB(dbSimPath)
+(cr,) = execute(dbTempSim,"SELECT combo_id,replicate FROM runs WHERE run_id = $(run_id)")
+dbMatchPath = joinpath(SCRIPT_PATH,"..","..","isolates",
+    "runID$(run_id)-c$(cr.combo_id)-r$(cr.replicate)","matches_output.sqlite")
+if !isfile(dbMatchPath)
+    error("matches_output.sqlite does not exist; compute first")
+end
+dbTempMatch = SQLite.DB(dbMatchPath)
 dbOutput = SQLite.DB(dbOutputPath)
 
 execute(dbOutput, "CREATE TABLE single_locus_escape_match_diversity (t REAL,
 virus_shannon_diversity REAL, microbe_shannon_diversity REAL)")
-# execute(dbOutput, "CREATE TABLE single_locus_escape_matches (t REAL, vstrain_id INTEGER, bstrain_id INTEGER, spacer_id INTEGER)")
 
 execute(dbOutput, "CREATE TABLE single_locus_escape_match_abundances (t REAL,
 spacer_id INTEGER, vabundance INTEGER, babundance INTEGER)")
@@ -46,36 +48,31 @@ match2 INTEGER, match3 INTEGER)")
 
 
 dbTempSim = SQLite.DB()
-# dbTemp = SQLite.DB("/Volumes/Yadgah/test.sqlite") # local
-execute(dbTemp, "CREATE TABLE babundance (t REAL, bstrain_id INTEGER)")
-execute(dbTemp, "CREATE TABLE bstrain1Abundance (t REAL, abundance INTEGER)")
-execute(dbTemp, "CREATE TABLE vabundance (t REAL, vstrain_id INTEGER)")
-execute(dbTemp, "CREATE TABLE bspacers (bstrain_id INTEGER, spacer_id INTEGER)")
-execute(dbTemp, "CREATE TABLE vpspacers (vstrain_id INTEGER, spacer_id INTEGER)")
+execute(dbTempSim, "CREATE TABLE babundance (t REAL, bstrain_id INTEGER)")
+execute(dbTempSim, "CREATE TABLE bstrain1Abundance (t REAL, abundance INTEGER)")
+execute(dbTempSim, "CREATE TABLE vabundance (t REAL, vstrain_id INTEGER)")
+execute(dbTempSim, "CREATE TABLE bspacers (bstrain_id INTEGER, spacer_id INTEGER)")
+execute(dbTempSim, "CREATE TABLE vpspacers (vstrain_id INTEGER, spacer_id INTEGER)")
 
 
-execute(dbTemp, "BEGIN TRANSACTION")
-execute(dbTemp,"ATTACH DATABASE '$(dbSimPath)' as dbSim")
-execute(dbTemp,"INSERT INTO babundance (t, bstrain_id) SELECT t, bstrain_id FROM dbSim.babundance WHERE run_id = $(run_id);")
-execute(dbTemp,"INSERT INTO bstrain1Abundance (t, abundance) SELECT t, abundance FROM dbSim.babundance
+execute(dbTempSim, "BEGIN TRANSACTION")
+execute(dbTempSim,"ATTACH DATABASE '$(dbSimPath)' as dbSim")
+execute(dbTempSim,"INSERT INTO babundance (t, bstrain_id, abundance) SELECT t, bstrain_id, abundance FROM dbSim.babundance WHERE run_id = $(run_id);")
+execute(dbTempSim,"INSERT INTO bstrain1Abundance (t, abundance) SELECT t, abundance FROM dbSim.babundance
 WHERE run_id = $(run_id) AND bstrain_id = 1;")
-execute(dbTemp,"INSERT INTO vabundance (t, vstrain_id) SELECT t, vstrain_id FROM dbSim.vabundance WHERE run_id = $(run_id);")
-execute(dbTemp,"INSERT INTO bspacers (bstrain_id,spacer_id) SELECT bstrain_id,spacer_id FROM dbSim.bspacers WHERE run_id = $(run_id);")
-execute(dbTemp,"INSERT INTO vpspacers (vstrain_id,spacer_id) SELECT vstrain_id, spacer_id FROM dbSim.vpspacers WHERE run_id = $(run_id);")
-execute(dbTemp, "COMMIT")
+execute(dbTempSim,"INSERT INTO vabundance (t, vstrain_id, abundance) SELECT t, vstrain_id, abundance FROM dbSim.vabundance WHERE run_id = $(run_id);")
+execute(dbTempSim,"INSERT INTO bspacers (bstrain_id,spacer_id) SELECT bstrain_id,spacer_id FROM dbSim.bspacers WHERE run_id = $(run_id);")
+execute(dbTempSim,"INSERT INTO vpspacers (vstrain_id,spacer_id) SELECT vstrain_id, spacer_id FROM dbSim.vpspacers WHERE run_id = $(run_id);")
+execute(dbTempSim, "COMMIT")
 
 
-execute(dbTemp, "BEGIN TRANSACTION")
-execute(dbTemp, "CREATE INDEX babundance_index ON babundance (t,bstrain_id)")
-execute(dbTemp, "CREATE INDEX bstrain1_index ON bstrain1Abundance (t)")
-execute(dbTemp, "CREATE INDEX vabundance_index ON vabundance (t,vstrain_id)")
-execute(dbTemp, "CREATE INDEX bspacers_index ON bspacers (bstrain_id,spacer_id)")
-execute(dbTemp, "CREATE INDEX vspacers_index ON vpspacers (vstrain_id,spacer_id)")
-execute(dbTemp, "COMMIT")
-
-## FINISH THIS PART
-dbTempMatch = SQLite.DB()
-##
+execute(dbTempSim, "BEGIN TRANSACTION")
+execute(dbTempSim, "CREATE INDEX babundance_index ON babundance (t,bstrain_id)")
+execute(dbTempSim, "CREATE INDEX bstrain1_index ON bstrain1Abundance (t)")
+execute(dbTempSim, "CREATE INDEX vabundance_index ON vabundance (t,vstrain_id)")
+execute(dbTempSim, "CREATE INDEX bspacers_index ON bspacers (bstrain_id,spacer_id)")
+execute(dbTempSim, "CREATE INDEX vspacers_index ON vpspacers (vstrain_id,spacer_id)")
+execute(dbTempSim, "COMMIT")
 
 
 function singleLocusMatches()
@@ -261,6 +258,19 @@ end
 
 matchAbundances()
 singleLocusMatches()
+
+function createindices()
+    println("(Creating run_id indices...)")
+    db = SQLite.DB(dbOutputPath)
+    execute(db, "BEGIN TRANSACTION")
+    for (table_name,) in execute(
+        db, "SELECT name FROM sqlite_schema
+        WHERE type='table' ORDER BY name;")
+        execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t)")
+    end
+    execute(db, "COMMIT")
+end
+createindices()
 
 
 println("Complete!")
