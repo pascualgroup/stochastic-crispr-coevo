@@ -106,9 +106,7 @@ function main()
     dbSim = SQLite.DB(dbSimPath)
     # Create little database that corresponds analysis runs to jobIDs for troubleshooting
     dbTempJobs = SQLite.DB(joinpath("isolates","$(analysisType)jobs.sqlite"))
-    execute(dbTempJobs, "DROP TABLE IF EXISTS jobs")
     execute(dbTempJobs, "CREATE TABLE jobs (job_id INTEGER, job_dir TEXT)")
-    execute(dbTempJobs, "DROP TABLE IF EXISTS job_runs")
     execute(dbTempJobs, "CREATE TABLE job_runs (job_id INTEGER, run_id INTEGER, run_dir TEXT)")
 
     numSubmits = generate_analysis_runs(dbSim)

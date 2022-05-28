@@ -52,8 +52,6 @@ virusTotal = pd.read_sql_query("SELECT t,viral_abundance FROM summary WHERE run_
 if len(microbe_stacked.index) > len(virus_stacked.index):
     microbe_stacked.drop(index=list(set(microbe_stacked.index)-set(virus_stacked.index)),inplace=True)
 
-virus
-
 pal = sns.color_palette("tab20b")
 
 Ravg = pd.read_sql_query("SELECT t,R \
