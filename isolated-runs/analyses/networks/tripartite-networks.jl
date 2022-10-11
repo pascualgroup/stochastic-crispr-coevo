@@ -14,7 +14,6 @@ using SQLite
 using DataFrames
 using SQLite.DBInterface: execute
 using SQLite: DB
-using DataFrames
 
 run_id = ARGS[1]
 
@@ -32,8 +31,8 @@ if isfile(dbOutputPath)
     error("tripartite-networks_output.sqlite already exists; delete first")
 end
 ##
-dbSim = SQLite.DB(dbSimPath)
-(cr,) = execute(dbSim,"SELECT combo_id,replicate FROM runs WHERE run_id = $(run_id)")
+dbTempSim = SQLite.DB(dbSimPath)
+(cr,) = execute(dbTempSim,"SELECT combo_id,replicate FROM runs WHERE run_id = $(run_id)")
 dbMatchPath = joinpath(SCRIPT_PATH,"..","..","isolates",
     "runID$(run_id)-c$(cr.combo_id)-r$(cr.replicate)","matches_output.sqlite")
 if !isfile(dbMatchPath)
@@ -62,8 +61,7 @@ mutable struct tripartite
     dbSim::DB
     dbOutput::DB
     time::Float64
-    vstrainID::Int64
-    bstrainID::Int64
+    strainID::Int64
     vphenoID::Int64
     bphenoID::Int64
     phenotype::Vector{Int64}
@@ -93,7 +91,6 @@ mutable struct tripartite
             dbTempSim,
             dbOutput,
             t,
-            Int64(0),
             Int64(0),
             Int64(1),
             Int64(1),
@@ -133,7 +130,7 @@ function currentStructure!(matchStructure::tripartite)
     for (vstrain_id,) in execute(dbTempMatch,"SELECT DISTINCT vstrain_id
             FROM vstrain_matched_pspacers WHERE t = $(time)
             ORDER BY vstrain_id")
-        matchStructure.vstrainID = Int64(vstrain_id)
+        matchStructure.strainID = Int64(vstrain_id)
         phenotype = [type for (type,) in
         execute(dbTempMatch,"SELECT matched_pspacer_id
         FROM vstrain_matched_pspacers
@@ -163,7 +160,7 @@ function currentStructure!(matchStructure::tripartite)
                     AND bstrain_id = $(bstrain_id)")]) == 0
             continue
         end
-        matchStructure.bstrainID = Int64(bstrain_id)
+        matchStructure.strainID = Int64(bstrain_id)
         phenotype = [type for (type,) in
         execute(dbTempMatch,"SELECT matched_spacer_id
         FROM bstrain_matched_spacers
@@ -189,33 +186,33 @@ function newPhenotype!(matchStructure::tripartite)
     phenotype = matchStructure.phenotype
     if vb
         push!(matchStructure.vphenotypes,phenotype)
-        matchStructure.vstrainclasses[phenotype] = [matchStructure.vstrainID]
-        identifyCurrentMatches!(matchStructure)
+        matchStructure.vstrainclasses[phenotype] = [matchStructure.strainID]
         matchStructure.vmatchIDs[phenotype] = matchStructure.vphenoID
         union!(matchStructure.vmatchtypes,length(phenotype))
         matchStructure.vphenoID += Int64(1)
     else
         push!(matchStructure.bphenotypes,phenotype)
-        matchStructure.bstrainclasses[phenotype] = [matchStructure.bstrainID]
-        identifyCurrentMatches!(matchStructure)
+        matchStructure.bstrainclasses[phenotype] = [matchStructure.strainID]
         matchStructure.bmatchIDs[phenotype] = matchStructure.bphenoID
         union!(matchStructure.bmatchtypes,length(phenotype))
         matchStructure.bphenoID += Int64(1)
     end
+    identifyCurrentMatches!(matchStructure)
 end
 
 function newCurrent!(matchStructure::tripartite)
     vb = matchStructure.vb
     phenotype = matchStructure.phenotype
     if vb
-        matchStructure.vstrainclasses[phenotype] = [matchStructure.vstrainID]
+        matchStructure.vstrainclasses[phenotype] = [matchStructure.strainID]
     else
-        matchStructure.bstrainclasses[phenotype] = [matchStructure.bstrainID]
+        matchStructure.bstrainclasses[phenotype] = [matchStructure.strainID]
     end
     identifyCurrentMatches!(matchStructure)
 end
 
 function clearCurrentStructure!(matchStructure::tripartite)
+    matchStructure.vb = true
     matchStructure.vstrainclasses = Dict{Vector{Int64},Vector{Int64}}()
     matchStructure.vsinglematches = Dict{Vector{Int64},Vector{Int64}}()
     matchStructure.vphenoBiomass = Dict{Vector{Int64},Int64}()
@@ -234,9 +231,8 @@ function identifyCurrentMatches!(matchStructure::tripartite)
     dbTempSim = matchStructure.dbSim
     dbTempMatch = matchStructure.dbMatch
     phenotype = matchStructure.phenotype
+    strain_id = matchStructure.strainID
     if vb
-        strain_id = matchStructure.vstrainID
-
         matchStructure.sbstrains[phenotype] = [Int64(strainID)
             for (strainID,) in execute(dbTempMatch, "SELECT bstrain_id
                 FROM bstrain_to_vstrain_0matches
@@ -282,7 +278,6 @@ function identifyCurrentMatches!(matchStructure::tripartite)
                     ($(join(matchStructure.ibstrains[phenotype],", ")))")])
         end
     else
-        strain_id = matchStructure.bstrainID
         timeIDs = [matchID
             for (matchID,) in execute(dbTempMatch, "SELECT time_specific_match_id
                 FROM bstrain_to_vstrain_matches
@@ -465,7 +460,7 @@ function logTripartiteDB(matchStructure::tripartite)
                                     "single_match_tripartite_networks",ifnotexists=true)
 end
 
-function tripartiteNetwork(matchStructure::tripartite)
+function tripartiteNetwork!(matchStructure::tripartite)
     for (t,) in execute(dbTempSim,"SELECT DISTINCT t FROM vabundance")
         if t == 0
              continue
@@ -497,7 +492,7 @@ function createindices()
                             "bmatches","vmatches","bmatches_abundance","vmatches_abundance"])
             execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, match_id)")
         end
-        if in(table_name,["vmatches_susceptible_babundance","vmatches_susceptible_bstrains"])
+        if in(table_name,["vmatches_susceptible_bstrains","vmatches_immune_bstrains"])
             execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, vmatch_id)")
         end
     end
@@ -505,6 +500,6 @@ function createindices()
 end
 
 matchStructure = tripartite(dbTempMatch,dbTempSim,dbOutput,Float64(0))
-tripartiteNetwork(matchStructure)
+tripartiteNetwork!(matchStructure)
 createindices()
 println("Complete!")
