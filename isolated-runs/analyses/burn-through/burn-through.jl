@@ -5,6 +5,7 @@ println("(Julia compilation delay...)")
 using SQLite
 using DataFrames
 using SQLite.DBInterface: execute
+using Statistics
 
 run_id = ARGS[1]
 
@@ -15,10 +16,11 @@ dbSimPath = joinpath(SCRIPT_PATH,"..","..","..","simulation","sweep_db_gathered.
 dbOutputPath = joinpath("burn-through_output.sqlite") # cluster
 
 # dbSimPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/runID3297-c66-r47.sqlite") # local
-# dbMatchPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/matches_output.sqlite") # local
 # dbMatchDivPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/match-diversity_output.sqlite") # local
+# dbMatchPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/matches_output.sqlite") # local
 # dbProbPath = joinpath("/Volumes/Yadgah/crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/probability-of-emergence_output.sqlite") # local
-# dbOutputPath = joinpath("/Volumes/Yadgah/crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/burn-through_output.sqlite") #
+# dbTriPath = joinpath("/Volumes/Yadgah/crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/tripartite-networks_output.sqlite") # local
+# dbOutputPath = joinpath("/Volumes/Yadgah/crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/burn-through_output.sqlite") # local
 
 if isfile(dbOutputPath)
     error("burn-through_output.sqlite already exists; delete first")
@@ -49,17 +51,17 @@ end
 dbTempMatch = SQLite.DB(dbMatchPath)
 dbTempMatchDiv = SQLite.DB(dbMatchDivPath)
 dbTempProb = SQLite.DB(dbProbPath)
+dbTempTri = SQLite.DB(dbTriPath)
 dbOutput = SQLite.DB(dbOutputPath)
 
 execute(dbOutput, "CREATE TABLE burn_through_probability (t REAL, p REAL)")
 
 dbTempSim = SQLite.DB()
-execute(dbTempSim, "CREATE TABLE babundance (t REAL, bstrain_id, abundance INTEGER)")
-execute(dbTempSim, "CREATE TABLE vabundance (t REAL, vstrain_id, abundance INTEGER)")
+execute(dbTempSim, "CREATE TABLE summary (t REAL, viral_abundance INTEGER, microbial_abundance INTEGER)")
 
 execute(dbTempSim, "BEGIN TRANSACTION")
 execute(dbTempSim,"ATTACH DATABASE '$(dbSimPath)' as dbSim")
-execute(dbTempSim,"INSERT INTO babundance (t, bstrain_id, abundance)
+execute(dbTempSim,"INSERT INTO summary (t, bstrain_id, abundance)
     SELECT t, bstrain_id, abundance FROM dbSim.babundance WHERE run_id = $(run_id);")
 execute(dbTempSim,"INSERT INTO vabundance (t, vstrain_id, abundance)
     SELECT t, vstrain_id, abundance FROM dbSim.vabundance WHERE run_id = $(run_id);")
@@ -72,100 +74,126 @@ execute(dbTempSim, "CREATE INDEX vabundance_index ON vabundance (t,vstrain_id,ab
 execute(dbTempSim, "COMMIT")
 
 
-function pEmergeSpacers()
-    for (t,) in execute(dbTempProb,"SELECT DISTINCT t FROM match_phenotypes")
+# function pEmergeSpacers()
+    vtriAbundance = Vector{Int64}()
+    btriAbundance = Vector{Int64}()
+    sBtriFrequency = Vector{Float64}()
+    sbAbundance = Vector{Int64}()
+    pburn = Vector{Float64}()
+    times = Vector{Float64}()
+    for (t,) in execute(dbTempTri,"SELECT DISTINCT t FROM single_match_tripartite_networks")
         println("Computing burn-through probability at t = $(t)")
-        for (matchID,) in execute(dbTempMatch, "SELECT DISTINCT vmatch_id
-            FROM singe_match_tripartite_networks
-            WHERE t = $(t) ORDER BY vmatch_id")
-            spacers = [spacerID for (spacerID,) in execute(dbTempMatch,
-                "SELECT DISTINCT spacer_id
-                FROM singe_match_tripartite_networks
-                WHERE t = $(t) AND vmatch_id = $(matchID)")]
+        push!(times,t)
+        (V,) = execute(dbTempSim,"SELECT viral_abundance
+                        FROM summary WHERE t = $(t)")
+        V = V.viral_abundance
+        (B,) = execute(dbTempSim,"SELECT microbial_abundance
+                        FROM summary WHERE t = $(t)")
+        B = B.microbial_abundance
+        vmatchIDs = [vmatchID for (vmatchID,) in
+            execute(dbTempTri, "SELECT DISTINCT vmatch_id
+            FROM single_match_tripartite_networks
+            WHERE t = $(t) ORDER BY vmatch_id")]
+        bmatchIDs = [match_id for (match_id,) in
+            execute(dbTempTri, "SELECT DISTINCT bmatch_id
+            FROM single_match_tripartite_networks
+            WHERE t = $(t)")]
 
-            (p,) = execute(dbTempProb,"SELECT p
-            FROM pExtinction
-            WHERE t = $(t) AND match_id = $(matchClassID)")
+        Vtri = sum([abund for (abund,) in
+            execute(dbTempTri, "SELECT vabundance
+                FROM vmatches_abundances
+                WHERE t = $(t)
+                AND match_id in ($(join(vmatchIDs,", ")))")])
+        push!(vtriAbundance,Vtri)
+        sBtri = mean(1/Float64(B)*[Float64(abund) for (abund,) in
+            execute(dbTempTri, "SELECT bsusceptible
+                FROM vmatches_abundances
+                WHERE t = $(t)
+                AND match_id in ($(join(vmatchIDs,", ")))")])
+        push!(sBtriFrequency,sBtri)
+        Btri = sum([abund for (abund,) in
+            execute(dbTempTri, "SELECT babundance
+                FROM bmatches_abundances
+                WHERE t = $(t)
+                AND match_id in ($(join(bmatchIDs,", ")))")])
+        push!(btriAbundance,Btri)
+
+
+        v0strains = [strainID for (strainID,)
+                        in execute(dbTempMatch,"SELECT DISTINCT vstrain_id
+                        FROM bstrain_to_vstrain_matches
+                        WHERE t = $(t) AND match_length = 1")]
+        b0strains = [strainID for (strainID,) in
+                        execute(dbTempMatch, "SELECT DISTINCT bstrain_id
+                            FROM bstrain_to_vstrain_0matches
+                            WHERE t = $(t)
+                            AND vstrain_id in ($(join(v0strains,", ")))")]
+        sbAbund = sum([strainID for (strainID,) in
+                        execute(dbTempSim, "SELECT abundance
+                            FROM babundance
+                            WHERE t = $(t)
+                            AND bstrain_id in ($(join(b0strains,", ")))")])
+        push!(sbAbundance,sbAbund)
+
+        pvburn = 0
+        for vmatchID in vmatchIDs
+            numSpacers = length([spacer_id for (spacer_id,) in
+                execute(dbTempTri, "SELECT DISTINCT spacer_id
+                FROM single_match_tripartite_networks
+                WHERE t = $(t) AND vmatch_id = $(vmatchID)
+                ORDER BY spacer_id")])
+
+            bmatchIDs = [match_id for (match_id,) in
+                execute(dbTempTri, "SELECT DISTINCT bmatch_id
+                FROM single_match_tripartite_networks
+                WHERE t = $(t) AND vmatch_id = $(vmatchID)")]
+
+            (subV,) = execute(dbTempTri,"SELECT vabundance
+                        FROM vmatches_abundances
+                        WHERE t = $(t) AND match_id = $(vmatchID)")
+            subV = subV.vabundance
+
+            subB = sum([abund for (abund,) in
+                execute(dbTempTri, "SELECT babundance
+                    FROM bmatches_abundances
+                    WHERE t = $(t)
+                    AND match_id in ($(join(bmatchIDs,", ")))")])
+
+            (pext,) = execute(dbTempProb,"SELECT p_extinction
+                                    FROM vmatch_extinction
+                                    WHERE t = $(t) AND vmatch_id = $(vmatchID)")
+            pext = pext.p_extinction
+            pemerge = 1 - pext
+            pvburn += subV/V*subB/B*1/numSpacers*pemerge
         end
-        bstrains = [bstrain_id for (bstrain_id,) in
-            execute(dbTempMatch, "SELECT bstrain_id FROM bstrain_to_vstrain_matches
-            WHERE t = $(t) AND match_length = 1 AND vstrain_id in ($(join(vstrains0,", ")))
-            ORDER BY time_specific_match_id")]
-        expFreq = 0
+        push!(pburn,pvburn)
 
-        for bstrainID in bstrains
-            match_ids = [match_id for (match_id,) in
-                execute(dbTempMatch, "SELECT time_specific_match_id FROM bstrain_to_vstrain_matches
-                WHERE t = $(t) AND match_length = 1 AND bstrain_id = $(bstrainID)
-                ORDER BY time_specific_match_id")]
-            spacer_ids = [spacer_ids for (spacer_ids,) in
-                execute(dbTempMatch, "SELECT DISTINCT spacer_id FROM matches_spacers
-                WHERE t = $(t) AND time_specific_match_id in ($(join(match_ids,", ")))
-                ORDER BY time_specific_match_id")]
-            matchClassIDs = [matchID for (matchID,) in execute(dbTempProb,"SELECT DISTINCT
-                    time_specific_match_id FROM match_phenotypes
-                    WHERE t = $(t) AND phenotype in ($(join(spacer_ids,", ")))
-                    ORDER BY time_specific_match_id")]
-            pBstrain = 0
-            for matchClassID in matchClassIDs # this is missing those who are not matched? kind of..
-                pheno = [matchID for (matchID,) in execute(dbTempProb,"SELECT
-                        phenotype FROM match_phenotypes
-                        WHERE t = $(t) AND time_specific_match_id = $(matchClassID)
-                        ORDER BY phenotype")]
-                (f,) = execute(dbTempProb,"SELECT frequency
-                FROM match_phenotype_abundances
-                WHERE t = $(t) AND time_specific_match_id = $(matchClassID)")
-                (p,) = execute(dbTempProb,"SELECT p
-                FROM pExtinction
-                WHERE t = $(t) AND match_id = $(matchClassID)")
-                pBstrain += f.frequency*(1-p.p)*1/length(pheno) # viral match frequency needs to be normalized!!!!!
-            end
-            bAbund = sum([abund for (abund,) in
-                    execute(dbTempSim,"SELECT abundance
-                    FROM babundance
-                    WHERE t = $(t) AND bstrain_id = $(bstrainID)")])
-            # this is missing those who are already susceptible, but is included in p_ext...
-            bTotal = sum([abund for (abund,) in
-                    execute(dbTempSim,"SELECT abundance
-                    FROM babundance WHERE t = $(t)")])
-
-            expFreq += bAbund/bTotal*pBstrain
-        end
-        execute(dbOutput, "INSERT INTO burn_through_probability
-            VALUES (?,?)",(t,expFreq))
+        # DataFrame(  t = times,
+        #             vabundance = vtriAbundance,
+        #             babundance = btriAbundance,
+        #             ) |> SQLite.load!(dbOutput, "tripartite_abundances",ifnotexists=true)
+        # DataFrame(  t = times,
+        #             p_burn = pburn,
+        #             ) |> SQLite.load!(dbOutput, "burn_through",ifnotexists=true)
     end
-end
+# end
 
 
 pEmergeSpacers()
 
 println("Complete!")
 
-# pSpacer = 0
-# for (match_id,) in execute(dbTempProb,"SELECT DISTINCT
-#         time_specific_match_id FROM match_phenotypes
-#         WHERE phenotype = $(spacerID)
-#         ORDER BY time_specific_match_id")
-#     phenotype = [spacer for (spacer,) in
-#     execute(dbTempProb,"SELECT phenotype FROM match_phenotypes
-#     WHERE t = $(t) AND time_specific_match_id = $(match_id)")]
-#     if !issubset(phenotype,spacers)
-#         continue
-#     end
-#     (f,) = execute(dbTempProb,"SELECT frequency
-#     FROM match_phenotype_abundances
-#     WHERE t = $(t) AND time_specific_match_id = $(match_id)")
-#     (p,) = execute(dbTempProb,"SELECT p
-#     FROM pExtinction
-#     WHERE t = $(t) AND time_specific_match_id = $(match_id)")
-#     pSpacer += f.frequency*(1-p.p)
-# end
-# bStrainTotal = sum([abund for (abund,) in
-#             execute(dbTempSim,"SELECT abundance
-#             FROM babundance WHERE t = $(t)
-#             AND bstrain_id in ($(join(bstrains,", ")))")])
-# bTotal = sum([abund for (abund,) in
-#             execute(dbTempSim,"SELECT abundance
-#             FROM babundance WHERE t = $(t)")])
-# execute(dbTempProb, "INSERT INTO pEmergeSpacers VALUES (?,?,?,?)",
-#     (t,spacerID,pSpacer,bStrainTotal/bTotal))
+pburn
+
+p = [p for (p,) in execute(dbTempProb,"SELECT p_emerge_expected FROM vmatch_expectation")]
+times = [t for (t,) in execute(dbTempProb,"SELECT t FROM vmatch_expectation")]
+
+plot(times,sbAbundance)
+
+
+plot(times,vtriAbundance)
+
+
+
+
+savefig("/Volumes/Yadgah/sbabund.pdf")

@@ -25,16 +25,23 @@ if length(ARGS[2:end]) == 0
 end
 
 if analysisType == "tripartite-networks"
-    if in(ARGS[2],["plots","plot","data"])
-        error("`data` and `plots` are not valid options for $(analysisType) analysis")
+    if !in(ARGS[2],["plots","plot","data"])
+        error("`please indicate the second argument as `data` or `plots`")
     end
-    # if length(ARGS[2:end]) == 0
-    #     error("at least one time point is need for networks to be generated")
-    # end
     println("Please enter the run ids to be analyzed; press Ctrl-D when done.")
     ids_entered = readlines()
     run_ids = map(x->parse(Int64,x), ids_entered)
-    ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,"analyses","networks","$(analysisType).py")
+    if ARGS[2] == "plots" || ARGS[2] == "plot"
+        if analysisType == "matches"
+            error("plots for `matches.jl` does not exist")
+        end
+        ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,"analyses","networks","make-$(analysisType)-plots.py")
+        # println(ROOT_RUN_SCRIPT)
+    elseif ARGS[2] == "data"
+        ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,"analyses","networks","$(analysisType).jl")
+    else
+        error("invalid input")
+    end
 elseif analysisType == "walls-shannon"
     if !in(ARGS[2],["plots","plot","data"])
         error("`please indicate the second argument as `data` or `plots`")
@@ -86,8 +93,8 @@ cd(SCRIPT_PATH)
 
 # Number of SLURM jobs to generate
 const N_JOBS_MAX = 1
-const N_CORES_PER_JOB_MAX = 2 # Half a node (14) is easier to get scheduled than a whole one
-const mem_per_cpu = 26000 # in MB 100MB = 1 GB
+const N_CORES_PER_JOB_MAX = 1 # Half a node (14) is easier to get scheduled than a whole one
+const mem_per_cpu = 8000 # in MB 1000MB = 1 GB
 
 function main()
     # Root run directory

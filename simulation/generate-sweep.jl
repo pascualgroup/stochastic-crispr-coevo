@@ -33,7 +33,7 @@ To modify configuration settings for SLURM jobs, edit the template string in
 the `generate_jobs()` function.
 """
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 include("src/setup.jl")
 include("src/structures.jl")

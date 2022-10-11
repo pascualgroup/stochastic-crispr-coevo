@@ -1,4 +1,4 @@
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 include("simulation/src/setup.jl")
 include("simulation/src/structures.jl")
