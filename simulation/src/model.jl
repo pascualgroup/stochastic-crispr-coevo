@@ -565,7 +565,7 @@ function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
     if p.enable_output
         ############ write_strain(s.vstrains.strain_file, sim.t, id, s.vstrains.ids[virus_id], contact_b_id)
         ############ write_spacers(s.vstrains.spacers_file, id, new_pspacers)
-        write_strain(sim, "vstrains", id, s.vstrains.ids[virus_id], contact_b_id)
+        write_strain(sim, "vstrains", id, s.vstrains.ids[virus_id], s.bstrains.ids[contact_b_id])
         write_spacers(sim, "vpspacers", id, new_pspacers)
     end
 end
