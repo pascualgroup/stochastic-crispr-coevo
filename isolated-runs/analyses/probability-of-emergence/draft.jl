@@ -25,23 +25,25 @@ if isfile(dbOutputPath)
     error("probability-of-emergence_output.sqlite already exists; delete first")
 end
 ##
-dbTempSim = SQLite.DB(dbSimPath)
-(cr,) = execute(dbTempSim,"SELECT combo_id,replicate FROM runs WHERE run_id = $(run_id)")
+dbSim = SQLite.DB(dbSimPath)
+(cr,) = execute(dbSim,"SELECT combo_id,replicate FROM runs WHERE run_id = $(run_id)")
 dbMatchPath = joinpath(SCRIPT_PATH,"..","..","isolates",
     "runID$(run_id)-c$(cr.combo_id)-r$(cr.replicate)","matches_output.sqlite")
 if !isfile(dbMatchPath)
     error("matches_output.sqlite does not exist; compute first")
 end
-dbTriPath = joinpath(SCRIPT_PATH,"..","..","isolates",
-    "runID$(run_id)-c$(cr.combo_id)-r$(cr.replicate)","tripartite-networks_output.sqlite")
-if !isfile(dbMatchPath)
-    error("tripartite-networks.sqlite does not exist; compute first")
-end
 dbTempMatch = SQLite.DB(dbMatchPath)
 dbTempTri = SQLite.DB(dbTriPath)
 dbOutput = SQLite.DB(dbOutputPath)
 
+execute(dbOutput, "CREATE TABLE pExtinction (t REAL, match_id INTEGER, p REAL)")
+execute(dbOutput, "CREATE TABLE pEmergenceSum (t REAL, p REAL)")
+execute(dbOutput, "CREATE TABLE pExtWeighted
+    (t REAL, vmatch_id INTEGER, p REAL)")
+execute(dbOutput, "CREATE TABLE R0 (t REAL, R REAL)")
+
 dbTempSim = SQLite.DB()
+# dbTempSim = SQLite.DB(dbSimPath)
 execute(dbTempSim, "CREATE TABLE babundance (t REAL, bstrain_id, abundance INTEGER)")
 execute(dbTempSim, "CREATE TABLE vabundance (t REAL, vstrain_id, abundance INTEGER)")
 execute(dbTempSim, "CREATE TABLE bspacers (bstrain_id INTEGER, spacer_id INTEGER)")
@@ -142,9 +144,7 @@ mutable struct tstructure
 end
 
 mutable struct invasion
-    dbSim::DB
     time::Float64
-    sigdig::Int64
     birth::Dict{Int64,Float64}
     death::Dict{Int64,Float64}
     mut::Dict{Int64,Float64}
@@ -152,9 +152,8 @@ mutable struct invasion
     proots::Dict{Int64,Vector{Float64}}
     function invasion(current::tstructure)
         new(
-            current.dbSim,
             current.time,
-            Int64(7),
+            Int64(0),
             Dict{Int64,Float64}(),
             Dict{Int64,Float64}(),
             Dict{Int64,Float64}(),
@@ -235,9 +234,9 @@ function potentialStructure!(matchStructure::hierarchy)
     matchStructure.matchID = maximum(values(matchIDs)) + 1
     phenotypes = keys(matchIDs)
     lineages = Dict{Int64,Vector{Vector{Int64}}}()
-    # println("Generating all possible match phenotypes from...")
+    println("Generating all possible match phenotypes from...")
     for phenotype in phenotypes
-        # println("existing phenotype $(phenotype)")
+        println("existing phenotype $(phenotype)")
         matchID = matchIDs[phenotype]
         mlength = length(phenotype)
         for k in collect(1:mlength-1)
@@ -251,7 +250,7 @@ function potentialStructure!(matchStructure::hierarchy)
         end
     end
     for phenotype in keys(matchIDs)
-        # println("Compiling single escapes for $(phenotype)...")
+        println("Compiling single escapes for $(phenotype)...")
         if in(length(phenotype),keys(matchStructure.matchtypes))
             push!(matchStructure.matchtypes[length(phenotype)],matchIDs[phenotype])
         else
@@ -280,7 +279,7 @@ function findEscapeLineages!(matchStructure::hierarchy,matchIDs::Dict{Vector{Int
     numPhenos = length(keys(matchStructure.matches))
     for matchID in keys(matchStructure.matches)
         phenotype = matchStructure.matches[matchID]
-        # println("Compiling complete lineage for $(phenotype)...")
+        println("Compiling complete lineage for $(phenotype)...")
         matchStructure.lineages[matchID] = Vector{Int64}()
         mlength = length(phenotype)
         for k in collect(1:mlength-1)
@@ -290,7 +289,7 @@ function findEscapeLineages!(matchStructure::hierarchy,matchIDs::Dict{Vector{Int
             end
         end
         numPhenos -= 1
-        # println("$(numPhenos) phenotypes left to search")
+        println("$(numPhenos) phenotypes left to search")
     end
 end
 
@@ -328,7 +327,7 @@ function microbeBiomass!(matchStructure::hierarchy,current::tstructure)
     end
     numEscapes = length(current.escapes)
     for matchID in current.escapes
-        # println("Computing abundances susceptible and immune to phenotype $(matchID)")
+        println("Computing abundances susceptible and immune to phenotype $(matchID)")
         if matchID == 0
             B = sum([Int64(abund) for (abund,)
                         in execute(dbTempSim, "SELECT abundance
@@ -336,7 +335,7 @@ function microbeBiomass!(matchStructure::hierarchy,current::tstructure)
             current.sBiomass[0] = B
             current.iBiomass[0] = 0
             numEscapes -= 1
-            # println("$(numEscapes) phenotypes left")
+            println("$(numEscapes) phenotypes left")
             continue
         end
         immuneStrains = Vector{Int64}()
@@ -363,9 +362,10 @@ function microbeBiomass!(matchStructure::hierarchy,current::tstructure)
             current.sBiomass[matchID] = 0
         end
         numEscapes -= 1
-        # println("$(numEscapes) phenotypes left")
+        println("$(numEscapes) phenotypes left")
     end
 end
+
 
 function computeR0!(extinction::invasion,parameters::params)
     time = extinction.time
@@ -373,9 +373,8 @@ function computeR0!(extinction::invasion,parameters::params)
     q = parameters.spacer_acquisition_prob
     beta = parameters.viral_burst_size
     d = parameters.viral_decay_rate
-    sigdig = extinction.sigdig
     N = sum([abund for (abund,) in
-            execute(extinction.dbSim, "SELECT abundance
+            execute(matchStructure.dbSim, "SELECT abundance
                 FROM babundance WHERE t = $(time)")])
     extinction.birth[0] = beta*phi*(1-q)*N
     extinction.mut[0] = 0
@@ -384,11 +383,11 @@ function computeR0!(extinction::invasion,parameters::params)
     m = extinction.death[0]
     if a > 0
         extinction.proots[0] =
-            map(x->round(x,digits=sigdig),[1,m/a])
+            Vector{Float64}([1,m/a])
     else
         extinction.proots[0] = Vector{Float64}([1])
     end
-    # println("proots of 0match is $(extinction.proots[0])")
+    println("proots of 0match is $(extinction.proots[0])")
     extinction.probability[0] =
         minimum(extinction.proots[0])
     # R0 = (phi*q*N+d)/(beta*phi*(1-q)*N)
@@ -396,21 +395,21 @@ function computeR0!(extinction::invasion,parameters::params)
     # return Float64(extinction.R0)
 end
 
+
 function computeProbabilities(matchStructure::hierarchy,
                                 current::tstructure,parameters::params)
-    dbTempTri = matchStructure.dbTri
     time = current.time
     phi = parameters.adsorption_rate
     q = parameters.spacer_acquisition_prob
     beta = parameters.viral_burst_size
     d = parameters.viral_decay_rate
     mu = parameters.viral_mutation_rate
+    sigdig = 7
     N = sum([abund for (abund,) in
             execute(matchStructure.dbSim, "SELECT abundance
                 FROM babundance WHERE t = $(time)")])
 
     extinction = invasion(current)
-    sigdig = extinction.sigdig
     computeR0!(extinction,parameters)
 
     if current.matches == [0]
@@ -426,7 +425,7 @@ function computeProbabilities(matchStructure::hierarchy,
     for matchtype in collect(1:maxLength)
         # println("matchtype is $(matchtype)")
         l = matchtype
-        # println("Computing extinction probability for match lengths of $(matchtype)...")
+        println("Computing extinction probability for match lengths of $(matchtype)...")
         matchIDs = intersect(matchStructure.matchtypes[matchtype],current.escapes)
         for matchID in matchIDs
             # println("phenotype is $(phenotype)")
@@ -453,21 +452,21 @@ function computeProbabilities(matchStructure::hierarchy,
                     if -4*a*c+(a+b+c-b*Qsum)^2 < 0.0
                         extinction.proots[matchID] =
                         map(x->round(x,digits=sigdig), [(a+b+c-b*Qsum)/(2*a)])
-                    # println("proots of match $(matchID)
-                    #     is $(extinction.proots[matchID])")
+                    println("proots of match $(matchID)
+                        is $(extinction.proots[matchID])")
                     else
                         extinction.proots[matchID] =
                             map(x->round(x,digits=sigdig),
                                 [(a+b+c-b*Qsum-sqrt(-4*a*c+(a+b+c-b*Qsum)^2))/(2*a),
                                 (a+b+c-b*Qsum+sqrt(-4*a*c+(a+b+c-b*Qsum)^2))/(2*a)])
-                        # println("proots of match $(matchID)
-                        #     is $(extinction.proots[matchID])")
+                        println("proots of match $(matchID)
+                            is $(extinction.proots[matchID])")
                     end
                 else
                     extinction.proots[matchID] =
                         map(x->round(x,digits=sigdig),[c/(b+c-b*Qsum)])
-                    # println("proots of match $(matchID)
-                    #     is $(extinction.proots[matchID])")
+                    println("proots of match $(matchID)
+                        is $(extinction.proots[matchID])")
                 end
 
                 extinction.probability[matchID] =
@@ -498,21 +497,21 @@ function computeProbabilities(matchStructure::hierarchy,
                     if -4*a*c+(a+b+c-b*Qsum)^2 < 0.0
                         extinction.proots[matchID] =
                         map(x->round(x,digits=sigdig), [(a+b+c-b*Qsum)/(2*a)])
-                    # println("proots of match $(matchID)
-                    #     is $(extinction.proots[matchID])")
+                    println("proots of match $(matchID)
+                        is $(extinction.proots[matchID])")
                     else
                         extinction.proots[matchID] =
                             map(x->round(x,digits=sigdig),
                                 [(a+b+c-b*Qsum-sqrt(-4*a*c+(a+b+c-b*Qsum)^2))/(2*a),
                                 (a+b+c-b*Qsum+sqrt(-4*a*c+(a+b+c-b*Qsum)^2))/(2*a)])
-                        # println("proots of match $(matchID)
-                        #     is $(extinction.proots[matchID])")
+                        println("proots of match $(matchID)
+                            is $(extinction.proots[matchID])")
                     end
                 else
                     extinction.proots[matchID] =
                         map(x->round(x,digits=sigdig),[c/(b+c-b*Qsum)])
-                    # println("proots of match $(matchID)
-                    #     is $(extinction.proots[matchID])")
+                    println("proots of match $(matchID)
+                        is $(extinction.proots[matchID])")
                 end
 
                 if minimum(extinction.proots[matchID]) > 1
@@ -527,12 +526,12 @@ function computeProbabilities(matchStructure::hierarchy,
     return extinction
 end
 
+
 function assemble(current::tstructure,extinction::invasion)
     time = current.time
     dbTempSim = current.dbSim
     dbTempTri = current.dbTri
     dbOutput = current.dbOutput
-    sigdig = extinction.sigdig
 
     pextinction = map(x->extinction.probability[x],current.matches)
 
@@ -554,18 +553,17 @@ function assemble(current::tstructure,extinction::invasion)
             FROM vabundance
             WHERE t = $(time)")])
 
-    f = 1/V
-
     DataFrame(  t = repeat([Float64(time)],length(current.matches)),
                 vmatch_id = current.matches, p_extinction = pextinction,
-                p_ext_weighted = matchAbunds.*pextinction*f,
-                p_emerge_weighted = matchAbunds.*(ones(length(pextinction))-pextinction)*f,
-                vfrequency = matchAbunds*f,
+                p_ext_weighted = matchAbunds.*pextinction*1/V,
+                p_emerge_weighted = matchAbunds.*(ones(length(pextinction))-pextinction)*1/V,
+                vfrequency = matchAbunds*1/V,
                 vabundance = matchAbunds
                 ) |> SQLite.load!(dbOutput, "vmatch_extinction",ifnotexists=true)
 
-    return sum(matchAbunds.*pextinction*f)
+    return sum(matchAbunds.*pextinction*1/V)
 end
+
 
 function emergence(matchStructure::hierarchy,
                     current::tstructure,parameters::params)
@@ -573,6 +571,7 @@ function emergence(matchStructure::hierarchy,
     expectation = assemble(current,extinction)
     return expectation
 end
+
 
 function escape()
     matchStructure = hierarchy(dbTempTri,dbTempMatch,dbTempSim,dbOutput)
@@ -582,9 +581,9 @@ function escape()
     pExpectation = Vector{Float64}()
     times = Vector{Float64}()
     for (t,) in execute(dbTempSim,"SELECT DISTINCT t FROM vabundance")
-        # if t == 60
-        #     return
-        # end
+        if t == 166
+            return
+        end
         push!(times,t)
         println("Computing structure and probabilities at time = $(t)")
         current = tstructure(matchStructure,Float64(t))
@@ -596,17 +595,6 @@ function escape()
                 ) |> SQLite.load!(dbOutput, "vmatch_expectation",ifnotexists=true)
 end
 
-function modifyTripartiteData()
-    dbTempTri = SQLite.DB(dbTriPath)
-    if !issubset(["v0matches","v0matches_abundances","vmatch_lengths"],[table_name for (table_name,) in execute(
-        dbTempTri, "SELECT name FROM sqlite_schema
-        WHERE type='table' ORDER BY name;")])
-
-        find0matches(dbMatchPath,dbTriPath)
-        matchLengths(dbTriPath)
-    end
-end
-
 function createindices()
     println("(Creating run_id indices...)")
     db = SQLite.DB(dbOutputPath)
@@ -614,10 +602,17 @@ function createindices()
     for (table_name,) in execute(
         db, "SELECT name FROM sqlite_schema
         WHERE type='table' ORDER BY name;")
-        if in(table_name,["vmatch_expectation"])
+        if in(table_name,["bmatch_phenotypes","vmatch_phenotypes"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (match_id)")
+        end
+        if in(table_name,["single_match_tripartite_networks"])
             execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t)")
         end
-        if in(table_name,["vmatch_extinction"])
+        if in(table_name,["bmatch_phenotypes_singles","vmatch_phenotypes_singles",
+                            "bmatches","vmatches","bmatches_abundance","vmatches_abundance"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, match_id)")
+        end
+        if in(table_name,["vmatches_susceptible_babundance","vmatches_susceptible_bstrains"])
             execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, vmatch_id)")
         end
     end
@@ -625,7 +620,9 @@ function createindices()
 end
 
 
-modifyTripartiteData()
+find0matches(dbMatchPath,dbTriPath)
+matchLengths(dbTriPath)
+
 escape()
 createindices()
 println("Complete!")

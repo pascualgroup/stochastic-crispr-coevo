@@ -15,14 +15,14 @@ run_id = ARGS[1]
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 #
 dbSimPath = joinpath(SCRIPT_PATH,"..","..","..","simulation","sweep_db_gathered.sqlite") # cluster
-dbOutputPath = joinpath("probability-of-emergence_output.sqlite") # cluster
+dbOutputPath = joinpath("prob-of-emergence-integration_output.sqlite") # cluster
 
 # dbSimPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/runID3297-c66-r47.sqlite") # local
 # dbMatchPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/matches_output.sqlite") # local
 # dbTriPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/tripartite-networks_output.sqlite") # local
 # dbOutputPath = joinpath("/Volumes/Yadgah/crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/probability-of-emergence_output.sqlite") # local
 if isfile(dbOutputPath)
-    error("probability-of-emergence_output.sqlite already exists; delete first")
+    error("prob-of-emergence-integration.sqlite already exists; delete first")
 end
 ##
 dbTempSim = SQLite.DB(dbSimPath)
@@ -236,6 +236,8 @@ function potentialStructure!(matchStructure::hierarchy)
     phenotypes = keys(matchIDs)
     lineages = Dict{Int64,Vector{Vector{Int64}}}()
     # println("Generating all possible match phenotypes from...")
+    # This loop gives all escape phenotypes (subphenotypes) of each existing
+    # phenotype in the dynamics a match ID
     for phenotype in phenotypes
         # println("existing phenotype $(phenotype)")
         matchID = matchIDs[phenotype]
@@ -250,6 +252,9 @@ function potentialStructure!(matchStructure::hierarchy)
             end
         end
     end
+    # This loop saves the lengths of all match types as a Dictionary (matchLength:[matchIDs]
+    # also saves escape match IDs as a Dictionary (matchID0:[matchIDEscape]).
+    # # Note that this does not save the actual phenotype
     for phenotype in keys(matchIDs)
         # println("Compiling single escapes for $(phenotype)...")
         if in(length(phenotype),keys(matchStructure.matchtypes))
@@ -272,7 +277,8 @@ function potentialStructure!(matchStructure::hierarchy)
     end
     return matchIDs
 end
-
+# This functipn saves all possible subphenotypes (not just escapes) as a Dictionary (matchID0:[matchIDsubphenotypes])
+# this is what I call a "match lineage"
 function findEscapeLineages!(matchStructure::hierarchy,matchIDs::Dict{Vector{Int64},Int64})
     dbTempSim = matchStructure.dbSim
     dbTempMatch = matchStructure.dbMatch
@@ -535,6 +541,14 @@ function assemble(current::tstructure,extinction::invasion)
     sigdig = extinction.sigdig
 
     pextinction = map(x->extinction.probability[x],current.matches)
+    birth = map(x->extinction.birth[x],current.matches)
+    death = map(x->extinction.death[x],current.matches)
+    mut = map(x->extinction.mut[x],current.matches)
+
+    pextinctionEsc = map(x->extinction.probability[x],current.escapes)
+    birthEsc = map(x->extinction.birth[x],current.escapes)
+    deathEsc = map(x->extinction.death[x],current.escapes)
+    mutEsc = map(x->extinction.mut[x],current.escape)
 
     matchAbunds =  [Int64(abund) for (abund,)
         in execute(dbTempTri, "SELECT vabundance
@@ -558,11 +572,17 @@ function assemble(current::tstructure,extinction::invasion)
 
     DataFrame(  t = repeat([Float64(time)],length(current.matches)),
                 vmatch_id = current.matches, p_extinction = pextinction,
+                birth = birth, death = death, mutation = mut,
                 p_ext_weighted = matchAbunds.*pextinction*f,
                 p_emerge_weighted = matchAbunds.*(ones(length(pextinction))-pextinction)*f,
                 vfrequency = matchAbunds*f,
                 vabundance = matchAbunds
-                ) |> SQLite.load!(dbOutput, "vmatch_extinction",ifnotexists=true)
+                ) |> SQLite.load!(dbOutput, "existing_vmatch_extinction",ifnotexists=true)
+
+    DataFrame(  t = repeat([Float64(time)],length(current.escapes)),
+                vmatch_id = current.escapes, p_extinction = pextinctionEsc,
+                birth = birthEsc, death = deathEsc, mutation = mutEsc
+                ) |> SQLite.load!(dbOutput, "potential_vmatch_extinction",ifnotexists=true)
 
     return sum(matchAbunds.*pextinction*f)
 end
@@ -573,9 +593,11 @@ function emergence(matchStructure::hierarchy,
     expectation = assemble(current,extinction)
     return expectation
 end
-
+# This function runs the whole analysis
 function escape()
+    # This initializes the hierarchy of matchtypes that can emerge from escape
     matchStructure = hierarchy(dbTempTri,dbTempMatch,dbTempSim,dbOutput)
+    # This calls and save the birth/death/mutation parameter rates of the models
     parameters = params(matchStructure.dbSim)
     matchIDs = potentialStructure!(matchStructure)
     findEscapeLineages!(matchStructure,matchIDs)
@@ -595,7 +617,9 @@ function escape()
                 p_emerge_expected = ones(length(times))-pExpectation,
                 ) |> SQLite.load!(dbOutput, "vmatch_expectation",ifnotexists=true)
 end
-
+# This checkes for table names that indicate infection network exists in triparite database
+# if not it modifies tripartite database to include infection network with associated abundances
+# also modifies to include length of matches for each virus matchtype
 function modifyTripartiteData()
     dbTempTri = SQLite.DB(dbTriPath)
     if !issubset(["v0matches","v0matches_abundances","vmatch_lengths"],[table_name for (table_name,) in execute(
