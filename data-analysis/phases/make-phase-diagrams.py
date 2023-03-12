@@ -109,8 +109,9 @@ minX = min(comboSpace[xaxis])
 maxX = max(comboSpace[xaxis])
 minY = min(comboSpace[yaxis])
 maxY = max(comboSpace[yaxis])
-grid_x, grid_y = np.mgrid[minX:maxX:500j, minY:maxY:500j]
+grid_x, grid_y = np.mgrid[minX:maxX:250j, minY:maxY:250j]
 
+# interpMethod ='nearest'
 grid_wallOccurrences = griddata((comboSpace[xaxis].values,comboSpace[yaxis].values),
 wallOccurrences.wall_occurrence.values, (grid_x, grid_y), method=interpMethod)
 grid_vExt = griddata((comboSpace[xaxis].values,comboSpace[yaxis].values),
@@ -154,7 +155,7 @@ text.set_size(13) # # Set the size
 ax.set_ylim(lowerY,upperY)
 ax.set_title('Probability of Sustained Host Control', pad = 30, fontsize = 30)
 fig.savefig(os.path.join('/Volumes/Yadgah/{0}-{1}-phase-diagram_wall-occurrences.png'.format(xvar,yvar)),dpi=resolve)
-fig.savefig(os.path.join('{0}-{1}-phase-diagram_wall-occurrences.png'.format(xvar,yvar)),dpi=resolve)
+# fig.savefig(os.path.join('{0}-{1}-phase-diagram_wall-occurrences.png'.format(xvar,yvar)),dpi=resolve)
 
 
 fig = plt.figure(figsize=(10,10))
@@ -175,7 +176,7 @@ text.set_size(13) # # Set the size
 ax.set_ylim(lowerY,upperY)
 ax.set_title('Probability of Viral Extinction', pad=30, fontsize = 30)
 fig.savefig(os.path.join('/Volumes/Yadgah/{0}-{1}-phase-diagram_virus-ext-occurrences.png'.format(xvar,yvar)),dpi=resolve)
-fig.savefig(os.path.join('{0}-{1}-phase-diagram_virus-ext-occurrences.png'.format(xvar,yvar)),dpi=resolve)
+# fig.savefig(os.path.join('{0}-{1}-phase-diagram_virus-ext-occurrences.png'.format(xvar,yvar)),dpi=resolve)
 
 
 fig = plt.figure(figsize=(10,10))
@@ -196,7 +197,7 @@ text.set_size(13) # # Set the size
 ax.set_ylim(lowerY,upperY)
 ax.set_title('Probability of Microbial Extinction', pad=30, fontsize = 30)
 fig.savefig(os.path.join('/Volumes/Yadgah/{0}-{1}-phase-diagram_microbe-ext-occurrences.png'.format(xvar,yvar)),dpi=resolve)
-fig.savefig(os.path.join('{0}-{1}-phase-diagram_microbe-ext-occurrences.png'.format(xvar,yvar)),dpi=resolve)
+# fig.savefig(os.path.join('{0}-{1}-phase-diagram_microbe-ext-occurrences.png'.format(xvar,yvar)),dpi=resolve)
 
 
 

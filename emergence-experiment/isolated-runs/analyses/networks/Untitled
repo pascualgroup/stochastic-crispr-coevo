@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+import sqlite3
+import matplotlib.cm as cm
+from matplotlib.colors import Normalize
+import matplotlib.colors as mc
+import tripartitegraph as tg
+import treefunctions as tree
+import mpld3
+
+run_id = sys.argv[1]
+print('Compiling plots and networks for run ID: {0}'.format(sys.argv[1]))
+times = [float(sys.argv[i]) for i in list(range(2,len(sys.argv)))]
+print('...for times: {0}...'.format(', '.join(map(str,times))))
+# threshold = float(sys.argv[-1])/100
+print('...and with with {0}% abundances removed...'.format(float(sys.argv[-1])))
+resolve = 500
+imgTypes = ["png"]
+treeImgTypes = ["png"]
+graphImgTypes = ["png"]
+cladetreefigxy = (20,20)
+cladetreehratio = [1,3]
+maxAbundTickSize = 500
+colorpalClades = 'turbo'
+colorpalSpacers = 'tab20b'
+lifeTimeThreshold = 75
+hyperAnalyze = True
+html = False
+overlay = True
+sSpacing = 2
+vSpacing = 2
+bSpacing = 2
+
+SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__)) # cluster
+dir = 'crispr-sweep-7-2-2022/isolates/runID3297-c66-r47'
+run = 'runID3297-c66-r47'
+
+DBSIM_PATH = os.path.join(SCRIPT_PATH,'..','..','..','simulation','sweep_db_gathered.sqlite')
+# DBSIM_PATH = os.path.join('/Volumes','Yadgah',dir,'{}.sqlite'.format(run))
+
+conSim = sqlite3.connect(DBSIM_PATH)
+curSim = conSim.cursor()
+ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
+combo_id = ID[0][0]
+replicate = ID[0][1]
+RUN_DIR = os.path.join('runID{0}-c{1}-r{2}'.format(run_id,combo_id,replicate))
+
+DBMATCH_PATH = os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'matches_output.sqlite') # cluster
+DBCLADE_PATH = os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'clade-abundances_output.sqlite') # cluster
+DBTREE_PATH = os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'trees_output.sqlite') # cluster
+DBTRI_PATH = os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'tripartite-networks_output.sqlite') # cluster
+PLOT_PATH = os.path.join(SCRIPT_PATH,'..','..','isolates',RUN_DIR,'tripartite-images')
+# DBMATCH_PATH = os.path.join('/Volumes','Yadgah',dir,'matches_output.sqlite') # local
+# DBCLADE_PATH = os.path.join('/Volumes','Yadgah',dir,'clade-abundances_output.sqlite') # local
+# DBTREE_PATH = os.path.join('/Volumes','Yadgah',dir,'trees_output.sqlite') # local
+# DBTRI_PATH = os.path.join('/Volumes','Yadgah',dir,'tripartite-networks_output.sqlite') # local
+# PLOT_PATH = os.path.join('/Volumes','Yadgah','tripartite-images')
+# PLOT_PATH = os.path.join('/Volumes','Yadgah','tripartite-check')
+
+if not os.path.isdir(PLOT_PATH):
+    os.makedirs (PLOT_PATH)
+
+conMatch = sqlite3.connect(DBMATCH_PATH)
+curMatch = conMatch.cursor()
+conTree = sqlite3.connect(DBTREE_PATH)
+curTree = conTree.cursor()
+conTri = sqlite3.connect(DBTRI_PATH)
+curTri = conTri.cursor()
+
+# print('SQLite Query: microbial abundance time series data')
+# microbe_stacked = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance WHERE run_id = {}".format(run_id), conSim)
+# microbe_stacked = microbe_stacked.pivot(index='t',columns='bstrain_id',values='abundance')
+microbe_total = pd.read_sql_query("SELECT t,microbial_abundance FROM summary WHERE run_id = {}".format(run_id), conSim)\
+.rename(columns={"microbial_abundance": "Microbial Abundance"})
+# print('SQLite Query: viral abundance time series data')
+# virus_stacked = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance WHERE run_id = {}".format(run_id), conSim)
+virus_total = pd.read_sql_query("SELECT t,viral_abundance FROM summary WHERE run_id = {}".format(run_id), conSim)\
+.rename(columns={"viral_abundance": "Viral Abundance"})
+# virus_stacked = virus_stacked.pivot(index='t',columns='vstrain_id',values='abundance')
+# if len(microbe_stacked.index) > len(virus_stacked.index):
+#     microbe_stacked.drop(index=list(set(microbe_stacked.index)-set(virus_stacked.index)),inplace=True)
+
+
+virusColorDict, vcladeColorDict, vcladeDict, treevallstrains,figV, axesV = \
+tree.virusCladeTreePlot(run_id,DBSIM_PATH,DBCLADE_PATH,DBTREE_PATH,\
+colorpalClades,maxAbundTickSize,cladetreefigxy,cladetreehratio,\
+lifeTimeThreshold,vabundthreshold)
+microbeColorDict, mcladeColorDict, mcladeDict, figB, axesB = \
+tree.microbeCladeTreePlot(run_id,DBSIM_PATH,DBCLADE_PATH,DBTREE_PATH,\
+colorpalClades,maxAbundTickSize,cladetreefigxy,cladetreehratio)
+figS, axesS = \
+tree.susceptibleCladeTreePlot(run_id,DBSIM_PATH,DBCLADE_PATH,DBTREE_PATH,\
+DBMATCH_PATH,colorpalClades,maxAbundTickSize,cladetreefigxy,cladetreehratio)
+
+
+for time in times:
+    vstrains =  pd.read_sql_query("SELECT vstrain_id FROM vabundance  \
+            WHERE run_id = {0} AND t = {1}".format(run_id,time), conSim)
+    vstrains = vstrains[vstrains.vstrain_id != 1]
+    treevstrains = {tree:actual for (tree,actual) in
+    zip([vstrain_id[0]
+            for vstrain_id in
+                curTree.execute("SELECT tree_vstrain_id FROM tree_vstrain_order \
+                WHERE vstrain_id in ({}) \
+                ORDER BY vstrain_id".format(', '.join(map(str,vstrains['vstrain_id']))))],sorted(vstrains['vstrain_id'])
+                )\
+        if tree in treevallstrains
+        }
+    axesV[0].axvline(x=time, color='black', ls=':', lw=.7)
+    axesV[1].axvline(x=time, color='black', ls=':', lw=.7)
+    if hyperAnalyze:
+        # texts = []
+        for treestrain in treevstrains.keys():
+            pID = [id[0] for id in curSim.execute("SELECT parent_vstrain_id FROM vstrains \
+                WHERE run_id = {0} AND vstrain_id = {1}"\
+                .format(run_id,treevstrains[treestrain]))][0]
+            pSpacers = [id[0] for id in curSim.execute("SELECT spacer_id FROM vpspacers \
+                        WHERE run_id = {0} \
+                        AND vstrain_id = {1}".format(run_id,pID))]
+            dSpacers = [id[0] for id in curSim.execute("SELECT spacer_id FROM vpspacers \
+                        WHERE run_id = {0} \
+                        AND vstrain_id = {1}".format(run_id,treevstrains[treestrain]))]
+            frm = list(set(pSpacers) - set(dSpacers))
+            to = list(set(dSpacers) - set(pSpacers))
+            bID = [id[0] for id in curSim.execute("SELECT infected_bstrain_id \
+                FROM vstrains \
+                WHERE run_id = {0}\
+                AND vstrain_id = {1}".format(run_id,treevstrains[treestrain]))][0]
+            mID = vstrainmatchIDs[vstrainmatchIDs.vstrain_id\
+            == treevstrains[treestrain]]['vmatch_id'].values[0]
+            # axesV[1].text(time, treestrain,\
+            # 'mID:{0}, vID:{1}, bID:{2}::[{3}]->[{4}]'\
+            # .format(mID,treevstrains[treestrain],bID,', '.join(map(str,frm)),\
+            # ', '.join(map(str,to))),\
+            # fontsize=3)#, fontweight='bold')
+            axesV[1].text(time, treestrain,\
+            '{0},{1},{2}::[{3}]->[{4}]'\
+            .format(mID,treevstrains[treestrain],bID,', '.join(map(str,frm)),\
+            ', '.join(map(str,to))),\
+            fontsize=2)#, fontweight='bold')
+            # texts.append('mID:{0}, vID:{1}, bID:{2}::[{3}]->[{4}]'\
+            # .format(mID,treevstrains[treestrain],bID,', '.join(map(str,frm)),\
+            # ', '.join(map(str,to))))
+        # points = axesV[1].plot([time]*len(treevstrains.keys()),treevstrains.keys(),alpha=0)
+        # text = mpld3.plugins.PointHTMLTooltip(points[0], texts)
+        # mpld3.plugins.connect(figV,text)
+    else:
+        for treestrain in treevstrains.keys():
+            bID = [id[0] for id in curSim.execute("SELECT infected_bstrain_id FROM vstrains \
+                WHERE run_id = {0}\
+                AND vstrain_id = {1}".format(run_id,treevstrains[treestrain]))][0]
+            mID = vstrainmatchIDs[vstrainmatchIDs.vstrain_id\
+            == treevstrains[treestrain]]['vmatch_id'].values[0]
+            axesV[1].text(time, treestrain,\
+            '{1}::mID:{0}'.format(mID,treevstrains[treestrain]),\
+            fontsize=3)#, fontweight='bold')
+    bstrains =  pd.read_sql_query("SELECT bstrain_id FROM babundance  \
+            WHERE run_id = {0} AND t = {1}".format(run_id,time), conSim)
+    bstrains = bstrains[bstrains.bstrain_id != 1]
+    treebstrains = {tree:actual for (tree,actual) in
+    zip([bstrain_id[0]
+            for bstrain_id in
+                curTree.execute("SELECT tree_bstrain_id FROM tree_bstrain_order \
+                WHERE bstrain_id in ({}) \
+                ORDER BY bstrain_id".format(', '\
+                .join(map(str,bstrains['bstrain_id']))))],\
+                sorted(bstrains['bstrain_id'])
+                )
+        }
+    axesB[0].axvline(x=time, color='black', ls=':', lw=.7)
+    axesB[1].axvline(x=time, color='black', ls=':', lw=.7)
+    axesS[0].axvline(x=time, color='black', ls=':', lw=.7)
+    axesS[1].axvline(x=time, color='black', ls=':', lw=.7)
+    if hyperAnalyze:
+        for treestrain in treebstrains.keys():
+            vID = [id[0] for id in curSim.execute("SELECT infecting_vstrain_id FROM bstrains \
+                WHERE run_id = {0}\
+                AND bstrain_id = {1}".format(run_id,treebstrains[treestrain]))][0]
+            sIDs = [id[0] for id in curSim.execute("SELECT spacer_id FROM bspacers \
+                WHERE run_id = {0}\
+                AND bstrain_id = {1}\
+                ORDER BY spacer_id".format(run_id,treebstrains[treestrain]))]
+            axesB[1].text(time, treestrain, 'bID:{0}::[{1}], vID:{2}'\
+            .format(treebstrains[treestrain],', '.join(map(str,sIDs)),vID),\
+            fontsize=3)#, fontweight='bold')
+            axesS[1].text(time, treestrain, 'bID:{0}::[{1}], vID:{2}'\
+            .format(treebstrains[treestrain],', '.join(map(str,sIDs)),vID),\
+            fontsize=3)#, fontweight='bold')
+    else:
+        for treestrain in treebstrains.keys():
+            axesB[1].text(time, treestrain, '{0}'\
+            .format(treebstrains[treestrain]), fontsize=3)#, fontweight='bold')
+        for treestrain in treebstrains.keys():
+            axesS[1].text(time, treestrain, '{0}'\
+            .format(treebstrains[treestrain]), fontsize=3)#, fontweight='bold')
+
+print('Compiling trees with time slices...')
+for imgType in treeImgTypes:
+    if overlay:
+        axesB.append(axesB[0].twinx())
+        axesB[2].plot(virus_total['t'],virus_total['Viral Abundance'],linewidth=0,color='grey')
+        axesB[2].fill_between(virus_total['t'],virus_total['Viral Abundance'], color='grey',alpha=0.6)
+        lim = axesB[2].get_ylim()
+        axesB[2].set_ylim(0,lim[1])
+        figB.tight_layout()
+        figB.savefig(os.path.join(PLOT_PATH,'microbe-clades-abundances-tree-time-slices_virus-overlay.{0}'\
+            .format(imgType)),dpi=resolve)
+        axesV.append(axesV[0].twinx())
+        axesV[2].plot(microbe_total['t'],microbe_total['Microbial Abundance'],linewidth=0,color='grey')
+        axesV[2].fill_between(microbe_total['t'],microbe_total['Microbial Abundance'], color='grey',alpha=0.4)
+        lim = axesV[2].get_ylim()
+        axesV[2].set_ylim(0,lim[1])
+        figV.tight_layout()
+        figV.savefig(os.path.join(PLOT_PATH,'virus-clades-abundances-tree-time-slices_microbe-overlay.{0}'\
+            .format(imgType)),dpi=resolve)
+        # html_str = mpld3.fig_to_html(figV)
+        # Html_file= open(os.path.join(PLOT_PATH,'virus-clades-abundances-tree-time-slices_microbe-overlay.html'),"w")
+        # Html_file.write(html_str)
+        # Html_file.close()
+    else:
+        figB.tight_layout()
+        figB.savefig(os.path.join(PLOT_PATH,'microbe-clades-abundances-tree-time-slices.{0}'\
+            .format(imgType)),dpi=resolve)
+        figV.tight_layout()
+        figV.savefig(os.path.join(PLOT_PATH,'virus-clades-abundances-tree-time-slices.{0}'\
+            .format(imgType)),dpi=resolve)
+    figS.tight_layout()
+    figS.savefig(os.path.join(PLOT_PATH,'susceptible-clades-abundances-tree-time-slices.{0}'\
+        .format(imgType)),dpi=resolve)
+
+
+print('Complete!')
