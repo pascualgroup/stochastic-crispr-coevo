@@ -48,10 +48,10 @@ ROOT_RUNMANY_SCRIPT = joinpath(ROOT_PATH, "runmany.jl")
 cd(SCRIPT_PATH)
 
 # Number of replicates for each parameter combination
-const N_REPLICATES = 20
+const N_REPLICATES = 100
 
 # Number of SLURM jobs to generate
-const N_JOBS_MAX = 100
+const N_JOBS_MAX = 50
 const N_CORES_PER_JOB_MAX = 28 # Half a node, easier to get scheduled than a whole one
 const mem_per_cpu = 2000 # in MB 100MB = 1 GB
 
@@ -63,6 +63,7 @@ paramStringTrunc = JSON.parse(json_str)
 # with the exception of the seed, which is generated for every individual replicate
 delete!(paramStringTrunc,"rng_seed")
 delete!(paramStringTrunc,"enable_output")
+delete!(paramStringTrunc,"directional")
 
 function main()
     # Root run directory
@@ -279,6 +280,20 @@ function init_params(d_symb::Dict{Symbol,Any})
 
         enable_output = d_symb[:enable_output][1],
 
+        directional = d_symb[:directional][1],
+
+        evofunction = d_symb[:evofunction][1],
+
+        initial_locus_allele = d_symb[:initial_locus_allele][1],
+
+        center_allele = d_symb[:center_allele][1],
+
+        allelic_change = d_symb[:allelic_change][1],
+
+        max_allele = d_symb[:max_allele][1],
+
+        max_fitness = d_symb[:max_fitness][1],
+
         n_bstrains = d_symb[:n_bstrains][1],
 
         n_hosts_per_bstrain = d_symb[:n_hosts_per_bstrain][1],
@@ -295,7 +310,7 @@ function init_params(d_symb::Dict{Symbol,Any})
 
         spacer_acquisition_prob = d_symb[:spacer_acquisition_prob][1],
 
-        microbe_growth_rate = d_symb[:microbe_growth_rate][1],
+        microbe_mutation_prob = d_symb[:microbe_mutation_prob][1],
 
         microbe_carrying_capacity = d_symb[:microbe_carrying_capacity][1],
 

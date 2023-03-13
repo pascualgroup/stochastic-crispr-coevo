@@ -37,8 +37,13 @@ dbOutput = SQLite.DB(dbOutputPath)
 function peakwallCount(uPercent,lPercent,shannonThreshold,dbOutput,dbSim)
     (comboID,) = execute(dbSim,"SELECT combo_id FROM runs WHERE run_id = $(run_id)")
     comboID = comboID.combo_id
-    (cCapacity,) = execute(dbSim, "SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = $(comboID)")
-    cCapacity = cCapacity.microbe_carrying_capacity
+    maxgrowth = maximum([rate for (rate,) in execute(dbSim,
+                "SELECT growth_rate FROM bgrowthrates WHERE run_id = $(run_id)")])
+    (death,) = execute(dbSim, "SELECT microbe_death_rate FROM param_combos WHERE combo_id = $(comboID)")
+    death = death.microbe_death_rate
+    (K,) = execute(dbSim, "SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = $(comboID)")
+    K = K.microbe_carrying_capacity
+    cCapacity = (maxgrowth/K*1/(maxgrowth-death))^(-1)
 
     # Save as data frame
     series = DataFrame(execute(dbSim, "SELECT t, microbial_abundance FROM summary WHERE run_id = $(run_id)"))
@@ -113,10 +118,10 @@ function peakwallCount(uPercent,lPercent,shannonThreshold,dbOutput,dbSim)
                 peakSeries.peak_presence[j1:j4] = Array{Int64,1}(ones(length(j1:j4)))
                 peak_duration = peakSeries.t[j4] - peakSeries.t[j1]
 
-                timeStmt = join(map(x -> string(" $(x)"), peakSeries.t[(j1):j4]),',')
-                # timeStmt = append!([string("t = $(peakSeries.t[j1])")], timeStmt)
-                bshannon = [shannon.bshannon for shannon in execute(dbTemp, "SELECT bshannon FROM shannon_diversity WHERE t in ($(timeStmt...)) ORDER BY t")]
-                vshannon = [shannon.vshannon for shannon in execute(dbTemp, "SELECT vshannon FROM shannon_diversity WHERE t in ($(timeStmt...)) ORDER BY t")]
+                timeStmt = map(x->string(" OR t = $(x)"), peakSeries.t[(j1+1):j4])
+                timeStmt = append!([string("t = $(peakSeries.t[j1])")],timeStmt)
+                bshannon = [shannon.bshannon for shannon in execute(dbTemp, "SELECT bshannon FROM shannon_diversity WHERE $(timeStmt...) ORDER BY t")]
+                vshannon = [shannon.vshannon for shannon in execute(dbTemp, "SELECT vshannon FROM shannon_diversity WHERE $(timeStmt...) ORDER BY t")]
 
                 if maximum(bshannon) >= shannonThreshold
                     walls = walls + 1

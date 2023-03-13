@@ -519,8 +519,6 @@ function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
             push!(s.bstrains.spacers, new_spacers)
 
             if p.enable_output
-                ############ write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
-                ############ write_spacers(s.bstrains.spacers_file, id, new_spacers)
                 write_strain(sim, "bstrains", id, s.bstrains.ids[iB], s.vstrains.ids[jV])
                 write_spacers(sim, "bspacers", id, new_spacers)
             end

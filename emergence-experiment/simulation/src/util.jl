@@ -6,16 +6,23 @@ function validate(p::Params)
     @assert p.t_final !== nothing
     @assert p.t_output !== nothing
 
+    @assert p.evofunction !== nothing
+    @assert p.initial_locus_allele !== nothing
+    @assert p.center_allele !== nothing
+    @assert p.allelic_change !== nothing
+    @assert p.max_allele !== nothing
+    @assert p.max_fitness !== nothing
+
     @assert p.n_bstrains !== nothing
     @assert p.n_hosts_per_bstrain !== nothing
     @assert p.n_vstrains !== nothing
     @assert p.n_particles_per_vstrain !== nothing
     @assert p.n_protospacers !== nothing
-
     @assert p.n_spacers_max !== nothing
+
     @assert p.crispr_failure_prob !== nothing
     @assert p.spacer_acquisition_prob !== nothing
-    @assert p.microbe_growth_rate !== nothing
+    @assert p.microbe_mutation_prob !== nothing
     @assert p.microbe_carrying_capacity !== nothing
     @assert p.viral_burst_size !== nothing
     @assert p.adsorption_rate !== nothing
@@ -35,6 +42,9 @@ function validate(strains::Strains)
     @assert strains.next_id > maximum(strains.ids)
     @assert length(strains.abundance) == length(strains.ids)
     @assert length(strains.spacers) == length(strains.ids)
+    if length(strains.growthrates) > 0
+        @assert length(strains.growthrates) == length(strains.ids)
+    end
 end
 
 
@@ -80,4 +90,10 @@ function remove_strain!(strains, index)
     swap_with_end_and_remove!(strains.ids, index)
     swap_with_end_and_remove!(strains.abundance, index)
     swap_with_end_and_remove!(strains.spacers, index)
+    if length(strains.growthrates) > 0
+        swap_with_end_and_remove!(strains.growthrates, index)
+    end
+    if length(strains.growthalleles) > 0
+        swap_with_end_and_remove!(strains.growthalleles, index)
+    end
 end

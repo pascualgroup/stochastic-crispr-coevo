@@ -18,12 +18,11 @@ SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 #
 dbSimPath = joinpath(SCRIPT_PATH,"..","..","..","simulation","sweep_db_gathered.sqlite") # cluster
 dbOutputPath = joinpath("emergence-lambert-root_output.sqlite") # cluster
+
 # dbSimPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/runID3297-c66-r47.sqlite") # local
 # dbMatchPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/matches_output.sqlite") # local
 # dbTriPath = joinpath("/Volumes/Yadgah","crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/tripartite-networks_output.sqlite") # local
 # dbOutputPath = joinpath("/Volumes/Yadgah/crispr-sweep-7-2-2022/isolates/runID3297-c66-r47/emergence-lambert-root_output.sqlite") # local
-# dbOutputPath = joinpath("/Volumes/Yadgah/crispr-sweep-7-2-2022/isolates/emergence-lambert-root_output.sqlite") # local
-
 if isfile(dbOutputPath)
     error("emergence-lambert-root.sqlite already exists; delete first")
 end
@@ -43,7 +42,7 @@ end
 dbTempMatch = SQLite.DB(dbMatchPath)
 dbTempTri = SQLite.DB(dbTriPath)
 dbOutput = SQLite.DB(dbOutputPath)
-# dbTempSim = SQLite.DB(dbSimPath) # local
+
 dbTempSim = SQLite.DB()
 execute(dbTempSim, "CREATE TABLE babundance (t REAL, bstrain_id, abundance INTEGER)")
 execute(dbTempSim, "CREATE TABLE vabundance (t REAL, vstrain_id, abundance INTEGER)")
@@ -128,7 +127,6 @@ function potentialStructure!(matchStructure::hierarchy)
     dbTempSim = matchStructure.dbSim
     dbTempMatch = matchStructure.dbMatch
     dbTempTri = matchStructure.dbTri
-    dbOutput = matchStructure.dbOutput
     matchIDs = Dict(Vector([Int64(spacerID) for (spacerID,) in
                     execute(dbTempTri,"SELECT phenotype
                     FROM vmatch_phenotypes
@@ -197,24 +195,27 @@ function potentialStructure!(matchStructure::hierarchy)
         DataFrame(match_id = matchidlist, phenotype = phenolist) |>
             SQLite.load!(dbTempTri,
                 "potential_vmatch_phenotypes",ifnotexists=true)
-        execute(dbOutput, "CREATE INDEX potential_vmatch_phenotypes_index
+        execute(dbTempTri, "CREATE INDEX potential_vmatch_phenotypes_index
                             ON potential_vmatch_phenotypes (match_id)")
     end
-
-    matchidlist = Vector{Int64}()
-    escapelist = Vector{Int64}()
-    for matchid in sort([keys(matchStructure.escapes)...])
-        append!(escapelist,sort([matchStructure.escapes[matchid]...]))
-        append!(matchidlist,
-            fill(matchid,length(matchStructure.escapes[matchid]))
-                )
+    if !in("potential_vmatch_single_escapes",
+                [table_name for (table_name,) in execute(dbTempTri,
+                "SELECT name FROM sqlite_schema
+                WHERE type='table' ORDER BY name;")])
+        matchidlist = Vector{Int64}()
+        phenolist = Vector{Int64}()
+        for matchid in sort([keys(matchStructure.escapes)...])
+            append!(phenolist,sort([matchStructure.escapes[matchid]...]))
+            append!(matchidlist,
+                fill(matchid,length(matchStructure.escapes[matchid]))
+                    )
+        end
+        DataFrame(match_id = matchidlist, escape_match_id = phenolist) |>
+            SQLite.load!(dbTempTri,
+                "potential_vmatch_single_escapes",ifnotexists=true)
+        execute(dbTempTri, "CREATE INDEX potential_vmatch_single_escapes_index
+                            ON potential_vmatch_single_escapes (match_id)")
     end
-    DataFrame(match_id = matchidlist, escape_match_id = escapelist) |>
-        SQLite.load!(dbOutput,
-            "potential_vmatch_single_escapes",ifnotexists=true)
-    execute(dbOutput, "CREATE INDEX potential_vmatch_single_escapes_index
-                        ON potential_vmatch_single_escapes (match_id)")
-
     return matchIDs
 end
 # This functipn saves all possible subphenotypes (not just escapes) as a Dictionary (matchID0:[matchIDsubphenotypes])
@@ -351,111 +352,70 @@ function computeR0!(extinction::pcomponents,parameters::params)
 end
 
 # This function assembles all pertinent data from objects and saves into database
-function assemble(current::state, extinction::pcomponents,escapes::Dict{Int64,Vector{Int64}})
+function assemble(current::state,extinction::pcomponents)
     time = current.time
     dbTempSim = current.dbSim
     dbTempTri = current.dbTri
     dbOutput = current.dbOutput
     sigdig = extinction.sigdig
 
-    pextinctionRoot = map(x -> extinction.prootmin[x], current.matches)
-    pextinctionLamb = map(x -> extinction.plambert[x], current.matches)
-    pextinctionAct = map(x -> extinction.pactual[x], current.matches)
-    lysis = map(x -> extinction.lysis[x], current.matches)
-    birth = map(x -> extinction.birth[x], current.matches)
-    death = map(x -> extinction.death[x], current.matches)
-    mut = map(x -> extinction.mut[x], current.matches)
+    pextinctionRoot = map(x->extinction.prootmin[x],current.matches)
+    pextinctionLamb = map(x->extinction.plambert[x],current.matches)
+    pextinctionAct = map(x->extinction.pactual[x],current.matches)
+    lysis = map(x->extinction.lysis[x],current.matches)
+    birth = map(x->extinction.birth[x],current.matches)
+    death = map(x->extinction.death[x],current.matches)
+    mut = map(x->extinction.mut[x],current.matches)
 
-    # matchAbunds = [Int64(abund) for (abund,)
-    #                in
-    #                execute(
-    #     dbTempTri,
-    #     "SELECT vabundance
-    #     FROM vmatches_abundances
-    #     WHERE t = $(time) AND match_id in
-    #     ($(join(current.matches,", "))) ORDER BY match_id"
-    #         )]
+    matchAbunds =  [Int64(abund) for (abund,)
+        in execute(dbTempTri, "SELECT vabundance
+            FROM vmatches_abundances
+            WHERE t = $(time) AND match_id in
+            ($(join(current.matches,", "))) ORDER BY match_id")]
 
-    #         if in(0, current.matches)
-    #             matchAbunds = vcat(sum([Int64(abund) for (abund,)
-    #                                     in
-    #                                     execute(
-    #                     dbTempTri,
-    #                     "SELECT vabundance
-    #     FROM v0matches_abundances
-    #     WHERE t = $(time)"
-    #                 )]), matchAbunds)
-    #         end
-
-    #         V = sum([Int64(abund) for (abund,)
-    #                 in
-    #                 execute(
-    #             dbTempSim,
-    #             "SELECT abundance
-    #     FROM vabundance
-    #     WHERE t = $(time)"
-    #         )])
-
-    # f = 1 / V
-
-    DataFrame(t=fill(Float64(time), length(current.matches)),
-        vmatch_id=current.matches,
-        p_extinction_lambert=pextinctionLamb,
-        p_extinction_actual=pextinctionAct,
-        lysis=lysis, death=death, mutation=mut,
-        p_extinction_root=pextinctionRoot, birth=birth#,
-        # plambert_ext_weighted=matchAbunds .* pextinctionLamb * f,
-        # plambert_emerge_weighted=matchAbunds .* (ones(length(pextinctionLamb)) - pextinctionLamb) * f,
-        # pactual_ext_weighted=matchAbunds .* pextinctionAct * f,
-        # pactual_emerge_weighted=matchAbunds .* (ones(length(pextinctionAct)) - pextinctionAct) * f,
-        # vfrequency=matchAbunds * f,
-        # vabundance=matchAbunds
-    ) |> SQLite.load!(dbOutput, "existing_vmatch_extinction", ifnotexists=true)
-
-    escapelist = Vector{Int64}()
-    for matchid in current.matches
-        if matchid == 0
-            continue
-        end
-        append!(escapelist, sort([escapes[matchid]...]))
+    if in(0,current.matches)
+        matchAbunds = vcat(sum([Int64(abund) for (abund,)
+            in execute(dbTempTri, "SELECT vabundance
+                FROM v0matches_abundances
+                WHERE t = $(time)")]),matchAbunds)
     end
-    if length(escapelist) > 0
-        unique!(escapelist)
-        pextinctionRoot = map(x -> extinction.prootmin[x], escapelist)
-        pextinctionLamb = map(x -> extinction.plambert[x], escapelist)
-        pextinctionAct = map(x -> extinction.pactual[x], escapelist)
-        lysis = map(x -> extinction.lysis[x], escapelist)
-        birth = map(x -> extinction.birth[x], escapelist)
-        death = map(x -> extinction.death[x], escapelist)
-        mut = map(x -> extinction.mut[x], escapelist)
 
-        DataFrame(t=fill(Float64(time), length(escapelist)),
-            escape_vmatch_id=escapelist,
-            p_extinction_lambert=pextinctionLamb,
-            p_extinction_actual=pextinctionAct,
-            lysis=lysis, death=death, mutation=mut,
-            p_extinction_root=pextinctionRoot, birth=birth
-        ) |> SQLite.load!(dbOutput, "single_escapes_vmatch_extinction", ifnotexists=true)
-    end
+    V = sum([Int64(abund) for (abund,)
+        in execute(dbTempSim, "SELECT abundance
+            FROM vabundance
+            WHERE t = $(time)")])
+
+    f = 1/V
+
+    DataFrame(  t = fill(Float64(time),length(current.matches)),
+                vmatch_id = current.matches, p_extinction_root = pextinctionRoot,
+                p_extinction_lambert = pextinctionLamb,
+                lysis = lysis, birth = birth, death = death, mutation = mut,
+                plambert_ext_weighted = matchAbunds.*pextinctionLamb*f,
+                plambert_emerge_weighted = matchAbunds.*(ones(length(pextinctionLamb))-pextinctionLamb)*f,
+                pactual_ext_weighted = matchAbunds.*pextinctionAct*f,
+                pactual_emerge_weighted = matchAbunds.*(ones(length(pextinctionAct))-pextinctionAct)*f,
+                vfrequency = matchAbunds*f,
+                vabundance = matchAbunds
+                ) |> SQLite.load!(dbOutput, "existing_vmatch_extinction",ifnotexists=true)
 
     # DataFrame(  t = fill(Float64(time),length(current.escapes)),
     #             vmatch_id = current.escapes, p_extinction = pextinctionEsc,
     #             birth = birthEsc, death = deathEsc, mutation = mutEsc
     #             ) |> SQLite.load!(dbOutput, "potential_vmatch_extinction",ifnotexists=true)
 
-    # return sum(matchAbunds .* pextinctionRoot * f),
-    # sum(matchAbunds .* pextinctionLamb * f),
-    # sum(matchAbunds .* pextinctionAct * f)
+    return sum(matchAbunds.*pextinctionRoot*f),
+            sum(matchAbunds.*pextinctionLamb*f),
+            sum(matchAbunds.*pextinctionAct*f)
 end
 
-function emergence!(matchStructure::hierarchy,
+function emergence(matchStructure::hierarchy,
                     current::state,parameters::params)
     extinction = computeExtinctionRoots(matchStructure,current,parameters)
     computeLambertRoot!(matchStructure,current,parameters,extinction)
     computeActualRoot!(matchStructure,current,parameters,extinction)
-    # rootExpectation, lambertExpectation, actualExpectation = assemble(current,extinction)
-    assemble(current,extinction,matchStructure.escapes)
-    # return rootExpectation, lambertExpectation, actualExpectation
+    rootExpectation, lambertExpectation, actualExpectation = assemble(current,extinction)
+    return rootExpectation, lambertExpectation, actualExpectation
 end
 # This function runs the whole analysis
 function escape()
@@ -465,32 +425,31 @@ function escape()
     parameters = params(matchStructure.dbSim)
     matchIDs = potentialStructure!(matchStructure)
     findEscapeLineages!(matchStructure,matchIDs)
-    # pActualExpectation = Vector{Float64}()
-    # pLambExpectation = Vector{Float64}() 
-    # pRootExpectation = Vector{Float64}()
-    # times = Vector{Float64}()
+    pActualExpectation = Vector{Float64}()
+    pLambExpectation = Vector{Float64}()
+    pRootExpectation = Vector{Float64}()
+    times = Vector{Float64}()
     for (t,) in execute(dbTempSim,"SELECT DISTINCT t FROM vabundance")
         # if t == 150
         #     return
         # end
-        # push!(times,t)
+        push!(times,t)
         println("Computing structure and probabilities at time = $(t)")
         current = state(matchStructure,Float64(t))
         microbeBiomass!(matchStructure,current)
         # pinitial, intExpectation, lambertExpectation, rootExpectation =
         #         emergence(matchStructure,current,parameters)
-        # rootExpectation, lambertExpectation, actualExpectation =
-        #         emergence(matchStructure,current,parameters)
-        emergence!(matchStructure,current,parameters)
-        # push!(pLambExpectation, lambertExpectation)
-        # push!(pRootExpectation, rootExpectation)
-        # push!(pActualExpectation, actualExpectation)
+        rootExpectation, lambertExpectation, actualExpectation =
+                emergence(matchStructure,current,parameters)
+        push!(pLambExpectation, lambertExpectation)
+        push!(pRootExpectation, rootExpectation)
+        push!(pActualExpectation, actualExpectation)
     end
-    # DataFrame(  t = times,
-    #             p_emerge_root_expected = ones(length(times))-pRootExpectation,
-    #             p_emerge_lambert_expected = ones(length(times))-pLambExpectation,
-    #             p_emerge_actual_expected = ones(length(times))-pActualExpectation
-    #             ) |> SQLite.load!(dbOutput, "vmatch_expectation",ifnotexists=true)
+    DataFrame(  t = times,
+                p_emerge_root_expected = ones(length(times))-pRootExpectation,
+                p_emerge_lambert_expected = ones(length(times))-pLambExpectation,
+                p_emerge_actual_expected = ones(length(times))-pActualExpectation
+                ) |> SQLite.load!(dbOutput, "vmatch_expectation",ifnotexists=true)
 end
 # This checks for table names that indicate infection network exists in triparite database
 # if not it modifies tripartite database to include infection network with associated abundances
@@ -513,9 +472,9 @@ function createindices()
     for (table_name,) in execute(
         db, "SELECT name FROM sqlite_schema
         WHERE type='table' ORDER BY name;")
-        # if in(table_name,["vmatch_expectation"])
-        #     execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t)")
-        # end
+        if in(table_name,["vmatch_expectation"])
+            execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t)")
+        end
         if in(table_name,["existing_vmatch_extinction"])
             execute(db, "CREATE INDEX $(table_name)_index ON $(table_name) (t, vmatch_id)")
         end

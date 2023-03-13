@@ -1,75 +1,7 @@
 import matplotlib.cm as cm
 import matplotlib.colors as mc
-from scipy.special import lambertw
-import pandas as pd
-import numpy as np
-import math
-import matplotlib.pyplot as plt
-import sys
-import os
-import seaborn as sns
-import sqlite3
-import matplotlib.ticker as ticker
-import matplotlib.gridspec as grid_spec
-# import plotly.graph_objects as go
-# import plotly.express as px
-# from mpl_toolkits.mplot3d import Axes3D
-import itertools
 
-run_id = 3297
-
-resolve = 500
-imgType = "png" #or "png"
-vabundthreshold = .1
-
-# dir = 'crispr-sweep-7-2-2022/isolates/runID3297-c66-r47'
-run = 'runID3297-c66-r47'
-
-# DBSIM_PATH = os.path.join('/Volumes','Yadgah',dir,'{}.sqlite'.format(run))
-DBSIM_PATH = os.path.join('/Users/armun/Dropbox/Current/Projects\
-/microbe-virus-crispr/stochastic-crispr/repository-2/isolated-runs/isolates\
-/runID3297-c66-r47','{}.sqlite'.format(run))
-
-conSim = sqlite3.connect(DBSIM_PATH)
-curSim = conSim.cursor()
-# Designating plot path from simulation data
-ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
-combo_id = ID[0][0]
-replicate = ID[0][1]
-CC = curSim.execute('SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = {}'.format(combo_id)).fetchall()
-CC = CC[0][0]
-RUN_DIR = os.path.join('runID{0}-c{1}-r{2}'.format(run_id,combo_id,replicate))
-
-# DBPROB_PATH = os.path.join('/Volumes','Yadgah',dir,'probability-of-emergence_output.sqlite') # local
-# DBPROB_PATH = os.path.join('/Volumes','Yadgah',dir,'emergence-lambert-root_output.sqlite')
-# DBMATCH_PATH = os.path.join('/Volumes','Yadgah',dir,'matches_output.sqlite') # local
-# DBTREE_PATH = os.path.join('/Volumes','Yadgah',dir,'trees_output.sqlite') # local
-# DBTRI_PATH = os.path.join('/Volumes','Yadgah',dir,'tripartite-networks_output.sqlite') # local
-# PLOT_PATH = os.path.join('/Volumes','Yadgah') # local
-
-DBMATCH_PATH = os.path.join('/Users/armun/Dropbox/Current/Projects\
-/microbe-virus-crispr/stochastic-crispr/repository-2/isolated-runs/isolates\
-/runID3297-c66-r47','matches_output.sqlite') # local
-DBTREE_PATH = os.path.join('/Users/armun/Dropbox/Current/Projects\
-/microbe-virus-crispr/stochastic-crispr/repository-2/isolated-runs/isolates\
-/runID3297-c66-r47','trees_output.sqlite') # local
-DBTRI_PATH = os.path.join('/Users/armun/Dropbox/Current/Projects\
-/microbe-virus-crispr/stochastic-crispr/repository-2/isolated-runs/isolates\
-/runID3297-c66-r47','tripartite-networks_output.sqlite') # local
-DBCLADE_PATH = os.path.join('/Users/armun/Dropbox/Current/Projects\
-/microbe-virus-crispr/stochastic-crispr/repository-2/isolated-runs/isolates\
-/runID3297-c66-r47','clade-abundances_output.sqlite') # local
-PLOT_PATH = os.path.join('/Users/armun/Desktop') # local
-
-# conProb = sqlite3.connect(DBPROB_PATH)
-# curProb = conProb.cursor()
-conMatch = sqlite3.connect(DBMATCH_PATH)
-curMatch = conMatch.cursor()
-conTri = sqlite3.connect(DBTRI_PATH)
-curTri = conTri.cursor()
-conTree = sqlite3.connect(DBTREE_PATH)
-curTree = conTree.cursor()
-
+vabundthreshold = 0.05
 virus_stacked = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance WHERE run_id = {}".format(run_id), conSim)
 virus_total = pd.read_sql_query("SELECT t,viral_abundance FROM summary WHERE run_id = {}".format(run_id), conSim)\
 .rename(columns={"viral_abundance": "vtotal"})
@@ -94,12 +26,11 @@ vMaxIDs = vmatchAbund.set_index('t').groupby(['vmatch_id']).agg(t = ('abundance'
 vMaxIDs = virus_total.merge(vMaxIDs,on=['t'])
 vMaxIDs['vtotal'] = vabundthreshold*np.array(vMaxIDs['vtotal'])
 keepStrains = list(vMaxIDs[vMaxIDs['vmaxAbund']>vMaxIDs['vtotal']]['vmatch_id'].values)
+
 vmatchAbund = vmatchAbund[[(i in keepStrains) for i in vmatchAbund.vmatch_id]].reset_index(drop=True)
-
-
-
-######
+# vmatchAbund = vmatchAbund[(vmatchAbund.t>0)&(vmatchAbund.t<600)]
 vmatch_stacked = vmatchAbund.pivot(index='t',columns='vmatch_id',values='abundance')
+
 pal = sns.color_palette("tab20c")
 fig, ax = plt.subplots(1,sharex=True)
 vmatch_stacked.plot.area(ax = ax,stacked=True,legend=False, linewidth=0,color=pal,sort_columns=True)
@@ -115,192 +46,41 @@ vmatchS_stacked = vmatchSabund.pivot(index='t',columns='vmatch_id',values='babun
 pal = sns.color_palette("tab20c")
 fig, ax = plt.subplots(1,sharex=True)
 vmatchS_stacked.plot.area(ax = ax,stacked=True,legend=False, linewidth=0,color=pal,sort_columns=True)
-######
 
-
-tmin = 300
-tmax = 600
-vmatchSabund = pd.read_sql_query("SELECT t,match_id,bsusceptible \
+vmatchIabund = pd.read_sql_query("SELECT t,match_id,bimmune \
         FROM vmatches_abundances", conTri)\
         .rename(columns={"match_id":"vmatch_id"})\
-        .rename(columns={"bsusceptible":"babundance"})
-vmatchSabund = vmatchSabund.merge(vmatchAbund,on=['t','vmatch_id'])\
+        .rename(columns={"bimmune":"babundance"})
+vmatchIabund = vmatchIabund.merge(vmatchAbund,on=['t','vmatch_id'])\
 .drop(columns=['abundance']).drop_duplicates()
-vmatchS_stacked = vmatchSabund[(vmatchSabund.t >= tmin) & (vmatchSabund.t <= tmax)]\
-                    .pivot(index='t',columns='vmatch_id',values='babundance')
-vmatch_stacked = vmatchAbund[(vmatchAbund.t >= tmin) & (vmatchAbund.t <= tmax)]\
-                    .pivot(index='t',columns='vmatch_id',values='abundance')
-###
-# vmatchID = 705
-# vmatchS_stacked = vmatchSabund[\
-#                     (vmatchSabund.t >= tmin) & (vmatchSabund.t <= tmax) & (vmatchSabund.vmatch_id == vmatchID)]\
-#                     .pivot(index='t',columns='vmatch_id',values='babundance')
-# vmatch_stacked = vmatchAbund[\
-#                     (vmatchAbund.t >= tmin) & (vmatchAbund.t <= tmax) & (vmatchSabund.vmatch_id == vmatchID)]\
-#                     .pivot(index='t',columns='vmatch_id',values='abundance')
-###
+vmatchI_stacked = vmatchIabund.pivot(index='t',columns='vmatch_id',values='babundance')
 pal = sns.color_palette("tab20c")
 fig, ax = plt.subplots(1,sharex=True)
+ax.plot(vmatchI_stacked,linewidth=1)
+vmatchI_stacked.plot.area(ax = ax,stacked=True,legend=False, linewidth=0,color=pal,sort_columns=True)
+
+fig, ax = plt.subplots(3,sharex=True)
+axes = [ax[0], ax[1], ax[2]]
 cmapb = cm.tab20b.colors                        # get a specific colormap
 cmapc = cm.tab20c.colors                          # extract all colors
 cmapNew = cmapc + cmapb              # repeat X times, here X = 2
 cmapJoint = mc.LinearSegmentedColormap.from_list('cmap_new', np.array(cmapNew))
-vmatch_stacked.plot.area(ax = ax,stacked=True,legend=True, linewidth=0,cmap=cmapJoint,sort_columns=True)
-ax.legend(loc='center right',prop={'size': 2})
-vmatch_stacked.plot(stacked=True, ax=axes[0], legend=False, color='white',sort_columns=True,linewidth=.2)
-ax.set_ylabel(ylabel ='Viral MatchID Abundances',labelpad=10,fontsize=10)
-ax.set_xlabel(xlabel = 'Time t',fontsize=15)
-ax.ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-ax.xaxis.set_minor_locator(ticker.MultipleLocator(25))
-ax.tick_params(axis='x', labelsize= 10)
-ax.tick_params(axis='y', labelsize= 10)
-fig.tight_layout()
-fig.savefig(os.path.join(PLOT_PATH,'plot1'),dpi=resolve)
+vmatch_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,cmap=cmapJoint,sort_columns=True)
+vmatch_stacked.plot(stacked=True, ax=axes[0], legend=False, color='white',sort_columns=True,linewidth=.15)
+vmatchS_stacked.plot.area(ax = axes[1],stacked=True,legend=False, linewidth=0,cmap=cmapJoint,sort_columns=True)
+vmatchS_stacked.plot(stacked=True, ax=axes[1], legend=False, color='white',sort_columns=True,linewidth=.15)
+vmatchI_stacked.plot.area(ax = axes[2],stacked=True,legend=False, linewidth=0,cmap=cmapJoint,sort_columns=True)
+vmatchI_stacked.plot(stacked=True, ax=axes[2], legend=False, color='white',sort_columns=True,linewidth=.15)
+
+vfreq = pd.read_sql_query("SELECT t, vmatch_id, vfrequency \
+    FROM existing_vmatch_extinction ORDER BY t", conProb)\
+    .rename(columns={"vfrequency":"vfreq"})\
+    .merge(vmatchSabund,on=['t','vmatch_id'])
+vfreq['bexpected'] = vfreq['vfreq']*vfreq['babundance']
+vfreq = vfreq.groupby(['t'])\
+    .agg(b_exp=('bexpected','sum')).reset_index()
 fig, ax = plt.subplots(1,sharex=True)
-vmatchS_stacked.plot.area(ax = ax,stacked=True,legend=True, linewidth=0,cmap=cmapJoint,sort_columns=True)
-ax.legend(loc='center right',prop={'size': 2})
-vmatchS_stacked.plot(stacked=True, ax=ax, legend=False, color='white',sort_columns=True,linewidth=.2)
-ax.set_ylabel(ylabel ='Susceptible-to-MatchID Abundances',labelpad=10,fontsize=10)
-ax.set_xlabel(xlabel = 'Time t',fontsize=10)
-ax.ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-ax.xaxis.set_minor_locator(ticker.MultipleLocator(25))
-ax.tick_params(axis='x', labelsize= 10)
-ax.tick_params(axis='y', labelsize= 10)
-fig.tight_layout()
-fig.savefig(os.path.join(PLOT_PATH,'plot2'),dpi=resolve)
-
-
-
-vmatchID = 562
-pal = sns.color_palette("tab20c")
-microbe_total = pd.read_sql_query("SELECT t,microbial_abundance FROM summary WHERE run_id = {}".format(run_id), conSim)\
-.rename(columns={"microbial_abundance": "btotal"})
-# vmatchSabund = pd.read_sql_query("SELECT t,match_id,bsusceptible \
-#         FROM vmatches_abundances", conTri)\
-#         .rename(columns={"match_id":"vmatch_id"})\
-#         .rename(columns={"bsusceptible":"babundance"})
-vstrain0bstrain = pd.read_sql_query("SELECT t,vstrain_id,bstrain_id \
-        FROM bstrain_to_vstrain_0matches", conMatch)
-vabunds = pd.read_sql_query("SELECT t,vstrain_id,abundance \
-        FROM vabundance", conSim)
-babunds = pd.read_sql_query("SELECT t,bstrain_id,abundance \
-        FROM babundance", conSim).merge(microbe_total,on=['t'])
-babunds['bfreq'] = babunds['abundance']/babunds['btotal']
-bstrainAbunds = vstrain0bstrain.merge(vabunds,on=['t','vstrain_id'])\
-    .rename(columns={"abundance":"v_infect_total"})\
-    .merge(babunds,on=['t','bstrain_id'])\
-    .rename(columns={"abundance":"babundance"})\
-    .groupby(['t','bstrain_id','babundance'])\
-    .agg(v_infect_total = ('v_infect_total','sum')).reset_index()
-vstrain0bstrain = vstrain0bstrain.merge(bstrainAbunds,on=['t','bstrain_id'])
-vmatches = pd.read_sql_query("SELECT t,match_id,vstrain_id \
-        FROM vmatches", conTri).rename(columns={"match_id":"vmatch_id"})
-vstrain0bstrain = vstrain0bstrain.merge(vmatches,on=['t','vstrain_id'])\
-                    .drop(columns=['vstrain_id']).drop_duplicates()
-sampleSAbunds = vstrain0bstrain[vstrain0bstrain['vmatch_id'].isin([vmatchID])]\
-                .sort_values(by=['t'])
-vmatchAbunds = pd.read_sql_query("SELECT t,match_id,vabundance \
-        FROM vmatches_abundances", conTri)\
-        .rename(columns={"match_id":"vmatch_id"})
-vmatchAbunds = vmatchAbunds[vmatchAbunds.vmatch_id==vmatchID]
-# S0 = []
-# for bstrainID in sorted(sampleSAbunds['bstrain_id'].unique()):
-#     S0.append(sampleSAbunds[sampleSAbunds['bstrain_id'] == bstrainID]['babundance'].values[0])
-# S0 = {'col1': sorted(sampleSAbunds['bstrain_id'].unique()), 'S0': S0}
-# v0 = sampleSAbunds['v_infect_total'].values[0]
-fxnSAbunds= []
-for t in sorted(sampleSAbunds['t'].unique()):
-    c = 0
-    for bstrainID in sorted(sampleSAbunds[sampleSAbunds['t']==t]['bstrain_id']):
-        v0 = sampleSAbunds[sampleSAbunds['bstrain_id']==bstrainID]['v_infect_total'].values[0]
-        v = sampleSAbunds[(sampleSAbunds['t']==t) & (sampleSAbunds['bstrain_id']==bstrainID)]\
-                ['v_infect_total'].values[0]
-        # v0 = vmatchAbunds['vabundance'].values[0]
-        # v = vmatchAbunds[vmatchAbunds['t']==t]['vabundance'].values[0]
-        s0 = sampleSAbunds[sampleSAbunds['bstrain_id']==bstrainID]['babundance'].values[0]
-        # print("v0 is {0}, v is {1}, s0 is s{2}".format(v0,v,s0))
-        # c += (-v+v0)/50*babunds[(babunds.t==t) & (babunds.bstrain_id==bstrainID)]['bfreq'].values[0]\
-                # +s0
-        c += (-v+v0+s0*50)/(50)
-        # c = (-1*.01*S0+(10**-7)-v*(10**-7)+S0*50*(10**-7))/(-1*.01+50*(10**-7))
-        #l = (.00000000001*np.log(v) - .00000000001*np.log(v0))/(50*(10**-7))
-    s = c #+ l
-    fxnSAbunds.append(s)
-# fxnSAbunds = []
-# S0 = sampleSAbunds[sampleSAbunds['t']==381]['babundance'].values[0]
-# v0 = samplevmatchAbund[samplevmatchAbund['t']==381]['abundance'].values[0]
-# for t in sorted(sampleSAbunds['t'].unique()):
-#     v = samplevmatchAbund[samplevmatchAbund['t']==t]['abundance'].values[0]
-#     arg = (-1/.01)*np.exp(((10**-7)/.01)*(v-v0-50*S0))*S0*(v**(-1/.01))*(v0**(1/.01))*50*(10**-7)
-#     s = -.01/(50*(10**-7))*lambertw(arg,k=0)
-#     fxnSAbunds.append(s)
-# fxnSAbunds = []
-# S0 = sampleSAbunds[sampleSAbunds['t']==428]['babundance'].values[0]
-# v0 = samplevmatchAbund[samplevmatchAbund['t']==428]['abundance'].values[0]
-# # v0 = 2
-# for t in sorted(sampleSAbunds['t'].unique()):
-#     v = samplevmatchAbund[samplevmatchAbund['t']==t]['abundance'].values[0]
-#     s = np.exp((1/.01)*(.01*np.log(S0)-np.log(v)+np.log(v0)))
-#     fxnSAbunds.append(s)
-btotal = sampleSAbunds.groupby(['t','vmatch_id'])\
-.agg(btotal = ('babundance','sum')).reset_index()
-fig, ax = plt.subplots(1,sharex=True)
-ax.plot(sorted(sampleSAbunds['t'].unique()),btotal['btotal'],linewidth=1)
-ax.plot(sorted(sampleSAbunds['t'].unique()),fxnSAbunds,linewidth=1)
-fig.tight_layout()
-fig.savefig(os.path.join(PLOT_PATH,'plot3'),dpi=resolve)
-
-
-sampleSAbunds = sampleSAbunds.pivot(index='t',columns='vmatch_id',values='babundance')
-fig, ax = plt.subplots(1,sharex=True)
-ax.plot(sampleSAbunds,linewidth=1)
-
-# vmatchIabund = pd.read_sql_query("SELECT t,match_id,bimmune \
-#         FROM vmatches_abundances", conTri)\
-#         .rename(columns={"match_id":"vmatch_id"})\
-#         .rename(columns={"bimmune":"babundance"})
-# vmatchIabund = vmatchIabund.merge(vmatchAbund,on=['t','vmatch_id'])\
-# .drop(columns=['abundance']).drop_duplicates()
-# vmatchI_stacked = vmatchIabund.pivot(index='t',columns='vmatch_id',values='babundance')
-# pal = sns.color_palette("tab20c")
-# fig, ax = plt.subplots(1,sharex=True)
-# ax.plot(vmatchI_stacked,linewidth=1)
-# vmatchI_stacked.plot.area(ax = ax,stacked=True,legend=False, linewidth=0,color=pal,sort_columns=True)
-
-# fig, ax = plt.subplots(3,sharex=True)
-# axes = [ax[0], ax[1], ax[2]]
-# cmapb = cm.tab20b.colors                        # get a specific colormap
-# cmapc = cm.tab20c.colors                          # extract all colors
-# cmapNew = cmapc + cmapb              # repeat X times, here X = 2
-# cmapJoint = mc.LinearSegmentedColormap.from_list('cmap_new', np.array(cmapNew))
-# vmatch_stacked.plot.area(ax = axes[0],stacked=True,legend=True, linewidth=0,cmap=cmapJoint,sort_columns=True)
-# vmatch_stacked.plot(stacked=True, ax=axes[0], legend=False, color='white',sort_columns=True,linewidth=.15)
-# vmatchS_stacked.plot.area(ax = axes[1],stacked=True,legend=False, linewidth=0,cmap=cmapJoint,sort_columns=True)
-# vmatchS_stacked.plot(stacked=True, ax=axes[1], legend=False, color='white',sort_columns=True,linewidth=.15)
-# vmatchI_stacked.plot.area(ax = axes[2],stacked=True,legend=False, linewidth=0,cmap=cmapJoint,sort_columns=True)
-# vmatchI_stacked.plot(stacked=True, ax=axes[2], legend=False, color='white',sort_columns=True,linewidth=.15)
-
-
-
-# vfreq = pd.read_sql_query("SELECT t, vmatch_id, vfrequency \
-#     FROM existing_vmatch_extinction ORDER BY t", conProb)\
-#     .rename(columns={"vfrequency":"vfreq"})\
-#     .merge(vmatchSabund,on=['t','vmatch_id'])
-# vfreq['bexpected'] = vfreq['vfreq']*vfreq['babundance']
-# vfreq = vfreq.groupby(['t'])\
-#     .agg(b_exp=('bexpected','sum')).reset_index()
-# fig, ax = plt.subplots(1,sharex=True)
-# ax.plot(vfreq['t'],vfreq['b_exp'],linewidth=3,color='grey')
-
-
-
-
-
-
-
-
-
-
+ax.plot(vfreq['t'],vfreq['b_exp'],linewidth=3,color='grey')
 
 
 pEmergeExpected = pd.read_sql_query("SELECT t, plambert_emerge_weighted \

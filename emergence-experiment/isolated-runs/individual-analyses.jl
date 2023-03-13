@@ -98,29 +98,26 @@ const mem_per_cpu = 8000 # in MB 1000MB = 1 GB
 
 function main()
     # Root run directory
-    if isfile(joinpath("isolates", "jobs", "$(analysisType)jobs.sqlite"))
-        rm(joinpath("isolates", "jobs", "$(analysisType)jobs.sqlite"), force=true)
-        println("deleted `/isolates/jobs/$(analysisType)jobs.sqlite`.")
+    if isfile(joinpath("isolates","$(analysisType)jobs.sqlite"))
+        rm(joinpath("isolates","$(analysisType)jobs.sqlite"),force=true)
+        println("deleted `/isolates/$(analysisType)jobs.sqlite`.")
     end
 
-    if ispath(joinpath("isolates", "jobs", "$(analysisType)-jobs"))
-        rm(joinpath("isolates", "jobs", "$(analysisType)-jobs"), force=true, recursive=true)
-        println("deleted `/isolates/jobs/$(analysisType)-jobs`.")
+    if ispath(joinpath("isolates","$(analysisType)-jobs"))
+        rm(joinpath("isolates","$(analysisType)-jobs"),force=true,recursive=true)
+        println("deleted `/isolates/$(analysisType)-jobs`.")
     end
     if !ispath(joinpath("isolates"))
         mkpath(joinpath("isolates"))
     end
-    if !ispath(joinpath("isolates", "jobs"))
-        mkpath(joinpath("isolates", "jobs"))
-    end
     dbSim = SQLite.DB(dbSimPath)
     # Create little database that corresponds analysis runs to jobIDs for troubleshooting
-    dbTempJobs = SQLite.DB(joinpath("isolates", "jobs", "$(analysisType)jobs.sqlite"))
+    dbTempJobs = SQLite.DB(joinpath("isolates","$(analysisType)jobs.sqlite"))
     execute(dbTempJobs, "CREATE TABLE jobs (job_id INTEGER, job_dir TEXT)")
     execute(dbTempJobs, "CREATE TABLE job_runs (job_id INTEGER, run_id INTEGER, run_dir TEXT)")
 
     numSubmits = generate_analysis_runs(dbSim)
-    generate_analysis_jobs(dbSim, dbTempJobs, numSubmits)
+    generate_analysis_jobs(dbSim,dbTempJobs,numSubmits)
 end
 
 function generate_analysis_runs(dbSim::DB) # This function generates the directories
@@ -222,7 +219,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
     for (job_id,) in execute(dbTempJobs, "SELECT DISTINCT job_id FROM job_runs ORDER BY job_id")
 
-        job_dir = joinpath("isolates","jobs","$(analysisType)-jobs", "$(job_id)")
+        job_dir = joinpath("isolates","$(analysisType)-jobs", "$(job_id)")
         @assert !ispath(job_dir)
         mkpath(job_dir)
 

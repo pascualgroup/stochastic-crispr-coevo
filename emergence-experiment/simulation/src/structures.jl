@@ -14,6 +14,27 @@
     "Enable output?"
     enable_output::Union{Bool, Nothing}
 
+    "Directional growth mutations?"
+    directional::Union{Bool, Nothing}
+
+    "The is the genotype to phenotype map for microbial demographic trait"
+    evofunction::Union{UInt64, Nothing}
+
+    "This sets the initial allele value"
+    initial_locus_allele::Union{Float64, Nothing}
+
+    "This sets the middle allele value"
+    center_allele::Union{Float64, Nothing}
+
+    "The amount allele value changes upon directional mutation [epsilon]"
+    allelic_change::Union{Float64, Nothing}
+
+    "This sets the upper and lower bounds of allele values"
+    max_allele::Union{Float64, Nothing}
+
+    "This sets maximum intrinsic fitness allowed among microbes"
+    max_fitness::Union{Float64, Nothing}
+
     "Number of initial bacterial strains"
     n_bstrains::Union{UInt64, Nothing}
 
@@ -29,8 +50,6 @@
     "Number of initial protospacers per virus strain"
     n_protospacers::Union{UInt64, Nothing}
 
-    #InitializationParameters() = new() # WHAT IS THIS????
-
     "Maximum number of spacers in a bacterial strain"
     n_spacers_max::Union{UInt64, Nothing}
 
@@ -40,8 +59,8 @@
     "New spacer acquisition probability [q]"
     spacer_acquisition_prob::Union{Float64, Nothing}
 
-    "Growth rate at 0 (1/h) = [r]"
-    microbe_growth_rate::Union{Float64, Nothing}
+    "Microbial mutation probability [rho]"
+    microbe_mutation_prob::Union{Float64, Nothing}
 
     "Carrying capacity (1/mL) = [K]"
     microbe_carrying_capacity::Union{Float64, Nothing}
@@ -76,60 +95,106 @@ mutable struct Strains
     total_abundance::UInt64
 
     spacers::Vector{Vector{UInt64}}
+    growthalleles::Vector{Float64}
+    growthrates::Vector{Float64}
+end
 
-    #strain_file::IOStream
-    #spacers_file::IOStream
-    #abundance_file::IOStream
+
+function make_bstrains(n_strains, n_hosts_per_strain, initial_locus_allele, evofunction,
+                        maxallele, centerallele, maxfitness,
+                        initialConditionsDB::Union{DB, Nothing})
+    if initialConditionsDB == Nothing
+        initialalleles = repeat([initial_locus_allele], 1)
+        initialgrowthrates = map(x->fitness(x,centerallele,maxallele,
+                            maxfitness,evofunction),initialalleles)
+        Strains(
+            2, # without initial conditions we just have one strain, and the next_strain_id is just 2
+            Vector([1]),
+            repeat([n_hosts_per_strain], 1),
+            1 * n_hosts_per_strain,
+            repeat([[]], 1),
+            initialalleles,
+            initialgrowthrates
+        )
+    else
+        ids = [strain_id for (strain_id,) in
+        execute(initialConditionsDB, "SELECT bstrain_id FROM babundance ORDER BY bstrain_id")]
+        abundance = [abund for (abund,) in
+        execute(initialConditionsDB, "SELECT abundance FROM babundance ORDER BY bstrain_id")]
+        locusalleles = [allele for (allele,) in
+        execute(initialConditionsDB, "SELECT locus_allele FROM blocusalleles ORDER BY bstrain_id")]
+        growthrates = map(x->fitness(x,centerallele,maxallele,
+                            maxfitness,evofunction),locusalleles)
+        total_abundance = sum(abundance)
+        spacers = [
+                    Vector([spacer_id for (spacer_id,) in
+                            execute(initialConditionsDB, "SELECT spacer_id FROM
+                                    bspacers WHERE bstrain_id = $(id)
+                                    ORDER BY spacer_id")])
+                    for id in ids
+                    ]
+        spacers[spacers.==[[0]]] = repeat([[]], length(spacers[spacers.==[[0]]]))
+        Strains(
+            maximum(ids)+1,
+            ids,
+            abundance,
+            total_abundance,
+            spacers,
+            locusalleles,
+            growthrates
+        )
+    end
 end
 
 
 
+function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init,
+            initialConditionsDB::Union{DB, Nothing})
+    if initialConditionsDB == Nothing
+        next_id = UInt64(n_strains + 1)
+        # println("next id is $(next_id)")
+        # println("type is $(typeof(next_id))")
+        ids = Vector(1:n_strains)
+        abundance = repeat([n_particles_per_strain], n_strains)
+        total_abundance = n_strains * n_particles_per_strain
+        pspacers = [
+            Vector(1:n_pspacers_init) .+ repeat([n_pspacers_init * (i - 1)], n_pspacers_init)
+            for i = 1:n_strains
+        ]
 
-function make_bstrains(n_strains, n_hosts_per_strain)
-    Strains(
-        n_strains + 1,
-        1:n_strains,
-        repeat([n_hosts_per_strain], n_strains),
-        n_strains * n_hosts_per_strain,
-        repeat([[]], n_strains)#,
-        #open_csv("bstrains", "t_creation", "bstrain_id", "parent_bstrain_id", "infecting_vstrain_id"),
-        #open_csv("bspacers", "bstrain_id", "spacer_id"),
-        #open_csv("babundance", "t", "bstrain_id", "abundance")
-    )
+        Strains(
+            next_id,
+            ids,
+            abundance,
+            total_abundance,
+            pspacers,
+            repeat([], n_strains),
+            repeat([], n_strains)
+        )
+    else
+        ids = [strain_id for (strain_id,) in
+        execute(initialConditionsDB, "SELECT vstrain_id FROM vabundance ORDER BY vstrain_id")]
+        abundance = [abund for (abund,) in
+        execute(initialConditionsDB, "SELECT abundance FROM vabundance ORDER BY vstrain_id")]
+        total_abundance = sum(abundance)
+        pspacers = [
+                    Vector([spacer_id for (spacer_id,) in
+                            execute(initialConditionsDB, "SELECT spacer_id FROM
+                                    vpspacers WHERE vstrain_id = $(id)
+                                    ORDER BY spacer_id")])
+                    for id in ids
+                    ]
+        Strains(
+            maximum(ids)+1,
+            ids,
+            abundance,
+            total_abundance,
+            pspacers,
+            repeat([], length(ids)),
+            repeat([], length(ids))
+        )
+    end
 end
-
-
-
-
-
-
-
-function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
-    next_id = n_strains + 1
-    ids = Vector(1:n_strains)
-    abundance = repeat([n_particles_per_strain], n_strains)
-    total_abundance = n_strains * n_particles_per_strain
-    pspacers = [
-        Vector(1:n_pspacers_init) .+ repeat([n_pspacers_init * (i - 1)], n_pspacers_init)
-        for i = 1:n_strains
-    ]
-
-    Strains(
-        next_id,
-        ids,
-        abundance,
-        total_abundance,
-        pspacers#,
-        #open_csv("vstrains", "t_creation", "vstrain_id", "parent_vstrain_id", "infected_bstrain_id"),
-        #open_csv("vpspacers", "vstrain_id", "spacer_id"),
-        #open_csv("vabundance", "t", "vstrain_id", "abundance")
-    )
-end
-
-
-
-
-
 
 
 #########################################################
@@ -141,30 +206,41 @@ mutable struct State
     next_pspacer_id::UInt64
 
     function State(
-        n_bstrains, n_hosts_per_bstrain, # n_spacers_init,
-        n_vstrains, n_particles_per_vstrain, n_pspacers_init
+        n_bstrains, n_hosts_per_bstrain, initial_locus_allele, evofunction,
+        maxallele, centerallele, maxfitness,
+        n_vstrains, n_particles_per_vstrain, n_pspacers_init, initialConditionsDB::Union{DB, Nothing}
     )
-        next_pspacer_id = 1 + n_vstrains * n_pspacers_init
+        if initialConditionsDB == Nothing
+            next_pspacer_id = 1 + n_vstrains * n_pspacers_init
+        else
+            pspacers = [spacer_id for (spacer_id,) in
+                        execute(initialConditionsDB,
+                        "SELECT DISTINCT spacer_id FROM vpspacers")]
+            next_pspacer_id = UInt64(1 + maximum(pspacers))
+        end
         new(
-            make_bstrains(n_bstrains, n_hosts_per_bstrain),
-            make_vstrains(n_vstrains, n_particles_per_vstrain, n_pspacers_init),
+            make_bstrains(n_bstrains, n_hosts_per_bstrain, initial_locus_allele,
+            evofunction, maxallele, centerallele, maxfitness, initialConditionsDB),
+            make_vstrains(n_vstrains, n_particles_per_vstrain, n_pspacers_init, initialConditionsDB),
             next_pspacer_id
         )
     end
 end
 
-function State(p::Params)
+function State(p::Params,initialConditionsDB::Union{DB, Nothing})
+    # println("second go...")
+    # println("$([p.n_bstrains, p.n_hosts_per_bstrain, p.initial_microbe_growth_rate,
+    # p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers])")
+    # println("$(map(x->typeof(x),[p.n_bstrains, p.n_hosts_per_bstrain, p.initial_microbe_growth_rate,
+    # p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers]))")
     State(
-        p.n_bstrains, p.n_hosts_per_bstrain,
-        p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers
+        UInt64(p.n_bstrains), UInt64(p.n_hosts_per_bstrain), Float64(p.initial_locus_allele),
+        p.evofunction, p.max_allele, p.center_allele, p.max_fitness,
+        UInt64(p.n_vstrains), UInt64(p.n_particles_per_vstrain), UInt64(p.n_protospacers), initialConditionsDB
     )
 end
 
 #########################################################
-
-
-
-
 
 
 mutable struct Simulation
@@ -181,7 +257,7 @@ mutable struct Simulation
     #meta_file::IOStream
     #summary_file::IOStream
 
-    function Simulation(p::Params)
+    function Simulation(p::Params,initialConditionsDB::Union{DB, Nothing})
         #meta_file = open_csv("meta", "key", "value")
 
         db = initialize_database()
@@ -195,23 +271,15 @@ mutable struct Simulation
         execute(db,
             "INSERT INTO meta VALUES (?,?)", ["rng_seed", Int64(rng_seed)]
         )
-
-        # Save parameters as loaded
-        #write_json_to_file(p, "parameters_out.json")
-
-        #write_csv(meta_file, "start_time", start_time)
-
         execute(db,
             "INSERT INTO meta VALUES (?,?)",
             ["start_time", Dates.format(start_time, "yyyy-mm-ddTHH:MM:SS")]
         )
 
         # Initialize & validate model state
-        println("$([p.n_bstrains, p.n_hosts_per_bstrain,
+        println("$([p.n_bstrains, p.n_hosts_per_bstrain, p.initial_locus_allele,
         p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers])")
-        println("$(map(x->typeof(x),[p.n_bstrains, p.n_hosts_per_bstrain,
-        p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers]))")
-        state = State(p)
+        state = State(p,initialConditionsDB)
         validate(state)
 
         sim = new(

@@ -6,7 +6,7 @@ include("simulation/src/util.jl")
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
 
-function make_sweep_params_script()
+function make_sweep_params_script(SCRIPT_PATH)
     numParams = []
     t_final = Float64(2000.0)
     push!(numParams, length(t_final))
@@ -16,6 +16,18 @@ function make_sweep_params_script()
     push!(numParams, length(rng_seed))
 
     enable_output = true
+    directional = true
+    evofunction = 1
+    initial_locus_allele= Float64(25)
+    push!(numParams, length(initial_locus_allele))
+    center_allele = Float64(25)
+    push!(numParams, length(center_allele))
+    allelic_change = Float64(1)
+    push!(numParams, length(allelic_change))
+    max_allele = Float64(50)
+    push!(numParams, length(max_allele))
+    max_fitness = Float64(1)
+    push!(numParams, length(max_fitness))
 
     n_bstrains = UInt64(1)
     push!(numParams, length(n_bstrains))
@@ -25,16 +37,16 @@ function make_sweep_params_script()
     push!(numParams, length(n_vstrains))
     n_particles_per_vstrain = UInt64(100)
     push!(numParams, length(n_particles_per_vstrain))
-    n_protospacers = [UInt64(5), UInt64(10), UInt64(15)]
+    n_protospacers = UInt64(15)
     push!(numParams, length(n_protospacers))
-    n_spacers_max = [UInt64(5), UInt64(10), UInt64(15)]
+    n_spacers_max = UInt64(10)
     push!(numParams, length(n_spacers_max))
-    crispr_failure_prob = [Float64(5e-06), Float64(1e-05), Float64(1.5e-05), Float64(2e-05)]
+    crispr_failure_prob = Float64(0)
     push!(numParams, length(crispr_failure_prob))
-    spacer_acquisition_prob = [Float64(5e-06), Float64(1e-05), Float64(1.5e-05), Float64(2e-05)]
+    spacer_acquisition_prob = Float64(1e-05)
     push!(numParams, length(spacer_acquisition_prob))
-    microbe_growth_rate = Float64(1.0)
-    push!(numParams, length(microbe_growth_rate))
+    microbe_mutation_prob = Float64(.1)
+    push!(numParams, length(microbe_mutation_prob))
     microbe_carrying_capacity = Float64(316228.0) #~10^(5.5)
     push!(numParams, length(microbe_carrying_capacity))
     viral_burst_size = UInt64(50)
@@ -43,9 +55,9 @@ function make_sweep_params_script()
     push!(numParams, length(adsorption_rate))
     viral_decay_rate = Float64(0.1)
     push!(numParams, length(viral_decay_rate))
-    viral_mutation_rate = [Float64(5e-07), Float64(7.5e-07), Float64(1e-06), Float64(1.75e-06), Float64(2e-06)]
+    viral_mutation_rate = Float64(1e-06)
     push!(numParams, length(viral_mutation_rate))
-    microbe_death_rate = Float64(0)
+    microbe_death_rate = Float64(0.25)
     push!(numParams, length(microbe_death_rate))
     microbe_immigration_rate = Float64(0)
     push!(numParams, length(microbe_immigration_rate))
@@ -56,6 +68,13 @@ function make_sweep_params_script()
         t_output = t_output,
         rng_seed = rng_seed,
         enable_output = enable_output,
+        directional = directional,
+        evofunction =  evofunction,
+        initial_locus_allele = initial_locus_allele,
+        center_allele = center_allele,
+        allelic_change = allelic_change,
+        max_allele = max_allele,
+        max_fitness = max_fitness,
         n_bstrains = n_bstrains,
         n_hosts_per_bstrain = n_hosts_per_bstrain,
         n_vstrains = n_vstrains,
@@ -64,7 +83,7 @@ function make_sweep_params_script()
         n_spacers_max = n_spacers_max,
         crispr_failure_prob = crispr_failure_prob,
         spacer_acquisition_prob = spacer_acquisition_prob,
-        microbe_growth_rate = microbe_growth_rate,
+        microbe_mutation_prob = microbe_mutation_prob,
         microbe_carrying_capacity = microbe_carrying_capacity,
         viral_burst_size = viral_burst_size,
         adsorption_rate = adsorption_rate,
@@ -102,14 +121,32 @@ end
     "Enable output?"
     enable_output::Union{Bool, Nothing}
 
+    "Directional growth mutations?"
+    directional::Union{Bool, Nothing}
+
+    "The is the genotype to phenotype map for microbial demographic trait"
+    evofunction::Union{UInt64, Nothing}
+
+    "This sets the initial allele value"
+    initial_locus_allele::Union{Float64, Array{Float64,1}, Nothing}
+
+    "This sets the middle allele value"
+    center_allele::Union{Float64, Array{Float64,1}, Nothing}
+
+    "The amount allele value changes upon directional mutation [epsilon]"
+    allelic_change::Union{Float64, Array{Float64,1}, Nothing}
+
+    "This sets the upper and lower bounds of allele values"
+    max_allele::Union{Float64, Array{Float64,1}, Nothing}
+
+    "This sets the maximum instrinsic fitness of microbe"
+    max_fitness::Union{Float64, Array{Float64,1}, Nothing}
+
     "Number of initial bacterial strains"
     n_bstrains::Union{UInt64, Array{UInt64,1}, Nothing}
 
     "Number of initial hosts per bacterial strain"
     n_hosts_per_bstrain::Union{UInt64, Array{UInt64,1}, Nothing}
-
-    # "Number of initial spacers per bacterial strain"
-    # n_spacers::UInt64
 
     "Number of initial virus strains"
     n_vstrains::Union{UInt64, Array{UInt64,1}, Nothing}
@@ -120,8 +157,6 @@ end
     "Number of initial protospacers per virus strain"
     n_protospacers::Union{UInt64, Array{UInt64,1}, Nothing}
 
-    #InitializationParameters() = new() # WHAT IS THIS????
-
     "Maximum number of spacers in a bacterial strain"
     n_spacers_max::Union{UInt64, Array{UInt64,1}, Nothing}
 
@@ -131,8 +166,8 @@ end
     "New spacer acquisition probability [q]"
     spacer_acquisition_prob::Union{Float64, Array{Float64,1}, Nothing}
 
-    "Growth rate at 0 (1/h) = [r]"
-    microbe_growth_rate::Union{Float64, Array{Float64,1}, Nothing}
+    "Microbial mutation probability [rho]"
+    microbe_mutation_prob::Union{Float64, Array{Float64,1}, Nothing}
 
     "Carrying capacity (1/mL) = [K]"
     microbe_carrying_capacity::Union{Float64, Array{Float64,1}, Nothing}
@@ -161,16 +196,23 @@ function validate(p::ParamSweep)
     @assert p.t_final !== nothing
     @assert p.t_output !== nothing
 
+    @assert p.evofunction !== nothing
+    @assert p.initial_locus_allele !== nothing
+    @assert p.center_allele !== nothing
+    @assert p.allelic_change !== nothing
+    @assert p.max_allele !== nothing
+    @assert p.max_fitness !== nothing
+
     @assert p.n_bstrains !== nothing
     @assert p.n_hosts_per_bstrain !== nothing
     @assert p.n_vstrains !== nothing
     @assert p.n_particles_per_vstrain !== nothing
     @assert p.n_protospacers !== nothing
-
     @assert p.n_spacers_max !== nothing
+
     @assert p.crispr_failure_prob !== nothing
     @assert p.spacer_acquisition_prob !== nothing
-    @assert p.microbe_growth_rate !== nothing
+    @assert p.microbe_mutation_prob !== nothing
     @assert p.microbe_carrying_capacity !== nothing
     @assert p.viral_burst_size !== nothing
     @assert p.adsorption_rate !== nothing
@@ -181,4 +223,4 @@ function validate(p::ParamSweep)
 end
 
 
-make_sweep_params_script()
+make_sweep_params_script(SCRIPT_PATH)

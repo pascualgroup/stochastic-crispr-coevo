@@ -1,6 +1,7 @@
 ### OUTPUT FUNCTIONS ###
 
 function initialize_database()
+    print(cd(pwd))
     if isfile("output.sqlite")
         error("output.sqlite already exists; delete first")
     end
@@ -27,6 +28,12 @@ function initialize_database()
         CREATE TABLE bspacers (
             bstrain_id INTEGER,
             spacer_id INTEGER
+        )
+    """)
+    execute(db, """
+        CREATE TABLE bgrowthrates (
+            bstrain_id INTEGER,
+            locus_allele REAL, growth_rate REAL
         )
     """)
     execute(db, """
@@ -62,63 +69,14 @@ function initialize_database()
     db
 end
 
-#function write_json_to_file(x, filename)
-    #if ispath(filename)
-        #error("$filename already exists. You should delete output, or run in a different directory.")
-    #else
-        #file = open(filename, "w")
-        #print(file, JSON2.write(x))
-        #file
-    #end
-#end
-
-#function open_csv(prefix, header...)
-    #filename = "$prefix.csv"
-    #if ispath(filename)
-        #error("$filename already exists. You should delete output, or run in a different directory.")
-    #else
-        #file = open(filename, "w")
-        #write_csv(file, header...)
-        #file
-    #end
-#end
-
-#function write_csv(file, row...)
-    #for i = 1:lastindex(row)
-        #print(file, row[i])
-        #if i < lastindex(row)
-            #print(file, ",")
-        #end
-    #end
-    #print(file, "\n")
-#end
-
 function write_periodic_output(sim) # this only writes the summary
-    #and the abundances of the different strains
     s = sim.state
-
-    #write_summary(sim.summary_file, sim.t, s)
-
-    #write_abundances(
-        #s.bstrains.abundance_file, sim.t, s.bstrains.ids, s.bstrains.abundance
-    #)
-    #write_abundances(
-        #s.vstrains.abundance_file, sim.t, s.vstrains.ids, s.vstrains.abundance
-    #)
-
-    #flush(s.bstrains.strain_file)
-    #flush(s.bstrains.spacers_file)
-    #flush(s.vstrains.strain_file)
-    #flush(s.vstrains.spacers_file)
-
-
     write_summary(sim)
     write_abundances(sim, "babundance", s.bstrains.ids, s.bstrains.abundance)
     write_abundances(sim, "vabundance", s.vstrains.ids, s.vstrains.abundance)
 end
 
 function write_summary(sim)
-
     db = sim.db
     t = sim.t
     state = sim.state
@@ -131,22 +89,21 @@ function write_summary(sim)
     )
 end
 
-function write_strains(sim, strains_table_name, spacers_table_name, ids, spacers)
-    #function write_strains(strain_file, spacers_file, t_creation, ids, spacers)
-    ## where does t_creation go??
+function write_strains(sim, strains_table_name, spacers_table_name,
+                        other_table_name, ids, spacers, parameter1, parameter2)
     @debug "write_strains" ids
     for i = 1:lastindex(ids)
         write_strain(sim, strains_table_name, ids[i], 0, 0)
         write_spacers(sim, spacers_table_name, ids[i], spacers[i])
     end
+    if other_table_name == "bgrowthrates"
+        for i = 1:lastindex(ids)
+            write_growth_rate(sim, other_table_name, ids[i], parameter1[i], parameter2[i])
+        end
+    end
 end
 
-function write_strain(sim, strains_table_name, id, parent_id, other_id) #where does t_creation go?
-    #function write_strain(file, t_creation, id, parent_id, other_id) #only initialization of simulation
-    # and events such as "acquire spacer" and "mutate virus" use this write new strains.
-    #write_periodic_output is used to update abundances thereafter.
-    # THIS FUNCTION ONLY INSERTS a new strain into the file
-
+function write_strain(sim, strains_table_name, id, parent_id, other_id)
     execute(sim.db,
         "INSERT INTO $strains_table_name VALUES (?,?,?,?)",
         [sim.t, id, parent_id, other_id]
@@ -161,11 +118,17 @@ function write_spacers(sim, spacers_table_name, id, spacers)
     end
 end
 
+function write_growth_rate(sim, table_name, id, lAllele, gRate)
+    @debug "write_growth_rates" id gRate
+    stmt = Stmt(sim.db, "INSERT INTO $table_name VALUES (?,?,?)")
+    execute(stmt, [Int64(id), Float64(lAllele), Float64(gRate)])
+end
+
 function write_abundances(sim, table_name, ids, abundance)
+    t = sim.t
     @debug "write_abundances" t ids abundance
     @debug "lastindex(ids)" lastindex(ids)
     stmt = Stmt(sim.db, "INSERT INTO $table_name VALUES (?,?,?)")
-    t = sim.t
     for i = 1:lastindex(ids)
         @debug "lastindex(ids)" lastindex(ids)
         execute(stmt, [t, ids[i], abundance[i]])

@@ -34,7 +34,7 @@ function main()
         execute(dbOutput, "ATTACH DATABASE '$(dbSimPath)' as dbSim")
                 println("Database Attached")
 
-        for table_name in ["babundance","bspacers","bstrains","summary","vabundance","vpspacers","vstrains"]
+        for table_name in ["babundance","bspacers","bgrowthrates","bstrains","summary","vabundance","vpspacers","vstrains"]
             println("Table Name: $(table_name)")
             tableCols = ["$(table_info.name)" for table_info in execute(dbSim,"PRAGMA table_info($(table_name))")]
             tableColsType = ["$(table_info.name) $(table_info.type)" for table_info in execute(dbSim,"PRAGMA table_info($(table_name))")]
@@ -55,7 +55,7 @@ function main()
         tableNamesTypes = ["$(table_info.name) $(table_info.type)" for table_info in execute(dbSim,"PRAGMA table_info(param_combos)")]
         tableNamesTypes = join(tableNamesTypes,", ")
         println("...creating tables...")
-        execute(dbOutput, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER, rng_seed INTEGER)")
+        execute(dbOutput, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER)")
         execute(dbOutput, "CREATE TABLE param_combos ($(tableNamesTypes...))")
         println("Tables Created")
         tableNames = ["$(table_info.name)" for table_info in execute(dbSim,"PRAGMA table_info(param_combos)")]
@@ -63,7 +63,7 @@ function main()
         execute(dbOutput, "BEGIN TRANSACTION")
         println("...loading param_combos & runs data...")
         execute(dbOutput,"INSERT INTO param_combos($(tableNames)) SELECT * FROM dbSim.param_combos")
-        execute(dbOutput,"INSERT INTO runs (run_id, combo_id, replicate, rng_seed) SELECT run_id, combo_id, replicate, rng_seed FROM dbSim.runs")
+        execute(dbOutput,"INSERT INTO runs (run_id, combo_id, replicate) SELECT run_id, combo_id, replicate FROM dbSim.runs")
         execute(dbOutput, "COMMIT")
 
         (numSpacers,) = execute(dbSim,"SELECT n_spacers_max FROM param_combos WHERE combo_id = $(cr[1])")
@@ -74,93 +74,6 @@ function main()
         spacersTypeStmt = join(["$(i) INTEGER" for i in 1:numSpacers],", ")
         pspacersColStmt = join(collect(1:numPspacers),",  ")
         pspacersTypeStmt = join(["$(i) INTEGER" for i in 1:numPspacers],", ")
-
-        println("...creating abundance-with-loci tables...")
-        for table_name in ["babundance","vabundance"]
-            # tableCols = ["$(table_info.name)" for table_info
-            # in execute(dbSim,"PRAGMA table_info($(table_name))")
-            # if table_info.name != "run_id"]
-            tableColsType = ["$(table_info.name) $(table_info.type)" for table_info
-            in execute(dbSim,"PRAGMA table_info($(table_name))")
-            if table_info.name != "run_id"]
-            # colStmt = join(tableCols,", ")
-            colTypeStmt = join(tableColsType,", ")
-
-            execute(dbOutput, "BEGIN TRANSACTION")
-            execute(dbOutput, "CREATE TABLE $(table_name)_with_loci ($(colTypeStmt...))")
-            println("...adding loci columns of $(table_name)...")
-            if table_name == "babundance"
-                numLoci = numSpacers
-                s = "b"
-                q = "b"
-            end
-            if table_name == "vabundance"
-                numLoci = numPspacers
-                s ="v"
-                q ="vp"
-            end
-
-            for locus in 1:numLoci
-                execute(dbOutput, "ALTER TABLE $(table_name)_with_loci ADD COLUMN locus_$(Int64(locus)) INTEGER")
-            end
-            execute(dbOutput, "ALTER TABLE $(table_name)_with_loci ADD COLUMN run_id INTEGER")
-            execute(dbOutput, "COMMIT")
-
-            # tableCols = ["$(table_info.name)" for table_info
-            # in execute(dbOutput,"PRAGMA table_info($(table_name))")
-            # if table_info.name != "run_id"]
-            # tableColsType = ["$(table_info.name) $(table_info.type)" for table_info
-            # in execute(dbOutput,"PRAGMA table_info($(table_name))")
-            # if table_info.name != "run_id"]
-            # colStmt = join(tableCols,", ")
-            # colTypeStmt = join(tableColsType,", ")
-
-            println("Loading $(table_name)_with_loci data")
-            # for (time,) in execute(dbSim,"SELECT t FROM $(table_name) ORDER BY t")
-            #     for (strain_id,) in execute(dbSim,"SELECT $(s)strain_id FROM $(table_name) ORDER BY t")
-            #         execute(dbOutput, "INSERT INTO $(table_name)-with-loci($(colStmt))
-            #         SELECT *, FROM$(colStmt)
-            #         FROM dbSim.$(table_name) WHERE run_id = $(run);")
-            #         execute(dbOutput, "INSERT INTO $(table_name)-with-loci($(colStmt)) SELECT $(colStmt)
-            #         FROM dbSim.$(table_name) WHERE run_id = $(run);")
-            #     end
-            # end
-
-            execute(dbOutput, "BEGIN TRANSACTION")
-            for (time,) in execute(dbSim,"SELECT DISTINCT t FROM $(table_name)
-                WHERE run_id = $(run) ORDER BY t")
-                # println("time: $(time)")
-                for (strain_id,) in execute(dbSim,"SELECT $(s)strain_id
-                    FROM $(table_name) WHERE run_id = $(run) AND t = $(time)
-                    ORDER BY $(s)strain_id")
-                    # println("$(s)strain_id: $(strain_id)")
-                    # execute(dbOutput, "BEGIN TRANSACTION")
-                    if table_name == "babundance"
-                        spacers = [spacer for (spacer,) in execute(dbSim, "SELECT spacer_id
-                        FROM bspacers WHERE $(s)strain_id = $(strain_id)
-                        AND run_id = $(run)")]
-                        numLociFilled = length(spacers)
-                        lociLeft = Int64(numSpacers - numLociFilled)
-                        if lociLeft != 0
-                            append!(spacers,Array{Int64}(zeros(lociLeft)))
-                        end
-                        spacers = join(spacers,", ")
-                    end
-                    if table_name == "vabundance"
-                        spacers = join([spacer for (spacer,) in execute(dbSim, "SELECT spacer_id
-                        FROM vpspacers WHERE $(s)strain_id = $(strain_id)
-                        AND run_id = $(run)")],", ")
-                    end
-                    execute(dbOutput, "INSERT INTO $(table_name)_with_loci
-                    SELECT t, $(s)strain_id, abundance, $(spacers), $(run)
-                    FROM dbSim.$(table_name) WHERE t = $(time)
-                    AND $(s)strain_id = $(strain_id) AND run_id = $(run)")
-                    # execute(dbOutput, "COMMIT")
-                end
-            end
-            execute(dbOutput, "COMMIT")
-        end
-    println("Abundance-with-loci Tables Created")
     end
 end
 

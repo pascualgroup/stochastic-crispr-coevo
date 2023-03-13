@@ -17,7 +17,7 @@ elseif analysisType == "walls-shannon" && length(ARGS) < 3
     error("`walls` analysis needs three arguments: upper percent threshold, lower percent threshold, diversity threshold")
 end
 
-if analysisType == "walls-shannon" && !isfile(joinpath(SCRIPT_PATH,"gathered-analyses","shannon","shannon.sqlite"))
+if analysisType == "walls-shannon" && !isfile(joinpath(SCRIPT_PATH,"shannon","shannon.sqlite"))
     error("`/shannon/shannon.sqlite` is missing; please analyze shannon first.")
 end
 

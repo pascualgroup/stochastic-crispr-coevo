@@ -123,6 +123,8 @@ function computeExtinctionRoots(matchStructure::hierarchy,
                     @assert imag(extinction.proots[matchID][1]) == 0 "root is imaginary!"
                 end
 
+
+
                 # THIS IS BAD PRACTICE but I know what the solutions look like analytically
                 # I.E. minimum roots that are greater than one, are so by a very small amount
                 # due to floating point errors

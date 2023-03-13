@@ -14,7 +14,6 @@ import matplotlib.gridspec as grid_spec
 # import plotly.express as px
 # from mpl_toolkits.mplot3d import Axes3D
 import itertools
-from scipy import integrate
 
 
 
@@ -88,18 +87,6 @@ virus_stacked = virus_stacked.pivot(index='t',columns='vstrain_id',values='abund
 
 
 
-tripartiteNets = pd.read_sql_query("SELECT t, bstrain_id, vstrain_id, time_specific_match_id\
-    FROM bstrain_to_vstrain_matches WHERE match_length = 1", conMatch)
-spacerMatches = pd.read_sql_query("SELECT t, time_specific_match_id, spacer_id\
-    FROM matches_spacers", conMatch)
-tripartiteNets = tripartiteNets.merge(spacerMatches,on=['t','time_specific_match_id'])\
-            .drop(columns=['time_specific_match_id'])
-microbe_stacked = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance \
-                    WHERE run_id = {}".format(run_id), conSim)
-virus_stacked = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance \
-                    WHERE run_id = {}".format(run_id), conSim)
-
-
 pal = sns.color_palette("tab20c")
 fig, ax = plt.subplots(2,sharex=True)
 microbe_stacked.plot.area(ax = ax[0],stacked=True,legend=False, linewidth=0,color=pal,sort_columns=True)
@@ -120,6 +107,35 @@ ax[1].tick_params(axis='x', labelsize= 10)
 ax[1].tick_params(axis='y', labelsize= 10)
 lim = ax[1].get_ylim()
 ax[1].set_ylim(0,lim[1])
+
+
+pEmergeExpected = pd.read_sql_query("SELECT t, p_emerge_weighted \
+    FROM vmatch_extinction ORDER BY t", conProb).groupby(['t'])\
+    .agg(p_exp=('p_emerge_weighted','sum')).reset_index()
+pal = sns.color_palette("tab20c")
+fig, ax = plt.subplots(2,sharex=True)
+axes = [ax[0], ax[0].twinx(), ax[1], ax[1].twinx()]
+microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=pal,sort_columns=True)
+axes[0].set_ylabel(ylabel ='Microbial Strain Abundances',labelpad=15,fontsize=15)
+axes[0].set_xlabel(xlabel = 'Time t',fontsize=15)
+axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
+axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+axes[0].tick_params(axis='x', labelsize= 10)
+axes[0].tick_params(axis='y', labelsize= 10)
+lim = axes[0].get_ylim()
+axes[0].set_ylim(0,lim[1])
+axes[1].plot(virus_total['t'],virus_total['vtotal'],linewidth=0,color='grey')
+axes[1].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.6)
+lim = axes[1].get_ylim()
+axes[1].set_ylim(0,lim[1])
+axes[2].plot(pEmergeExpected['t'],pEmergeExpected['p_exp'],linewidth=1,color='darkblue')
+axes[2].set_ylabel(ylabel ='Probability of Viral Strain Emergence',labelpad=15,fontsize=15)
+axes[2].set_xlabel(xlabel = 'Time t',fontsize=15)
+axes[2].tick_params(axis='x', labelsize= 10)
+axes[2].tick_params(axis='y', labelsize= 10)
+axes[3].plot(virus_total['t'],virus_total['vtotal'],linewidth=0,color='grey')
+axes[3].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.3)
+fig.tight_layout()
 
 
 pEmergeExpected = pd.read_sql_query("SELECT t, pactual_emerge_weighted \
@@ -151,59 +167,9 @@ axes[3].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=
 fig.tight_layout()
 
 
-microbe_total = pd.read_sql_query("SELECT t,microbial_abundance FROM summary WHERE run_id = {}".format(run_id), conSim)\
-.rename(columns={"microbial_abundance": "btotal"})
-virus_total = pd.read_sql_query("SELECT t,viral_abundance FROM summary WHERE run_id = {}".format(run_id), conSim)\
-.rename(columns={"viral_abundance": "vtotal"})
-microbe_stacked = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance \
-                    WHERE run_id = {}".format(run_id), conSim)
-virus_stacked = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance \
-                    WHERE run_id = {}".format(run_id), conSim)
-bstrain0vstrains = pd.read_sql_query("SELECT t, bstrain_id, vstrain_id\
-    FROM bstrain_to_vstrain_0matches", conMatch)
-# bmatches = pd.read_sql_query("SELECT t, match_id, bstrain_id\
-#     FROM bmatches", conTri).rename(columns={'match_id':'bmatch_id'})
-vmatches = pd.read_sql_query("SELECT t, match_id, vstrain_id\
-    FROM vmatches", conTri).rename(columns={'match_id':'vmatch_id'})
-v0matches = pd.read_sql_query("SELECT t, vstrain_id \
-    FROM v0matches", conTri)
-v0matches['vmatch_id'] = len(v0matches['vstrain_id'])*[0]
-vmatches = pd.concat([v0matches,vmatches])\
-            .sort_values(by=['t','vmatch_id','vstrain_id'])
-bstrain0vstrains = bstrain0vstrains.merge(vmatches,on=['t','vstrain_id'])\
-                    .merge(microbe_stacked,on=['t','bstrain_id'])\
-                    .groupby(['t','vmatch_id'])\
-                    .agg(babundance=('abundance','sum')).reset_index()\
-                    .merge(microbe_total,on=['t'])
-bstrain0vstrains['bfreq'] = \
-    np.array(bstrain0vstrains['babundance'])\
-    /np.array(bstrain0vstrains['btotal'])
-bstrain0vstrains = bstrain0vstrains.drop(columns=['babundance','btotal'])
-vmatches = vmatches.merge(virus_stacked,on=['t','vstrain_id'])\
-        .groupby(['t','vmatch_id'])\
-        .agg(vabundance=('abundance','sum')).reset_index()\
-        .merge(virus_total,on=['t'])
-vmatches['vfreq'] = np.array(vmatches['vabundance'])/np.array(vmatches['vtotal'])
-bstrain0vstrains = bstrain0vstrains\
-                    .merge(vmatches[['t','vmatch_id','vfreq']],\
-                        on=['t','vmatch_id'])
-bstrain0vstrains['weights'] = \
-    np.array(bstrain0vstrains['vfreq'])*np.array(bstrain0vstrains['bfreq'])
-norm = bstrain0vstrains.groupby(['t']).agg(norm=('weights','sum')).reset_index()
-bstrain0vstrains = bstrain0vstrains.merge(norm,on=['t'])
-bstrain0vstrains['weights'] = np.array(bstrain0vstrains['weights'])\
-                                        /np.array(bstrain0vstrains['norm'])
-bstrain0vstrains = pd.read_sql_query("SELECT t, vmatch_id, lysis, death, p_extinction_lambert \
-    FROM existing_vmatch_extinction ORDER BY t", conProb)\
-    .merge(bstrain0vstrains,on=['t','vmatch_id'])
-bstrain0vstrains['pExp'] = \
-    (1-(np.array(bstrain0vstrains['p_extinction_lambert']))**50)\
-                            *np.array(bstrain0vstrains['weights'])
-pEmergeExpected = bstrain0vstrains.groupby(['t'])\
-    .agg(p_exp=('pExp','sum')).reset_index()
-microbe_stacked = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance \
-                    WHERE run_id = {}".format(run_id), conSim)
-microbe_stacked = microbe_stacked.pivot(index='t',columns='bstrain_id',values='abundance')
+pEmergeExpected = pd.read_sql_query("SELECT t, plambert_emerge_weighted \
+    FROM existing_vmatch_extinction ORDER BY t", conProb).groupby(['t'])\
+    .agg(p_exp=('plambert_emerge_weighted','sum')).reset_index()
 pal = sns.color_palette("tab20c")
 fig, ax = plt.subplots(2,sharex=True)
 axes = [ax[0], ax[0].twinx(), ax[1], ax[1].twinx()]
@@ -266,76 +232,7 @@ axes[3].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=
 fig.tight_layout()
 
 
-def time
 
-
-for vmatch_id in bstrain0vstrains['vmatch_id'].unique():
-    b0 = bstrain0vstrains[
-        bstrain0vstrains.vmatch_id == vmatch_id]['lysis'][0]
-    # d0 = bstrain0vstrains[\
-    #     bstrain0vstrains.vmatch_id==vmatch_id]['death'][0]
-    b = [b0]
-    for time in bstrain0vstrains[bstrain0vstrains.vmatch_id == vmatch_id]['t']\
-        .unique().pop(0)
-    b = bstrain0vstrains[
-        (bstrain0vstrains.vmatch_id == vmatch_id)
-        &
-        (bstrain0vstrains.t == time)]['lysis'][0]
-    
-    arg1
-    arg2
-    Q
-
-
-for vmatch_id in bstrain0vstrains['vmatch_id'].unique():
-Q0 = bstrain0vstrains[bstrain0vstrains.vmatch_id==vmatch_id]['p_extinction_lambert'].values[0]
-Q = [Q0]
-b0 = bstrain0vstrains[bstrain0vstrains.vmatch_id == vmatch_id]['lysis'].values[0]
-bInt = {}
-# d0 = bstrain0vstrains[\
-#     bstrain0vstrains.vmatch_id==vmatch_id]['death'][0]
-d0 = 0.1
-ed = np.exp(d0)
-for time in bstrain0vstrains[bstrain0vstrains.vmatch_id==vmatch_id]['t'].unique()[1:]:
-    b = bstrain0vstrains[
-        (bstrain0vstrains.vmatch_id==vmatch_id)
-        &
-        (bstrain0vstrains.t==time)]['lysis'].values[0]
-    bInt[time] = integrate.simpson([b0,b],[0,1])
-    # d = bstrain0vstrains[
-    #     (bstrain0vstrains.vmatch_id==vmatch_id)
-    #     &
-    #     (bstrain0vstrains.t==time)]['death'][0]
-    c1 = ed*np.exp(bInt[time])
-    c2 = integrate.simpson(\
-        [1, ed*np.exp(-1*bInt[time])],
-                [0,1]\
-            )
-    Q0 = c1*(Q0 - d0*c2)
-    Q.append(Q0)
-
-        
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#####################################################################################
 
 # THIS IS MULTIPLYING WITH MICROBE FREQUENCY BUT NORMALIZING WITH VIRUS & MICROBE
 frequencies = pd.read_sql_query("SELECT t,match_id,bsusceptible \

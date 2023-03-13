@@ -26,8 +26,13 @@ if p.enable_output
     @info "initial output"
     write_periodic_output(sim)
 
-    write_strains(sim, "bstrains", "bspacers", state.bstrains.ids, state.bstrains.spacers)
-    write_strains(sim, "vstrains", "vpspacers", state.vstrains.ids, state.vstrains.spacers)
+    write_strains(sim, "bstrains", "bspacers", "bgrowthrates",
+                    state.bstrains.ids, state.bstrains.spacers,
+                    state.bstrains.growthalleles, state.bstrains.growthrates)
+    write_strains(sim, "vstrains", "vpspacers", nothing,
+                    state.vstrains.ids, state.vstrains.spacers,
+                    nothing, nothing)
+    # println("checkpoint1")
 end
 
 # Simulation loop
@@ -39,6 +44,7 @@ while sim.t < p.t_final
     beginTime = sim.t
     while sim.t < t_next_output # This continues until sum of event times meet sampling time
         do_next_event!(sim, t_next_output)
+        # println("oh")
     end
     endTime = sim.t
 
@@ -69,7 +75,7 @@ end
 
 
 
-## EVENT FUNCTIONS ##
+################## EVENT FUNCTIONS ##################
 
 function do_next_event!(sim::Simulation, t_max::Float64)
     p = sim.params
@@ -93,8 +99,8 @@ function do_next_event!(sim::Simulation, t_max::Float64)
                     write_periodic_output(sim)
                 end
 
-                @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-                @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+                @debug "bstrains:" total_abund=s.bstrains.total_abundance abund=s.bstrains.abundance spacers=s.bstrains.spacers
+                @debug "vstrains:" total_abund=s.vstrains.total_abundance abund=s.vstrains.abundance pspacers=s.vstrains.spacers
 
         else
             sim.t = t_max
@@ -105,46 +111,47 @@ function do_next_event!(sim::Simulation, t_max::Float64)
                     write_periodic_output(sim)
                 end
 
-                @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-                @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+                @debug "bstrains:" total_abund=s.bstrains.total_abundance abund=s.bstrains.abundance spacers=s.bstrains.spacers
+                @debug "vstrains:" total_abund=s.vstrains.total_abundance abund=s.vstrains.abundance pspacers=s.vstrains.spacers
 
             # Time advances to value greater than current output time
 
                 # Sample next top-level event proportional to event rate
-
-                @debug "event counts:" total=n_events, breakdown=sim.event_counts
-                @debug "event_rates:" sim.event_rates
+                total = sum(sim.event_counts)
+                @debug "event counts:" total=total, breakdown=sim.event_counts
+                @debug "event_rates:" rates=sim.event_rates
 
                 event_id = sample(sim.rng, EVENTS, Weights(sim.event_rates, R))
                 sim.event_counts[event_id] += 1
 
-                @debug "begin do_event()" event=event t=t_next
+                @debug "begin do_event()" event_id=event_id t=t_next
                 do_event!(event_id, sim, t_next)
                 update_rates!(sim)
                 @debug "end do_event()"
 
             sim.t = t_next
 
-                @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-                @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+                @debug "bstrains:" total_abund=s.bstrains.total_abundance abund=s.bstrains.abundance spacers=s.bstrains.spacers
+                @debug "vstrains:" total_abund=s.vstrains.total_abundance abund=s.vstrains.abundance pspacers=s.vstrains.spacers
         end
     else
-                @debug "event counts:" total=n_events, breakdown=sim.event_counts
-                @debug "event_rates:" sim.event_rates
+                total = sum(sim.event_counts)
+                @debug "event counts:" total=total, breakdown=sim.event_counts
+                @debug "event_rates:" rates=sim.event_rates
 
                 # Sample next top-level event proportional to event rate
                 event_id = sample(sim.rng, EVENTS, Weights(sim.event_rates, R))
                 sim.event_counts[event_id] += 1
 
-                @debug "begin do_event()" event=event t=t_next
+                @debug "begin do_event()" event_id=event_id t=t_next
                 do_event!(event_id, sim, t_next)
                 update_rates!(sim)
                 @debug "end do_event()"
 
             sim.t = t_next # Time advances
 
-                @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-                @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+                @debug "bstrains:" total_abund=s.bstrains.total_abundance abund=s.bstrains.abundance spacers=s.bstrains.spacers
+                @debug "vstrains:" total_abund=s.vstrains.total_abundance abund=s.vstrains.abundance pspacers=s.vstrains.spacers
     end
 end
 
@@ -200,32 +207,17 @@ end
 function get_rate_microbial_growth(sim::Simulation)
     p = sim.params
     s = sim.state
+    C = p.microbe_carrying_capacity
 
-    # Birth rate has a truncated logistic form:
-    # B(N) = b0 * N * (1 - N / C) [N < C]
-    # B(N) = 0 [N >= C]
-
-    # To match the Childs model, we need the birth rate at N = 0 to
-    # offset the death rate to yield a total growth rate of r:
-
-    r = p.microbe_growth_rate
-    d = p.microbe_death_rate
-    b0 = r + d
-
-    # And we need the birth rate at N = K * V to similarly equal d:
-    #
-    # b0 * (1 - KV/C) = d
-    # =>
-    # C = KV / (1 - d / b0)
-
-    KV = p.microbe_carrying_capacity
-    C = KV / (1 - d / b0)
-
+    N_vec = s.bstrains.abundance
+    R_vec = s.bstrains.growthrates
     # Assumes total_abundance is correct
     N = s.bstrains.total_abundance
-
     # Birth rate is truncated to be nonnegative:
-    max(0, b0 * N * (1 - N / C))
+    # if sim.t > 15
+    #     println("R_vec: $(R_vec), N_vec: $(N_vec), spacers: $(s.bstrains.spacers)")
+    # end
+    max(0, sum((R_vec .* N_vec) * (1 - N / C)))
 end
 
 
@@ -235,13 +227,14 @@ function do_event_microbial_growth!(sim::Simulation, t::Float64)
     rng = sim.rng
 
     N_vec = s.bstrains.abundance
+    R_vec = s.bstrains.growthrates
     N = s.bstrains.total_abundance
 
     # Choose a strain proportional to abundance
-    strain_index = sample_linear_integer_weights(rng, N_vec, N)
-
+    # strain_index = sample_linear_integer_weights(rng, N_vec, N)
+    strain_index = sample(rng,Weights(N_vec.*R_vec))
     # Update abundance and total abundance
-    s.bstrains.abundance[strain_index] += 1
+     s.bstrains.abundance[strain_index] += 1
     s.bstrains.total_abundance += 1
 end
 
@@ -290,14 +283,7 @@ function get_rate_microbial_immigration(sim::Simulation)
     p = sim.params
     s = sim.state
     g = p.microbe_immigration_rate
-    r = p.microbe_growth_rate
-    d = p.microbe_death_rate
-    b0 = r + d
-
-
-    KV = p.microbe_carrying_capacity
-    C = KV / (1 - d / b0)
-
+    C = p.microbe_carrying_capacity
     # Assumes total_abundance is correct
     N = s.bstrains.total_abundance
 
@@ -386,16 +372,22 @@ function do_event_contact!(sim::Simulation, t::Float64)
     should_infect = false
     should_acquire_spacer = false
     if is_immune(s.bstrains.spacers[iB], s.vstrains.spacers[jV])
-        @debug "Immune" t
+        @debug "Immune" t = sim.t
         # If immune, infect anyway with probability p
-        if rand(rng) < params.crispr_failure_prob
-            should_infect = true
+        if params.crispr_failure_prob > 0
+            if rand(rng) < params.crispr_failure_prob
+                should_infect = true
+            end
         end
     else
-        @debug "Not immune" t
+        @debug "Not immune" t = sim.t
         # If not immune, defend (and acquire spacer) with probability q
-        if rand(rng) < params.spacer_acquisition_prob
-            should_acquire_spacer = true
+        if params.spacer_acquisition_prob > 0
+            if rand(rng) < params.spacer_acquisition_prob
+                should_acquire_spacer = true
+            else
+                should_infect = true
+            end
         else
             should_infect = true
         end
@@ -406,7 +398,6 @@ function do_event_contact!(sim::Simulation, t::Float64)
     elseif should_acquire_spacer
         acquire_spacer!(sim, t, iB, jV)
     end
-
 
     # Remove extinct strain
     if s.vstrains.abundance[jV] == 0
@@ -421,9 +412,6 @@ function do_event_contact!(sim::Simulation, t::Float64)
 
     @assert s.bstrains.abundance[1] >= 0
     ###############
-
-
-
 end
 
 
@@ -434,7 +422,7 @@ function infect!(sim::Simulation, t::Float64, iB, jV)
 
     beta = p.viral_burst_size
 
-    @debug "Infecting!" t
+    @debug "Infecting!" t = sim.t
     # Reduce microbial population
     @assert s.bstrains.abundance[iB] > 0
     s.bstrains.abundance[iB] -= 1
@@ -479,54 +467,95 @@ function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
     p = sim.params
     s = sim.state
 
-    @debug "Acquiring spacer!" t
-
+    @debug "Acquiring spacer!" t = sim.t
     # Choose among protospacers in the infecting strain not already acquired
     # (If all have already been acquired, don't do anything.)
     missing_spacers = setdiff(s.vstrains.spacers[jV], s.bstrains.spacers[iB])
     if length(missing_spacers) > 0
         # Create new microbial strain with modified spacers
         @assert s.bstrains.abundance[iB] > 0
-        s.bstrains.abundance[iB] -= 1 #This does not need a change of total
-                                        #abundance alongside. We are just rearranging the identities
-
+        s.bstrains.abundance[iB] -= 1 #This does not need a change of total abundance alongside. We are just rearranging the identities
         # Add spacer, dropping the oldest one if we're at capacity
         old_spacers = s.bstrains.spacers[iB]
-
         new_spacers = if length(old_spacers) == p.n_spacers_max
             old_spacers[2:length(old_spacers)]        ### This removes thes first locus
         else                                          ### of the CRISPR cassette. Is this what original C code was?
             copy(old_spacers)
         end
-
         new_spacers_from_old = copy(new_spacers)
-
         push!(new_spacers, rand(rng, missing_spacers))
+        mutatedSpacer_strain_index = findall(x -> x == new_spacers, s.bstrains.spacers)
 
-        mutated_strain_index = findfirst(x -> x == new_spacers, s.bstrains.spacers)
-        if mutated_strain_index === nothing
+        should_mutate = false
+        if p.microbe_mutation_prob > 0
+            if rand(rng) < p.microbe_mutation_prob
+                should_mutate = true
+            end
+        end
+        if should_mutate
+            if p.directional
+                if rand(rng) < 0.5
+                    sign = -1
+                else
+                    sign = 1
+                end
+                newallele = s.bstrains.growthalleles[iB] + sign * p.allelic_change
+                if newallele > p.max_allele || newallele < 2 * (p.center_allele) - p.max_allele
+                    newallele = s.bstrains.growthalleles[iB] - sign * p.allelic_change
+                end
+            else
+                newallele = rand(rng, Uniform(p.center_allele - p.max_allele, p.max_allele))
+            end
+        end
+        if should_mutate
+            allele = newallele
+        else
+            allele = s.bstrains.growthalleles[iB]
+        end
+        mutatedGrowth_strain_index = findall(x -> x == allele, s.bstrains.growthalleles)
+        overlap = intersect(mutatedSpacer_strain_index, mutatedGrowth_strain_index)
+        @assert length(overlap) < 2 "strain index: $(iB),
+                                    strain id: $(s.bstrains.ids[iB]),
+                                    spacers: $(old_spacers),
+                                    directional: $(p.directional),
+                                    allelic_change: $(p.allelic_change),
+                                    allele_max: $(p.max_allele),
+                                    newallele: $(allele),
+                                    new_spacers: $(new_spacers),
+                                    overlap: $(overlap),
+                                    overlap strain ids: $(map(x->s.bstrains.ids[x],overlap)),
+                                    spacers: $(map(x->s.bstrains.spacers[x],overlap)),
+                                    growthalleles: $(map(x->s.bstrains.growthalleles[x],overlap))"
+
+        mutated_strain_index = nothing
+        if length(intersect(mutatedSpacer_strain_index, mutatedGrowth_strain_index)) == 1
+            mutated_strain_index = intersect(mutatedSpacer_strain_index, mutatedGrowth_strain_index)
+        end
+        if mutated_strain_index == nothing
+            newgrowthrate = fitness(allele, p.center_allele, p.max_allele, p.max_fitness, p.evofunction)
             @debug "Creating new microbial strain"
-
             @debug "Old spacers:" old_spacers
             @debug "New spacers from old spacers:" new_spacers_from_old
             @debug "Missing spacers:" missing_spacers
             @debug "All new spacers:" new_spacers
-
+            @debug "Old growth rate:" s.bstrains.growthrates[strain_index]
+            @debug "New growth rate:" newgrowthrate
             id = s.bstrains.next_id
             s.bstrains.next_id += 1
-            push!(s.bstrains.ids, id)
-            push!(s.bstrains.abundance, 1)
+            push!(s.bstrains.ids, id) #Adds new strain identity
+            push!(s.bstrains.abundance, 1) #Adds abundance of one to new strain identity
             push!(s.bstrains.spacers, new_spacers)
-
+            push!(s.bstrains.growthalleles, allele)
+            push!(s.bstrains.growthrates, newgrowthrate)
+            # println(s.bstrains.growthrates)
             if p.enable_output
-                ############ write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
-                ############ write_spacers(s.bstrains.spacers_file, id, new_spacers)
                 write_strain(sim, "bstrains", id, s.bstrains.ids[iB], s.vstrains.ids[jV])
                 write_spacers(sim, "bspacers", id, new_spacers)
+                write_growth_rate(sim, "bgrowthrates", id, allele, newgrowthrate)
             end
         else
             @debug "using old microbial strain" mutated_strain_index
-            s.bstrains.abundance[mutated_strain_index] += 1
+            s.bstrains.abundance[mutated_strain_index...] += 1
         end
     end
 end
@@ -541,11 +570,9 @@ function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
     p = sim.params
     s = sim.state
     rng = sim.rng
-
     #s.vstrains.abundance[virus_id] -= 1 #This is redundant considering
     #s.vstrains.total_abundance -= 1    #how contact already removes one and only
                                         #adds beta - n_with_mut
-
     old_pspacers = s.vstrains.spacers[virus_id]
     new_pspacers = copy(old_pspacers)
     for locus = mut_loci
@@ -563,8 +590,6 @@ function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
     push!(s.vstrains.spacers, new_pspacers)
 
     if p.enable_output
-        ############ write_strain(s.vstrains.strain_file, sim.t, id, s.vstrains.ids[virus_id], contact_b_id)
-        ############ write_spacers(s.vstrains.spacers_file, id, new_pspacers)
         write_strain(sim, "vstrains", id, s.vstrains.ids[virus_id], s.bstrains.ids[contact_b_id])
         write_spacers(sim, "vpspacers", id, new_pspacers)
     end

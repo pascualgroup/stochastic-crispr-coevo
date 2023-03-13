@@ -38,9 +38,11 @@ function main()
 
     is_first = true
     table_names = []
-    # one connection is enough because sub-databases are being detached 
-    db = SQLite.DB("sweep_db_gathered.sqlite")
     for (run_id, run_dir) in run_pairs
+        # if run_id in [1, 101, 201, 7, 107, 207]
+        #     println("...skipping run_id $(run_id)...")
+        #     continue
+        # end
         rundb_path = joinpath(run_dir, "output.sqlite")
 
         if !ispath(rundb_path)
@@ -50,7 +52,10 @@ function main()
             println("Processing: $(rundb_path)")
         end
 
+        # Start up new connection; weird things seem to happen with attached databases otherwise
+        db = SQLite.DB("sweep_db_gathered.sqlite")
         execute(db, "BEGIN TRANSACTION")
+
         # Connect to output database as sub-db inside connection
         execute(db, "ATTACH DATABASE '$(joinpath(run_dir, "output.sqlite"))' as rundb")
         # If this is the first run, initialize tables

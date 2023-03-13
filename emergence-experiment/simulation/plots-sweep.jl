@@ -91,6 +91,10 @@ function generate_plot_runs(db::DB) # This function generates the directories
     for (run_id, combo_id, replicate) in execute(db, "SELECT run_id,combo_id,replicate FROM runs ORDER BY combo_id,replicate")
         #println("Processing plot script for combination $(combo_id)/replicate $(replicate)"
         #) # local
+        # if run_id in [1, 101, 201, 7, 107, 207, 8, 108, 208]
+        #     println("...skipping run_id $(run_id)...")
+        #     continue
+        # end
         run_dir = joinpath(SCRIPT_PATH,"runs", "c$(combo_id)", "r$(replicate)")
         @assert ispath(run_dir)
 

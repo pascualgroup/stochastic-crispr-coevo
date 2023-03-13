@@ -25,7 +25,12 @@ end # cluster
 dbOutput = SQLite.DB("shannon_output.sqlite") # cluster
 # dbOutput = SQLite.DB("/Volumes/Yadgah/shannon_output.sqlite") # local
 ##
+
 dbSimInfo = SQLite.DB(dbSimInfoPath)
+# (combo_id,) = execute(dbSimInfo,"SELECT combo_id FROM runs WHERE run_id = ?",(run_id,))
+# combo_id = combo_id.combo_id
+# (CARRYING_CAP,) = execute(dbSimInfo,"SELECT microbe_carrying_capacity FROM param_combos WHERE combo_id = ?",(combo_id,))
+# CARRYING_CAP = CARRYING_CAP.microbe_carrying_capacity
 
 execute(dbOutput, "CREATE TABLE shannon_diversity (t REAL, vshannon REAL, bshannon REAL)")
 

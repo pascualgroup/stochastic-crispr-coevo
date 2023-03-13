@@ -38,23 +38,11 @@ replicate = ID[0][1]
 PLOT_PATH = os.path.join(SCRIPT_PATH,'..', 'plots','c{}'.format(combo_id),'r{}'.format(replicate))
 
 
-print('SQLite Query: virus abundance data')
-virus_stacked = pd.read_sql_query("SELECT t,vstrain_id,abundance \
-    FROM vabundance WHERE run_id = {}".format(run_id), conSim)
-t = max(virus_stacked['t'].values)
 virus_total = pd.read_sql_query("SELECT t, viral_abundance \
     FROM summary WHERE run_id = {}".format(run_id), conSim)\
     .rename(columns={'viral_abundance': 'vtotal'})
-virus_total = virus_total[virus_total.t <= t]
-maxIDs = virus_stacked.set_index('t').groupby(['vstrain_id']).agg(t = ('abundance','idxmax'),\
-                            maxAbund = ('abundance','max')).reset_index()
-maxIDs = virus_total.merge(maxIDs,on=['t'])
-maxIDs['vtotal'] = vthreshold*np.array(maxIDs['vtotal'])
-keepStrains = list(maxIDs[maxIDs['maxAbund']>maxIDs['vtotal']]['vstrain_id'].values)
-virus_stacked = virus_stacked[[(i in keepStrains) for i in virus_stacked['vstrain_id']]].reset_index(drop=True)
-virus_stacked = virus_stacked.pivot(index='t',columns='vstrain_id',values='abundance')
-
-
+virus_total = virus_total[virus_total['vtotal'] > 0]
+t = max(virus_total['t'].values)
 print('SQLite Query: microbe abundance data')
 microbe_stacked = pd.read_sql_query("SELECT t,bstrain_id,abundance \
     FROM babundance WHERE run_id = {}".format(run_id), conSim)
@@ -87,6 +75,20 @@ ax.set_ylim(0,lim[1])
 plt.tight_layout()
 plt.savefig(os.path.join(PLOT_PATH,'microbe-strain-abundances.png'),dpi=500)
 plt.close(fig)
+
+print('SQLite Query: virus abundance data')
+virus_stacked = pd.read_sql_query("SELECT t,vstrain_id,abundance \
+    FROM vabundance WHERE run_id = {}".format(run_id), conSim)
+maxIDs = virus_stacked.set_index('t').groupby(['vstrain_id']).agg(t = ('abundance','idxmax'),\
+                            maxAbund = ('abundance','max')).reset_index()
+maxIDs = virus_total.merge(maxIDs,on=['t'])
+maxIDs['vtotal'] = vthreshold*np.array(maxIDs['vtotal'])
+keepStrains = list(maxIDs[maxIDs['maxAbund']>maxIDs['vtotal']]['vstrain_id'].values)
+virus_stacked = virus_stacked[[(i in keepStrains) for i in virus_stacked['vstrain_id']]].reset_index(drop=True)
+virus_stacked = virus_stacked.pivot(index='t',columns='vstrain_id',values='abundance')
+
+
+
 
 print('Compiling viral strain time series plot')
 fig, ax = plt.subplots(1)
