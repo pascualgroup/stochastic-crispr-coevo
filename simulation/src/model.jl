@@ -278,6 +278,11 @@ function do_event_microbial_death!(sim::Simulation, t::Float64)
 
     # Remove extinct strain but keep first index that is reserved
     ## for memoryless immigrants
+    if s.bstrains.abundance[strain_index] == 0
+        if p.enable_output
+            write_extinction(sim, "bextinctions", s.bstrains.ids[strain_index])
+        end
+    end
     if s.bstrains.abundance[strain_index] == 0 && strain_index != 1
         remove_strain!(s.bstrains, strain_index)
     end
@@ -344,6 +349,9 @@ function do_event_viral_decay!(sim::Simulation, t::Float64)
 
     # Remove extinct strain
     if s.vstrains.abundance[strain_index] == 0
+        if p.enable_output
+            write_extinction(sim, "vextinctions", s.vstrains.ids[strain_index])
+        end
         remove_strain!(s.vstrains, strain_index)
     end
 end
@@ -410,20 +418,23 @@ function do_event_contact!(sim::Simulation, t::Float64)
 
     # Remove extinct strain
     if s.vstrains.abundance[jV] == 0
+        if params.enable_output
+            write_extinction(sim, "vextinctions", s.vstrains.ids[jV])
+        end
         remove_strain!(s.vstrains, jV)
     end
-
     # Remove extinct strain but keep first index that is reserved
     ## for memoryless immigrants
+    if s.bstrains.abundance[iB] == 0
+        if params.enable_output
+            write_extinction(sim, "bextinctions", s.bstrains.ids[iB])
+        end
+    end
     if s.bstrains.abundance[iB] == 0 && iB != 1
         remove_strain!(s.bstrains, iB)
     end
 
     @assert s.bstrains.abundance[1] >= 0
-    ###############
-
-
-
 end
 
 

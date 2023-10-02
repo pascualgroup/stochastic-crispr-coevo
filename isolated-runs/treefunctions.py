@@ -167,6 +167,7 @@ def truncateTree(left,right,top,bottom,vlinecVirus,hlinecVirus):
     return vline3d, hline3d
 
 
+# this function has diiversity/abundance and tree. Also inlet as separte image to be joined manually.
 def speciesTreeDiv2Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, maxticksize, figxy, hratio, abundthreshold,t0,tf):
     if species == 'virus':
         strains = 'vstrains'
@@ -440,6 +441,7 @@ def speciesTreeDiv2Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
     return speciesDF, keepTreeStrainsDF, speciesColorDict, hlinecSpecies, vlinecSpecies, fig, axes, fig2, axes2
 
 
+# this function has diiversity/abundance, tree, and inlet but inlet is optimal
 def speciesTreeDiv3Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, maxticksize, figxy, hratio, abundthreshold, t0, tf):
     if species == 'virus':
         strains = 'vstrains'
@@ -709,15 +711,11 @@ def speciesTreeDiv3Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
         strain)] = keepTreeStrainsDF['tree_{}_id'.format(strain)].copy()
     keepTreeStrainsDF = keepTreeStrainsDF.replace(
         {'new_tree_{}_id'.format(strain): newTreeOrder})
-    return speciesDF, keepTreeStrainsDF, speciesColorDict, hlinecSpecies, vlinecSpecies, fig, axes
+    return speciesDF, keepTreeStrainsDF, speciesColorDict, hlinecSpecies, vlinecSpecies, fig2, axes2
 
 
 
-
-
-
-
-
+# this function outputs line abundances, tree, then diversity/stacked baundances
 def speciesTreeDivPlot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, maxticksize, figxy, hratio, abundthreshold, stacked, overlay):
     if species == 'virus':
         strains = 'vstrains'

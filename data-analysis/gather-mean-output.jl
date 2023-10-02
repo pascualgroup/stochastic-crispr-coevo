@@ -7,7 +7,7 @@ This is probably more than you want, but it shows generally how to consolidate
 things.
 """
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 using SQLite
 import SQLite.DBInterface.execute

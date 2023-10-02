@@ -8,10 +8,10 @@ There are three categories of parameters, organized into separate structs in the
 2. Initialization parameters (`InitializationParameters` struct): parameters governing the initial population
 3. Model parameters (`Parameters` struct): parameters governing the dynamical process
 
-You can run a single simulation using `run.jl`, with a single argument giving the location of the parameters file in JSON format, like this:
+You can run a single simulation using `main-sweep.jl`, with a single argument giving the location of the parameters file in JSON format, like this:
 
 ```sh
-julia /path/to/stochastic-crispr/julia/main.jl parameters.json
+julia /path/to/stochastic-crispr/julia/main-sweep.jl parameters.json
 ```
 
 An example parameters file is in `example/parameters.json`.
@@ -33,11 +33,6 @@ Model state is represented by the `State` struct, which contains two fields, `bs
 The `BStrains` and `VStrains` structs are very similar.
 Conceptually, they represent a collection of bacterial/viral strains, and although it would make conceptual sense to just have `bstrains::Vector{BStrain}`, for efficiency of memory layout they are implemented using parallel arrays.
 
-(That is, they are "column-oriented" rather than "row-oriented".)
-
-(Possibly they should be the same type, but it seemed premature to assume that.)
-
-
 
 ## Initialization
 
@@ -52,14 +47,21 @@ Each step follows this algorithm:
 
 There are four events:
 
-1. Bacterial growth: `const BACTERIAL_GROWTH = 1`
-2. Bacterial death: `const BACTERIAL_DEATH = 2`
+1. Microbial growth: `const MICROBIAl_GROWTH = 1`
+2. Microbial death: `const MICROBIAL_DEATH = 2`
 3. Viral decay: `const VIRAL_DECAY = 3`
 4. Contact: `const CONTACT = 4`
+4. Bacterial immigration: `const MICROBIAL_IMMIGRATION = 5`
 
-### Bacterial growth
+### Microbial growth
 
-### Bacterial death
+### Microbial death
+
+### Microbial immigration
+
+Increases the abundance of the strain in `bstrains`. Note that 
+
+### Viral decay
 
 ### Viral decay
 

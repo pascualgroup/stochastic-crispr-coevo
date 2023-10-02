@@ -29,7 +29,7 @@
     "Number of initial protospacers per virus strain"
     n_protospacers::Union{UInt64, Nothing}
 
-    #InitializationParameters() = new() # WHAT IS THIS????
+    #InitializationParameters() = new()
 
     "Maximum number of spacers in a bacterial strain"
     n_spacers_max::Union{UInt64, Nothing}
@@ -83,8 +83,6 @@ mutable struct Strains
 end
 
 
-
-
 function make_bstrains(n_strains, n_hosts_per_strain)
     Strains(
         n_strains + 1,
@@ -97,11 +95,6 @@ function make_bstrains(n_strains, n_hosts_per_strain)
         #open_csv("babundance", "t", "bstrain_id", "abundance")
     )
 end
-
-
-
-
-
 
 
 function make_vstrains(n_strains, n_particles_per_strain, n_pspacers_init)
@@ -164,9 +157,6 @@ end
 
 
 
-
-
-
 mutable struct Simulation
     params::Params
     t::Float64
@@ -198,7 +188,6 @@ mutable struct Simulation
 
         # Save parameters as loaded
         #write_json_to_file(p, "parameters_out.json")
-
         #write_csv(meta_file, "start_time", start_time)
 
         execute(db,
@@ -207,10 +196,10 @@ mutable struct Simulation
         )
 
         # Initialize & validate model state
-        println("$([p.n_bstrains, p.n_hosts_per_bstrain,
-        p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers])")
-        println("$(map(x->typeof(x),[p.n_bstrains, p.n_hosts_per_bstrain,
-        p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers]))")
+        # println("$([p.n_bstrains, p.n_hosts_per_bstrain,
+        # p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers])")
+        # println("$(map(x->typeof(x),[p.n_bstrains, p.n_hosts_per_bstrain,
+        # p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers]))")
         state = State(p)
         validate(state)
 

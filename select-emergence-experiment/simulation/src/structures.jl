@@ -245,8 +245,8 @@ mutable struct Simulation
         )
 
         # Initialize & validate model state
-        println("$([p.n_bstrains, p.n_hosts_per_bstrain,
-        p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers])")
+        # println("$([p.n_bstrains, p.n_hosts_per_bstrain,
+        # p.n_vstrains, p.n_particles_per_vstrain, p.n_protospacers])")
         state = State(p, initialConditionsDB)
         validate(state)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 
-println("(Annoying Julia compilation delay...)")
+println("(Julia compilation delay...)")
 
 include(joinpath("..","simulation","src","setup.jl"))
 
@@ -137,7 +137,7 @@ function generate_mean_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
             #!/bin/sh
             #SBATCH --account=pi-pascualmm
             #SBATCH --partition=broadwl
-            #SBATCH --job-name=crispr-mean-$(analysisType)-$(job_id)
+            #SBATCH --job-name=$(job_id)M$(analysisType)
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m

@@ -43,20 +43,20 @@ treeImgTypes = ["pdf"]
 # graphImgTypes = ["pdf"]
 figxy = (15,10) # setting for tree abundance figure
 hratio = [1,3] # setting for tree abundance figure
-maxticksize = 500 # setting for abundances on individual branches of tree
+maxticksize = 100 # setting for abundances on individual branches of tree
 treepalette = 'turbo' # Color palette for tree: use contiguous color palette
 colorpalSpacers = 'tab20b' # Color palette for spacer in networks: use discrete color palette
 babundthreshold  = float(sys.argv[3])/100 # this is %/100 of total population size
 vabundthreshold  = float(sys.argv[4])/100 # this is %/100 of total population size
-stacked = False
+stacked = True
 # that a strain has to surpass at its maximum value
 # to be included in visualizations
 # abundthreshold = 0.05
 hyperAnalyze = False
 overlay = True
-sSpacing = 2
-vSpacing = 2
-bSpacing = 2
+sSpacing = 8
+vSpacing = 8
+bSpacing = 6
 
 SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__)) # cluster
 
@@ -156,14 +156,14 @@ if sys.argv[2] == 'trees':
             figV.savefig(os.path.join(PLOT_PATH,'virus-abundances-tree-time-slices.{0}'\
                 .format(imgType)),dpi=resolve)
 
-bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, figB, axesB, figB2, axesB2 = \
-    speciesTreeDiv2Plot(run_id,'microbe', DBSIM_PATH,DBTREE_PATH,\
+    bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, figB, axesB, figB2, axesB2 = \
+    tree.speciesTreeDiv2Plot(run_id,'microbe', DBSIM_PATH,DBTREE_PATH,\
     treepalette,100,figxy,[1,3],babundthreshold,350,750)
 
 if sys.argv[2] == 'tree-diversity':
     # Generate tree figures and treeID and colorID info
     vAbunds,vKeepTreeStrainsDF, vSpeciesColorDict, _, _, figV, axesV = \
-    speciesTreeDivPlot(run_id,'virus', DBSIM_PATH,DBTREE_PATH,\
+    tree.speciesTreeDivPlot(run_id,'virus', DBSIM_PATH,DBTREE_PATH,\
     treepalette,100,figxy,[1,3,1],vabundthreshold,stacked,overlay)
     bAbunds,bKeepTreeStrainsDF, bSpeciesColorDict, _, _, figB, axesB = \
     tree.speciesTreeDivPlot(run_id,'microbe', DBSIM_PATH,DBTREE_PATH,\
@@ -223,19 +223,24 @@ if sys.argv[2] == 'abundances':
     ax.set_ylim(0,lim[1])
     fig.savefig(os.path.join(PLOT_PATH,'virus-abundances.png'),dpi=resolve)
     plt.close(fig)
-    fig, ax = plt.subplots(2,sharex=True,figsize=figxy)
+    fig, ax = plt.subplots(2,sharex=True,figsize=(20,8))
     axes = [ax[0], ax[1]]
-    axes[0].set_ylabel(ylabel ='Host\nAbundance',labelpad=15,fontsize=10)
+    axes[0].set_ylabel(ylabel ='Host\nAbundance',labelpad=20,fontsize=20)
+    axes[0].tick_params(axis='y', labelsize=20)
     axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
+    axes[0].yaxis.get_offset_text().set_fontsize(20)
     axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
-    axes[1].set_ylabel(ylabel ='Viral\nAbundance',labelpad=15,fontsize=10)
+    axes[1].set_ylabel(ylabel ='Viral\nAbundance',labelpad=20,fontsize=20)
+    axes[1].tick_params(axis='y', labelsize=20)
     axes[1].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
+    axes[0].yaxis.get_offset_text().set_fontsize(20)
+    axes[1].tick_params(axis='x', labelsize=20)
     axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(25))
     microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True)
     # microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='white',sort_columns=True,linewidth=.01)
     virus_stacked.plot.area(ax = axes[1],stacked=True,legend=False, linewidth=0,color=vSpeciesColorDict,sort_columns=True)
     # virus_stacked.plot(stacked=True, ax=axes[1], legend=False, color='white',sort_columns=True,linewidth=.01)
-    axes[1].set_xlabel(xlabel="Time t", labelpad=15, fontsize=10)
+    axes[1].set_xlabel(xlabel="Time t", labelpad=20, fontsize=20)
     axes[0].margins(x=0)
     axes[1].margins(x=0)
     fig.tight_layout()
@@ -329,6 +334,86 @@ if sys.argv[2] == 'viralheatmap':
     fig.savefig(os.path.join(PLOT_PATH,'viral-heat-map.png'),dpi=resolve)
     ########
 
+if sys.argv[2] == 'protospacer-div':
+    bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, _, _ = \
+        tree.speciesTreePlot(run_id, 'microbe',   DBSIM_PATH,  DBTREE_PATH,
+                                treepalette, maxticksize, figxy, hratio, babundthreshold,stacked,overlay)
+    vAbunds, vKeepTreeStrainsDF, vSpeciesColorDict, hlinecVirus, vlinecVirus, _, _ = \
+        tree.speciesTreePlot(run_id, 'virus',   DBSIM_PATH,  DBTREE_PATH,
+                                treepalette, maxticksize, figxy, hratio, vabundthreshold, stacked, overlay)
+    bAbunds = bAbunds[bAbunds.t <= max(vAbunds.t)]
+    bAbunds = bAbunds[bAbunds['abundance'] > 0]
+    tripartiteNetwork = pd.read_sql_query("SELECT t, bstrain_id, vstrain_id, time_specific_match_id \
+                            FROM bstrain_to_vstrain_matches WHERE match_length = 1", conMatch)
+    spacerMatches = pd.read_sql_query("SELECT t, time_specific_match_id, spacer_id \
+                            FROM matches_spacers", conMatch)
+    tripartiteNetwork = tripartiteNetwork.merge(spacerMatches, on=['t', 'time_specific_match_id'])\
+        .drop(columns=['time_specific_match_id'])
+    microbe_stacked = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance \
+                        WHERE run_id = {}".format(run_id), conSim)
+    tripartiteNetwork = tripartiteNetwork.merge(microbe_stacked, on=['t', 'bstrain_id'])\
+        .drop_duplicates()
+    spacers = tripartiteNetwork[['t', 'spacer_id', 'bstrain_id', 'abundance']]\
+        .drop_duplicates().groupby(['t', 'spacer_id'])\
+        .agg(abundance=('abundance', 'sum')).reset_index()
+    spacers = spacers.groupby(['t'])\
+        .agg(total=('abundance', 'sum')).reset_index()\
+        .merge(spacers, on=['t'])
+    spacers['freq'] = spacers['abundance']/spacers['total']
+    spacers['div'] = np.exp(-1*np.array(spacers['freq'])
+                            * np.log(np.array(spacers['freq'])))
+    spacers = spacers.groupby(['t'])\
+        .agg(div=('div', 'prod')).reset_index()
+    microbe_stacked = bAbunds.pivot(
+        index='t', columns='tree_bstrain_id', values='abundance')
+    fig, ax = plt.subplots(1,sharex=True, figsize=(20,5))
+    axes = [ax, ax.twinx(), ax.twinx()]
+    microbe_stacked.plot.area(ax=axes[0], stacked=True, legend=False,
+                        linewidth=0, cmap='Purples', sort_columns=True, alpha = 0.25)
+    axes[1].plot(virus_total['t'], virus_total['Viral Abundance'],
+                linewidth=0, color='grey')
+    axes[1].fill_between(
+        virus_total['t'], virus_total['Viral Abundance'], color='grey', alpha=0.6)
+    axes[0].set_yticklabels([])
+    axes[0].set_yticks([])
+    axes[0].margins(x=0)
+    axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+    lim = axes[0].get_ylim()
+    axes[0].set_ylim(0, lim[1])
+    axes[1].set_yticklabels([])
+    axes[1].set_yticks([])
+    axes[1].margins(x=0)
+    axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+    lim = axes[1].get_ylim()
+    axes[1].set_ylim(0, lim[1])
+    ###
+    axes[2].plot(spacers['t'].values,spacers['div'].values,color='darkblue',linewidth=1.5,label = r'$D_p$')
+    axes[2].yaxis.tick_left()
+    axes[2].yaxis.set_label_position("left")
+    axes[2].set_ylabel(ylabel=''.join(['Singly-matched protospacer\n',
+                        r"Shannon Diversity"]), labelpad=10, fontsize=20)
+    axes[2].legend(loc='upper right', fontsize=20)
+    axes[2].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+    lim = axes[2].get_ylim()
+    axes[2].set_ylim(0, lim[1])
+    axes[2].margins(x=0)
+    axes[2].margins(y=0)
+    axes[0].tick_params(axis='x', labelsize=20)
+    axes[2].tick_params(axis='y', labelsize=20)
+    axes[0].set_xlabel(xlabel='Time t', fontsize=20, labelpad=10)
+    axes[1].set_xlabel(xlabel='Time t', fontsize=20, labelpad=10)
+    axes[2].set_xlabel(xlabel='Time t', fontsize=20, labelpad=10)
+    fig.tight_layout()
+    fig.savefig(os.path.join(PLOT_PATH, 'protospacer-div.pdf'), dpi=resolve)
+
+
+
+
+
+
+
+
+
 
 if sys.argv[2] == 'escapeheatmap':
     bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, _, _ = \
@@ -383,10 +468,6 @@ if sys.argv[2] == 'escapeheatmap':
             {'t': extraTimes,
                 'new_tree_vstrain_id': len(extraTimes)*[tripartiteNetwork['new_tree_vstrain_id'][0]],
                 'matches': len(extraTimes)*[0]})
-
-
-
-
     tripartiteNetwork = pd.concat([strainsbegin, tripartiteNetwork])
     extraTimes = list({*np.arange(min(vAbunds['t']), max(vAbunds['t'])+1, 1)}
                         - {*np.array(tripartiteNetwork['t'])})
@@ -395,9 +476,6 @@ if sys.argv[2] == 'escapeheatmap':
         new = tripartiteNetwork[tripartiteNetwork.t == lastTime].copy()
         new['t'] = np.ones(len(new['t']))*t
         tripartiteNetwork = pd.concat([tripartiteNetwork, new])
-
-
-
     tripartiteNetwork = tripartiteNetwork.sort_values(
         by=['t', 'new_tree_vstrain_id'])
     treeHeat = tripartiteNetwork.pivot_table(
@@ -1434,64 +1512,6 @@ if sys.argv[2] == 'emergenceheatmap':
     fig.colorbar(sc, cax=cbar_ax, ax=ax)
 
 
-
-    # fig, ax = plt.subplots(2,sharex=True)
-    # axes = [ax[0], ax[0].twinx(), ax[1], ax[1].twinx()]
-    # microbe_stacked = bAbunds[bAbunds.t<=max(virus_total['t'])].pivot(index='t',columns='tree_bstrain_id',values='abundance')
-    # microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True)
-    # microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',sort_columns=True,linewidth=.1)
-    # axes[0].set_ylabel(ylabel ='Host Abundance',labelpad=15,fontsize=10)
-    # axes[0].set_xlabel(xlabel = 'Time t',fontsize=10)
-    # axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-    # axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
-    # axes[1].plot(virus_total['t'],virus_total['vtotal'],linewidth=0,color='grey')
-    # axes[1].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.6)
-    # axes[1].set_ylabel(ylabel ='Viral Abundance',labelpad=15,fontsize=10,rotation=270)
-    # axes[0].margins(x=0)
-    # axes[1].margins(x=0)
-    # lim = axes[1].get_ylim()
-    # axes[1].set_ylim(0,lim[1])
-    # axes[2].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.6)
-    # axes[2].margins(x=0)
-    # axes[2].margins(x=0)
-    # axes[2].set_ylabel(ylabel ='Viral Abundance',labelpad=15,fontsize=10,rotation=270)
-    # axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
-    # axes[2].xaxis.set_minor_locator(ticker.MultipleLocator(25))
-    # # axes[3].plot(sorted(spacerEscProb['t'].unique()),np.array(spacerExpStd['exp']),\
-    # #                 color='darkorange',linewidth=1.5,label='R0 (infection)')
-    # axes[3].plot(sorted(pEmergeExpected['t'].unique()),np.array(pEmergeExpected['p_exp']),\
-    #                 color='darkblue',linewidth=1.5)
-    # # axes[3].plot(sorted(expmin1['t'].unique()), 1-np.array(expmin1['exp']),
-    # #              color='darkred', linewidth=1.5, label='Rank 1 Escape')
-    # pemergetrunc = pEmergeExpected.merge(expmin1, on=['t'])
-    # axes[3].plot(sorted(pemergetrunc['t'].unique()), \
-    #             1-np.array(pemergetrunc['exp']) - (pemergetrunc['p_exp']),
-    #             color='darkred', linewidth=1.5, label='Rank 1 Diff')
-    # pemergetrunc = pEmergeExpected.merge(expmin2, on=['t'])
-    # axes[3].plot(sorted(pemergetrunc['t'].unique()),
-    #             1-np.array(pemergetrunc['exp']) - (pemergetrunc['p_exp']),
-    #             color='darkorange', linewidth=1.5, label='Rank 2 Diff')
-    # pemergetrunc = pEmergeExpected.merge(expmin3, on=['t'])
-    # axes[3].plot(sorted(pemergetrunc['t'].unique()),
-    #             1-np.array(pemergetrunc['exp']) - (pemergetrunc['p_exp']),
-    #             color='darkgreen', linewidth=1.5, label='Rank 3 Diff')
-    # axes[3].legend()
-    # axes[3].set_ylabel(ylabel ='Probability of Emergence',\
-    #             labelpad=15,fontsize=10)
-    # axes[3].set_xlabel(xlabel = 'Time t',fontsize=10)
-    # lim = axes[2].get_ylim()
-    # axes[2].set_ylim(2,lim[1])
-    # lim = axes[3].get_ylim()
-    # axes[3].set_ylim(0,lim[1])
-    # axes[3].yaxis.tick_left()
-    # axes[3].yaxis.set_label_position("left")
-    # axes[2].yaxis.tick_right()
-    # axes[2].yaxis.set_label_position("right")
-    # # lim = axes[2].get_ylim()
-    # # axes[2].set_ylim(0,lim[1])
-    # fig.tight_layout()
-
-
 if sys.argv[2] == 'R':
     bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, _, _  = \
     tree.speciesTreePlot(run_id,'microbe',DBSIM_PATH,DBTREE_PATH,\
@@ -1583,7 +1603,7 @@ if sys.argv[2] == 'R':
         .merge(rank2, on=['t', 'vmatch_id'])
     rows = list(np.array(rank2['Resc']) ==
                     np.array(rank2['rank2']))  # keep 2nd rank
-    rank2 = rank2[rank2rows][['t','vmatch_id','weights','rank2']]\
+    rank2 = rank2[rows][['t','vmatch_id','weights','rank2']]\
             .drop_duplicates()  # keep 2nd rank
     #
     rank3 = vescapeExt[['t', 'vmatch_id', 'weights', 'Resc']]\
@@ -1682,25 +1702,24 @@ if sys.argv[2] == 'R':
         .agg(exp=('exp', 'sum')).reset_index()
     #######
     ######
-    fig, ax = plt.subplots(2,sharex=True)
+    fig, ax = plt.subplots(2,sharex=True,figsize=(20,8))
     axes = [ax[0], ax[0].twinx(), ax[0].twinx(), ax[1], ax[1].twinx()]
     microbe_stacked = bAbunds[bAbunds.t<=max(virus_total['t'])].pivot(index='t',columns='tree_bstrain_id',values='abundance')
     microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,cmap='Purples',alpha=0.25,sort_columns=True)
     # microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='white',sort_columns=True,linewidth=)
     axes[1].plot(virus_total['t'],virus_total['vtotal'],linewidth=0,color='grey')
     axes[1].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.6)
-    axes[2].plot(pemerge['t'],np.array(pemerge['exp']), color='darkblue',linewidth=1.5)
+    axes[2].plot(pemerge['t'], np.array(pemerge['exp']), color='darkblue',
+                 linewidth=1.5, label=r'$\langle P^*\rangle$')
     axes[3].plot(virus_total['t'],virus_total['vtotal'],linewidth=0,color='grey')
     axes[3].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.6)
     axes[4].plot(expR0['t'],np.ones(len(expR0['t'])), color='grey',linewidth=1, linestyle='dashed')
-    axes[4].plot(expR0['t'],beta*np.array(expR0['exp']), color='darkred',linewidth=1.5,label=r'$R_0$')
+    axes[4].plot(expR0['t'],beta*np.array(expR0['exp']), color='darkred',linewidth=1.5,label=r'$\langle R_0 \rangle$')
     minT = min(expRank1['t'])
     axes[4].plot(expRank1['t'], beta*np.array(expRank1['exp']) - beta*np.array(expR0[expR0.t>=minT]['exp']), 
-                    color='darkgreen', linewidth=1.5, label=r'$\rho_1$')
-    minT = min(expRank2['t'])
-    axes[4].plot(expRank2['t'],beta*np.array(expRank2['exp'])- beta*np.array(expR0[expR0.t>=minT]['exp']), 
-                color='darkorange',linewidth=1.5, label=r'$\rho_2$')
-    axes[4].legend()
+                 color='darkgreen', linewidth=1.5, label=r'$\langle R_1 - R_0 \rangle$')
+    axes[2].legend(loc='upper right', fontsize=20)
+    axes[4].legend(loc='upper right',fontsize=20)
     axes[0].set_yticklabels([])
     axes[0].set_yticks([])
     axes[1].set_yticklabels([])
@@ -1711,7 +1730,8 @@ if sys.argv[2] == 'R':
     axes[4].xaxis.set_minor_locator(ticker.MultipleLocator(25))
     axes[2].yaxis.tick_left()
     axes[2].yaxis.set_label_position("left")
-    axes[2].set_ylabel(ylabel=''.join(['Expected Probability of\n',r"Emergence $\langle P^*(t)\rangle$"]), fontsize=10)
+    axes[2].set_ylabel(ylabel=''.join(['Expected Probability of\n',r"Emergence"]),\
+                       fontsize=20, labelpad=20)
     axes[4].yaxis.tick_left()
     lim = axes[0].get_ylim()
     axes[0].set_ylim(0,lim[1])
@@ -1728,9 +1748,17 @@ if sys.argv[2] == 'R':
     axes[2].margins(x=0)
     axes[3].margins(x=0)
     axes[4].margins(x=0)
-    axes[4].set_xlabel(xlabel = 'Time t',fontsize=10)
-    axes[3].set_xlabel(xlabel = 'Time t',fontsize=10)
+    axes[4].set_xlabel(xlabel = 'Time t',fontsize=20, labelpad=20)
+    axes[3].set_xlabel(xlabel = 'Time t',fontsize=20, labelpad=20)
+    axes[0].tick_params(axis='x', labelsize=20)
+    axes[3].tick_params(axis='x', labelsize=20)
+    axes[2].tick_params(axis='x', labelsize=20)
+    axes[4].tick_params(axis='x', labelsize=20)
+    axes[2].tick_params(axis='x', labelsize=20)
+    axes[4].tick_params(axis='y', labelsize=20)
+    axes[2].tick_params(axis='y', labelsize=20)
     fig.tight_layout()
+    #####
     #####
     fig, ax = plt.subplots(1,sharex=True,figsize=figxy)
     axes = [ax, ax.twinx(), ax.twinx()]
@@ -1759,6 +1787,7 @@ if sys.argv[2] == 'R':
     axes[2].margins(x=0)
     axes[0].set_xlabel(xlabel = 'Time t',fontsize=10)
     fig.tight_layout()
+    #
     fig, ax = plt.subplots(1, sharex=True, figsize=figxy)
     axes = [ax, ax.twinx()]
     axes[0].plot(virus_total[(virus_total.t<=775)&(virus_total.t>=250)]['t'],\
@@ -1803,6 +1832,64 @@ if sys.argv[2] == 'R':
 
 
 print('Complete!')
+
+
+
+    # fig, ax = plt.subplots(2,sharex=True)
+    # axes = [ax[0], ax[0].twinx(), ax[1], ax[1].twinx()]
+    # microbe_stacked = bAbunds[bAbunds.t<=max(virus_total['t'])].pivot(index='t',columns='tree_bstrain_id',values='abundance')
+    # microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True)
+    # microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',sort_columns=True,linewidth=.1)
+    # axes[0].set_ylabel(ylabel ='Host Abundance',labelpad=15,fontsize=10)
+    # axes[0].set_xlabel(xlabel = 'Time t',fontsize=10)
+    # axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
+    # axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+    # axes[1].plot(virus_total['t'],virus_total['vtotal'],linewidth=0,color='grey')
+    # axes[1].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.6)
+    # axes[1].set_ylabel(ylabel ='Viral Abundance',labelpad=15,fontsize=10,rotation=270)
+    # axes[0].margins(x=0)
+    # axes[1].margins(x=0)
+    # lim = axes[1].get_ylim()
+    # axes[1].set_ylim(0,lim[1])
+    # axes[2].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.6)
+    # axes[2].margins(x=0)
+    # axes[2].margins(x=0)
+    # axes[2].set_ylabel(ylabel ='Viral Abundance',labelpad=15,fontsize=10,rotation=270)
+    # axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
+    # axes[2].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+    # # axes[3].plot(sorted(spacerEscProb['t'].unique()),np.array(spacerExpStd['exp']),\
+    # #                 color='darkorange',linewidth=1.5,label='R0 (infection)')
+    # axes[3].plot(sorted(pEmergeExpected['t'].unique()),np.array(pEmergeExpected['p_exp']),\
+    #                 color='darkblue',linewidth=1.5)
+    # # axes[3].plot(sorted(expmin1['t'].unique()), 1-np.array(expmin1['exp']),
+    # #              color='darkred', linewidth=1.5, label='Rank 1 Escape')
+    # pemergetrunc = pEmergeExpected.merge(expmin1, on=['t'])
+    # axes[3].plot(sorted(pemergetrunc['t'].unique()), \
+    #             1-np.array(pemergetrunc['exp']) - (pemergetrunc['p_exp']),
+    #             color='darkred', linewidth=1.5, label='Rank 1 Diff')
+    # pemergetrunc = pEmergeExpected.merge(expmin2, on=['t'])
+    # axes[3].plot(sorted(pemergetrunc['t'].unique()),
+    #             1-np.array(pemergetrunc['exp']) - (pemergetrunc['p_exp']),
+    #             color='darkorange', linewidth=1.5, label='Rank 2 Diff')
+    # pemergetrunc = pEmergeExpected.merge(expmin3, on=['t'])
+    # axes[3].plot(sorted(pemergetrunc['t'].unique()),
+    #             1-np.array(pemergetrunc['exp']) - (pemergetrunc['p_exp']),
+    #             color='darkgreen', linewidth=1.5, label='Rank 3 Diff')
+    # axes[3].legend()
+    # axes[3].set_ylabel(ylabel ='Probability of Emergence',\
+    #             labelpad=15,fontsize=10)
+    # axes[3].set_xlabel(xlabel = 'Time t',fontsize=10)
+    # lim = axes[2].get_ylim()
+    # axes[2].set_ylim(2,lim[1])
+    # lim = axes[3].get_ylim()
+    # axes[3].set_ylim(0,lim[1])
+    # axes[3].yaxis.tick_left()
+    # axes[3].yaxis.set_label_position("left")
+    # axes[2].yaxis.tick_right()
+    # axes[2].yaxis.set_label_position("right")
+    # # lim = axes[2].get_ylim()
+    # # axes[2].set_ylim(0,lim[1])
+    # fig.tight_layout()
 
 
 # if sys.argv[2] == 'all':

@@ -230,7 +230,7 @@ function generate_jobs(db::DB,numCombos::Int64)
             #!/bin/sh
             #SBATCH --account=pi-pascualmm
             #SBATCH --partition=broadwl
-            #SBATCH --job-name=crispr-$(job_id)
+            #SBATCH --job-name=$(job_id)crispr
             #SBATCH --tasks=1
             #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m

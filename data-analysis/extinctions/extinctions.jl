@@ -80,6 +80,30 @@ function extinction()
     execute(dbOutput, "INSERT INTO extinction_occurrence VALUES (?,?)", (microbeExt,virusExt))
     execute(dbOutput, "INSERT INTO simulation_end_time VALUES ($(mSimEndTime),$(vSimEndTime))")
     execute(dbOutput, "COMMIT")
+    
+    dbSim = SQLite.DB(dbSimPath)
+    tableNames = [table for (table,) in 
+                execute(dbSim,"SELECT name FROM sqlite_master WHERE type='table' 
+                AND name in ('bextinctions', 'vextinctions');")]
+    if length(tableNames) > 0
+        execute(dbOutput, "ATTACH DATABASE '$(dbSimPath)' as dbSim")
+        for table in tableNames
+            if table == "vextinctions"
+                strainID = "vstrain_id"
+                execute(dbOutput, "CREATE TABLE $(table) ($(strainID) INTEGER, t_extinction REAL)")
+                execute(dbOutput, "BEGIN TRANSACTION")
+                execute(dbOutput, "INSERT INTO $(table)($(strainID), t_extinction) SELECT $(strainID), t_extinction FROM dbSim.$(table) WHERE run_id = $(run_id);")
+                execute(dbOutput, "COMMIT")
+            end
+            if table == "bextinctions"
+                strainID = "bstrain_id"
+                execute(dbOutput, "CREATE TABLE $(table) ($(strainID) INTEGER, t_extinction REAL)")
+                execute(dbOutput, "BEGIN TRANSACTION")
+                execute(dbOutput, "INSERT INTO $(table)($(strainID), t_extinction) SELECT $(strainID), t_extinction FROM dbSim.$(table) WHERE run_id = $(run_id);")
+                execute(dbOutput, "COMMIT")
+            end
+        end
+    end
 end
 
 extinction()

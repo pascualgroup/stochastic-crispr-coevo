@@ -161,6 +161,13 @@ function write_spacers(sim, spacers_table_name, id, spacers)
     end
 end
 
+function write_extinction(sim, strains_table_name, id)
+    execute(sim.db,
+        "INSERT INTO $strains_table_name VALUES (?,?)",
+        [id, sim.t]
+    )
+end
+
 function write_abundances(sim, table_name, ids, abundance)
     @debug "write_abundances" t ids abundance
     @debug "lastindex(ids)" lastindex(ids)
