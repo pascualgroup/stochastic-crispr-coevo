@@ -45,9 +45,9 @@ ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)
 
 # Number of SLURM jobs to generate
-const N_JOBS_MAX = 50
-const N_CORES_PER_JOB_MAX = 28 # Half a node, easier to get scheduled than a whole one
-const mem_per_cpu = 2000 # in MB 1000MB = 1 GB
+const N_JOBS_MAX = 800
+const N_CORES_PER_JOB_MAX = 20 # Half a node, easier to get scheduled than a whole one
+const mem_per_cpu = 6000 # in MB 1000MB = 1 GB
 
 
 
@@ -106,8 +106,7 @@ function generate_plot_runs(db::DB) # This function generates the directories
             print(f, """
             #!/bin/sh
             cd `dirname \$0`
-            module load python/anaconda-2021.05
-            python $(ROOT_RUN_SCRIPT) $(run_id) $(argString...) &> plot_output.txt
+            /share/apps/python/3.8.6/intel/bin/python $(ROOT_RUN_SCRIPT) $(run_id) $(argString...) &> plot_output.txt
             """)
         end
         run(`chmod +x $(run_script)`)
@@ -174,19 +173,20 @@ function generate_plot_jobs(db::DB,numSubmits::Int64)
         open(job_sbatch, "w") do f
             print(f, """
             #!/bin/sh
-            #SBATCH --account=pi-pascualmm
-            #SBATCH --partition=broadwl
-            #SBATCH --job-name=crispr-plots-$(job_id)
-            #SBATCH --tasks=1
-            #SBATCH --cpus-per-task=$(n_cores)
+            #SBATCH --nodes=1
+            #SBATCH --ntasks-per-node=$(n_cores)
+            #SBATCH --cpus-per-task=1
+            #SBATCH --job-name=$(job_id)crispr
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m
             #SBATCH --time=1-12:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
-            #SBATCH --output=plot_output.txt
-            #SBATCH --mail-user=armun@uchicago.edu
-            # Uncomment this to use the Midway-provided Julia:
-            module load julia
-            julia $(ROOT_RUNMANY_SCRIPT) $(n_cores) plot_runs.txt
+            #SBATCH --output=output.txt
+            #SBATCH --mail-type=FAIL
+            #SBATCH --mail-user=al8784@nyu.edu
+            module purge
+            module load julia/1.6.1
+            module load python/intel/3.8.6
+            ~/julia/my-julia $(ROOT_RUNMANY_SCRIPT) $(n_cores) plot_runs.txt
             """) # runs.txt is for parallel processing
         end
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)

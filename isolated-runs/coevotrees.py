@@ -320,6 +320,7 @@ def coEvoTreePlot2(run_id, DBSIM_PATH, DBTREE_PATH, treepaletteV, treepaletteB, 
             axes[idx1].add_collection(strainLineages)
             axes[idx1].add_collection(creationLines)
             axes[idx1].set_xlabel(xlabel='Time t', fontsize=7)
+            axes[idx1].set_ylabel(ylabel='Viral Phylogeny', labelpad=20, fontsize=20)
             axes[idx1].set_ylim(0, np.max(strainTimes[tree_strain_id])+1)
             axes[idx1].set_xlim(0, t)
             axes[idx1].xaxis.set_minor_locator(ticker.MultipleLocator(25))

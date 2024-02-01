@@ -79,8 +79,8 @@ DBCLADE_PATH = os.path.join(SCRIPT_PATH,'isolates',run,'clade-abundances_output.
 DBTREE_PATH = os.path.join(SCRIPT_PATH,'isolates',run,'trees_output.sqlite') # cluster
 DBTRI_PATH = os.path.join(SCRIPT_PATH,'isolates',run,'tripartite-networks_output.sqlite') # cluster
 PLOT_PATH = os.path.join(SCRIPT_PATH,'isolates',run,'outputs')
-# dir = 'crispr-sweep-7-2-2022/isolates/runID3297-c66-r47'
-# run = 'runID3297-c66-r47'
+dir = 'crispr-sweep-7-2-2022/isolates/runID3297-c66-r47'
+run = 'runID3297-c66-r47'
 # DBSIM_PATH = os.path.join('isolates', run, '{}.sqlite'.format(run))
 # DBPROB_PATH = os.path.join('isolates',run,'emergence-lambert-root_output.sqlite') # cluster
 # DBMATCH_PATH = os.path.join('isolates',run,'matches_output.sqlite') # cluster
@@ -88,19 +88,20 @@ PLOT_PATH = os.path.join(SCRIPT_PATH,'isolates',run,'outputs')
 # DBTREE_PATH = os.path.join('isolates',run,'trees_output.sqlite') # cluster
 # DBTRI_PATH = os.path.join('isolates',run,'tripartite-networks_output.sqlite') # cluster
 # PLOT_PATH = os.path.join('isolates',run,'outputs')
-# DBPROB_PATH = os.path.join('/Volumes','Yadgah',dir,'emergence-lambert-root_output.sqlite') # local
-# DBMATCH_PATH = os.path.join('/Volumes','Yadgah',dir,'matches_output.sqlite') # local
-# DBTREE_PATH = os.path.join('/Volumes','Yadgah',dir,'trees_output.sqlite') # local
-# DBTRI_PATH = os.path.join('/Volumes','Yadgah',dir,'tripartite-networks_output.sqlite') # local
-# PLOT_PATH = os.path.join('/Volumes','Yadgah') # local
-# DBSIM_PATH = os.path.join('/Volumes','Yadgah',dir,'{}.sqlite'.format(run))
-# conSim = sqlite3.connect(DBSIM_PATH)
-# curSim = conSim.cursor()
-# run_id = curSim.execute('SELECT DISTINCT run_id FROM summary').fetchall()
-# run_id = run_id[0][0]
-# ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
-# combo_id = ID[0][0]
-# replicate = ID[0][1]
+DBPROB_PATH = os.path.join('/Volumes','Yadgah',dir,'emergence-lambert-root_output.sqlite') # local
+DBMATCH_PATH = os.path.join('/Volumes','Yadgah',dir,'matches_output.sqlite') # local
+DBMATCHc_PATH = os.path.join('/Volumes','Yadgah','crispr-sweep-7-2-2022/isolated-runs/isolates/comboID66','matchesC66.sqlite') # local
+DBTREE_PATH = os.path.join('/Volumes','Yadgah',dir,'trees_output.sqlite') # local
+DBTRI_PATH = os.path.join('/Volumes','Yadgah',dir,'tripartite-networks_output.sqlite') # local
+PLOT_PATH = os.path.join('/Volumes','Yadgah') # local
+DBSIM_PATH = os.path.join('/Volumes','Yadgah',dir,'{}.sqlite'.format(run))
+conSim = sqlite3.connect(DBSIM_PATH)
+curSim = conSim.cursor()
+run_id = curSim.execute('SELECT DISTINCT run_id FROM summary').fetchall()
+run_id = run_id[0][0]
+ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
+combo_id = ID[0][0]
+replicate = ID[0][1]
 
 if not os.path.isdir(PLOT_PATH):
     os.makedirs (PLOT_PATH)
@@ -157,7 +158,7 @@ if sys.argv[2] == 'trees':
                 .format(imgType)),dpi=resolve)
 
     bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, figB, axesB, figB2, axesB2 = \
-    tree.speciesTreeDiv2Plot(run_id,'microbe', DBSIM_PATH,DBTREE_PATH,\
+    speciesTreeDiv2Plot(run_id,'microbe', DBSIM_PATH,DBTREE_PATH,\
     treepalette,100,figxy,[1,3],babundthreshold,350,750)
 
 if sys.argv[2] == 'tree-diversity':
@@ -170,7 +171,7 @@ if sys.argv[2] == 'tree-diversity':
     treepalette,100,figxy,[1,3,1],babundthreshold,stacked,overlay)
     bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, figB, axesB, figB2, axesB2 = \
     tree.speciesTreeDiv2Plot(run_id,'microbe', DBSIM_PATH,DBTREE_PATH,\
-    treepalette,100,figxy,[1,3],babundthreshold)
+    treepalette,100,figxy,[1,3],babundthreshold,350,750)
     for imgType in treeImgTypes:
         if overlay:
             figB.tight_layout()
@@ -390,7 +391,7 @@ if sys.argv[2] == 'protospacer-div':
     axes[2].plot(spacers['t'].values,spacers['div'].values,color='darkblue',linewidth=1.5,label = r'$D_p$')
     axes[2].yaxis.tick_left()
     axes[2].yaxis.set_label_position("left")
-    axes[2].set_ylabel(ylabel=''.join(['Singly-matched protospacer\n',
+    axes[2].set_ylabel(ylabel=''.join(['Single Spacer Match\n',
                         r"Shannon Diversity"]), labelpad=10, fontsize=20)
     axes[2].legend(loc='upper right', fontsize=20)
     axes[2].xaxis.set_minor_locator(ticker.MultipleLocator(25))
@@ -676,6 +677,8 @@ if sys.argv[2] == 'escapeheatmap':
 
 
 if sys.argv[2] == 'diversity':
+    conMatchC = sqlite3.connect(DBMATCHc_PATH)
+    curMatchC = conMatchC.cursor()
     bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, _, _ = \
     tree.speciesTreePlot(run_id, 'microbe', DBSIM_PATH, DBTREE_PATH,
     treepalette, maxticksize, figxy, hratio,babundthreshold,stacked,overlay)
@@ -700,6 +703,19 @@ if sys.argv[2] == 'diversity':
     bfreq = bfreq.drop(columns=['btotal'])
     bfreq= bfreq[bfreq.bfreq!=0]
     straintime = sorted(bfreq['t'].unique())
+    spacerArrays = pd.read_sql_query(
+    "SELECT bstrain_id, num_total_spacers FROM bstrain_num_total_spacers WHERE run_id = {0}".format(run_id), conMatchC)
+    spacerArrays = spacerArrays.merge(bfreq, on=['bstrain_id'])
+    spacerArrays['num_total_spacers'] = spacerArrays['num_total_spacers'] * spacerArrays['bfreq']
+    spacerArrays = spacerArrays.groupby(['t']).agg(
+        length=('num_total_spacers', 'sum')).reset_index()
+    strainCreation = pd.read_sql_query(
+    "SELECT t_creation, bstrain_id FROM bstrains WHERE run_id = {0}".format(run_id), conSim)
+    strainCreation = strainCreation.merge(bfreq, on=['bstrain_id'])
+    strainCreation['t_creation'] = strainCreation['t_creation'] * \
+        strainCreation['bfreq']
+    strainCreation = strainCreation.groupby(['t']).agg(
+        t_creation=('t_creation', 'sum')).reset_index()
     shannonStrain = []
     for t in sorted(bfreq['t'].unique()):
         div = list(bfreq[(bfreq['t'] == t)]['bfreq'])
@@ -727,8 +743,22 @@ if sys.argv[2] == 'diversity':
     for t in sorted(bfreq['t'].unique()):
         div = list(bfreq[(bfreq['t']==t)]['bfreq'])
         richnessSpacer.append(len(div))
-    fig, ax = plt.subplots(2,sharex=True)
-    axes = [ax[0], ax[0].twinx(), ax[0].twinx(), ax[1], ax[1].twinx(), ax[1].twinx()]
+    spacerCreation = pd.read_sql_query(
+    "SELECT t_creation, bstrain_id FROM bstrains WHERE run_id = {0}".format(run_id), conSim)
+    spacerCreation = spacerCreation.merge(pd.read_sql_query(
+        "SELECT bstrain_id, spacer_id FROM bspacers WHERE run_id = {0}".format(run_id), conSim))
+    spacerCreation = spacerCreation.groupby(['spacer_id']).agg(
+        t_creation=('t_creation', 'min')).reset_index()\
+        .merge(bfreq,on=['spacer_id']).drop_duplicates()
+    spacerCreation['t_creation'] = spacerCreation['t_creation'] * spacerCreation['bfreq']
+    spacerCreation = spacerCreation.groupby(['t']).agg(
+        t_creation=('t_creation', 'sum')).reset_index()
+    fig, ax = plt.subplots(7,sharex=True)
+    axes = [ax[0], ax[0].twinx(), ax[0].twinx(), ax[4], ax[4].twinx(), 
+            ax[4].twinx(), ax[3], ax[3].twinx(), ax[1], ax[1].twinx(), 
+            ax[2], ax[2].twinx(),
+            ax[5], ax[5].twinx(),
+            ax[6], ax[6].twinx()]
     microbe_stacked = bAbunds.pivot(index='t',columns='tree_bstrain_id',values='abundance')
     microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True,alpha=0.25)
     microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='white',sort_columns=True,linewidth=.1)
@@ -744,20 +774,74 @@ if sys.argv[2] == 'diversity':
     axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
     axes[1].plot(straintime,richnessStrain,color='darkred',linewidth=1)
     axes[1].yaxis.tick_right()
-    axes[1].set_ylabel(ylabel ='Richness',labelpad=15,fontsize=7)
+    axes[1].set_ylabel(ylabel ='Richness',labelpad=15,fontsize=7,rotation=270)
     axes[2].plot(straintime,shannonStrain,color='darkblue',linewidth=1)
     axes[2].yaxis.tick_left()
     axes[2].yaxis.set_label_position("left")
-    axes[2].set_ylabel(ylabel ='Host Immune Strain\nShannon Diversity',labelpad=15,fontsize=7)
+    axes[2].set_ylabel(ylabel ='Host Strain\nShannon Diversity',labelpad=15,fontsize=7)
     axes[4].plot(spacertime,richnessSpacer,color='darkred',linewidth=1)
     axes[4].yaxis.tick_right()
-    axes[4].set_ylabel(ylabel ='Richness',labelpad=15,fontsize=7)
+    axes[4].set_ylabel(ylabel ='Richness',labelpad=15,fontsize=7,rotation=270)
     axes[5].plot(spacertime,shannonSpacer,color='darkblue',linewidth=1)
     axes[5].yaxis.tick_left()
     axes[5].yaxis.set_label_position("left")
-    axes[5].set_ylabel(ylabel ='Single-match Spacer\nShannon Diversity',labelpad=15,fontsize=7)
+    axes[5].set_ylabel(ylabel ='Single Spacer\nShannon Diversity',labelpad=15,fontsize=7)
+    microbe_stacked.plot.area(ax = axes[6],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True,alpha=0.25)
+    microbe_stacked.plot(stacked=True, ax=axes[6], legend=False, color='white',sort_columns=True,linewidth=.1)
+    axes[6].set_yticklabels([])
+    axes[6].set_yticks([])
+    axes[6].margins(x=0)
+    axes[6].set_xlabel(xlabel = 'Time t',fontsize=7)
+    axes[7].plot(spacerArrays['t'],spacerArrays['length'],color='darkgreen',linewidth=1)
+    axes[7].yaxis.tick_left()
+    axes[7].yaxis.set_label_position("left")
+    axes[7].set_ylabel(ylabel ='Expected Host\nSpacer Array Length',labelpad=15,fontsize=7)
+    microbe_stacked.plot.area(ax = axes[8],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True,alpha=0.25)
+    microbe_stacked.plot(stacked=True, ax=axes[8], legend=False, color='white',sort_columns=True,linewidth=.1)
+    axes[8].set_yticklabels([])
+    axes[8].set_yticks([])
+    axes[8].margins(x=0)
+    axes[8].set_xlabel(xlabel = 'Time t',fontsize=7)
+    axes[8].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+    axes[9].plot(straintime,np.array(shannonStrain)/np.array(richnessStrain),color='purple',linewidth=1)
+    axes[9].yaxis.tick_left()
+    axes[9].yaxis.set_label_position("left")
+    axes[9].set_ylabel(ylabel ='Host Strain\nShannon/Richness',labelpad=15,fontsize=7)
+    microbe_stacked.plot.area(ax = axes[10],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True,alpha=0.25)
+    microbe_stacked.plot(stacked=True, ax=axes[10], legend=False, color='white',sort_columns=True,linewidth=.1)
+    axes[10].set_yticklabels([])
+    axes[10].set_yticks([])
+    axes[10].margins(x=0)
+    axes[10].set_xlabel(xlabel = 'Time t',fontsize=7)
+    axes[10].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+    axes[11].plot(strainCreation['t'],strainCreation['t_creation'],color='darkorange',linewidth=1)
+    axes[11].yaxis.tick_left()
+    axes[11].yaxis.set_label_position("left")
+    axes[11].set_ylabel(ylabel ='Expected Host Strain\nCreation Time',labelpad=15,fontsize=7)
+    microbe_stacked.plot.area(ax = axes[12],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True,alpha=0.25)
+    microbe_stacked.plot(stacked=True, ax=axes[12], legend=False, color='white',sort_columns=True,linewidth=.1)
+    axes[12].set_yticklabels([])
+    axes[12].set_yticks([])
+    axes[12].margins(x=0)
+    axes[12].set_xlabel(xlabel = 'Time t',fontsize=7)
+    axes[12].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+    axes[13].plot(spacertime, np.array(shannonSpacer)/np.array(richnessSpacer), color='purple', linewidth=1)
+    axes[13].yaxis.tick_left()
+    axes[13].yaxis.set_label_position("left")
+    axes[13].set_ylabel(ylabel='Single Spacer\nShannon/Richness', labelpad=15, fontsize=7)
+    microbe_stacked.plot.area(ax = axes[14],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True,alpha=0.25)
+    microbe_stacked.plot(stacked=True, ax=axes[14], legend=False, color='white',sort_columns=True,linewidth=.1)
+    axes[14].set_yticklabels([])
+    axes[14].set_yticks([])
+    axes[14].margins(x=0)
+    axes[14].set_xlabel(xlabel = 'Time t',fontsize=7)
+    axes[14].xaxis.set_minor_locator(ticker.MultipleLocator(25))
+    axes[15].plot(spacerCreation['t'],spacerCreation['t_creation'],color='darkorange',linewidth=1)
+    axes[15].yaxis.tick_left()
+    axes[15].yaxis.set_label_position("left")
+    axes[15].set_ylabel(ylabel='Expected Spacer\nAcquisition Time', labelpad=15, fontsize=7)
     fig.tight_layout()
-    fig.savefig(os.path.join(PLOT_PATH,'diversity.png'),dpi=resolve)
+    fig.savefig(os.path.join(PLOT_PATH,'diversity.pdf'),dpi=resolve)
 
 if sys.argv[2] == 'creationtime':
     bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, _, _ = \
@@ -1832,369 +1916,3 @@ if sys.argv[2] == 'R':
 
 
 print('Complete!')
-
-
-
-    # fig, ax = plt.subplots(2,sharex=True)
-    # axes = [ax[0], ax[0].twinx(), ax[1], ax[1].twinx()]
-    # microbe_stacked = bAbunds[bAbunds.t<=max(virus_total['t'])].pivot(index='t',columns='tree_bstrain_id',values='abundance')
-    # microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True)
-    # microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',sort_columns=True,linewidth=.1)
-    # axes[0].set_ylabel(ylabel ='Host Abundance',labelpad=15,fontsize=10)
-    # axes[0].set_xlabel(xlabel = 'Time t',fontsize=10)
-    # axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-    # axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
-    # axes[1].plot(virus_total['t'],virus_total['vtotal'],linewidth=0,color='grey')
-    # axes[1].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.6)
-    # axes[1].set_ylabel(ylabel ='Viral Abundance',labelpad=15,fontsize=10,rotation=270)
-    # axes[0].margins(x=0)
-    # axes[1].margins(x=0)
-    # lim = axes[1].get_ylim()
-    # axes[1].set_ylim(0,lim[1])
-    # axes[2].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.6)
-    # axes[2].margins(x=0)
-    # axes[2].margins(x=0)
-    # axes[2].set_ylabel(ylabel ='Viral Abundance',labelpad=15,fontsize=10,rotation=270)
-    # axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
-    # axes[2].xaxis.set_minor_locator(ticker.MultipleLocator(25))
-    # # axes[3].plot(sorted(spacerEscProb['t'].unique()),np.array(spacerExpStd['exp']),\
-    # #                 color='darkorange',linewidth=1.5,label='R0 (infection)')
-    # axes[3].plot(sorted(pEmergeExpected['t'].unique()),np.array(pEmergeExpected['p_exp']),\
-    #                 color='darkblue',linewidth=1.5)
-    # # axes[3].plot(sorted(expmin1['t'].unique()), 1-np.array(expmin1['exp']),
-    # #              color='darkred', linewidth=1.5, label='Rank 1 Escape')
-    # pemergetrunc = pEmergeExpected.merge(expmin1, on=['t'])
-    # axes[3].plot(sorted(pemergetrunc['t'].unique()), \
-    #             1-np.array(pemergetrunc['exp']) - (pemergetrunc['p_exp']),
-    #             color='darkred', linewidth=1.5, label='Rank 1 Diff')
-    # pemergetrunc = pEmergeExpected.merge(expmin2, on=['t'])
-    # axes[3].plot(sorted(pemergetrunc['t'].unique()),
-    #             1-np.array(pemergetrunc['exp']) - (pemergetrunc['p_exp']),
-    #             color='darkorange', linewidth=1.5, label='Rank 2 Diff')
-    # pemergetrunc = pEmergeExpected.merge(expmin3, on=['t'])
-    # axes[3].plot(sorted(pemergetrunc['t'].unique()),
-    #             1-np.array(pemergetrunc['exp']) - (pemergetrunc['p_exp']),
-    #             color='darkgreen', linewidth=1.5, label='Rank 3 Diff')
-    # axes[3].legend()
-    # axes[3].set_ylabel(ylabel ='Probability of Emergence',\
-    #             labelpad=15,fontsize=10)
-    # axes[3].set_xlabel(xlabel = 'Time t',fontsize=10)
-    # lim = axes[2].get_ylim()
-    # axes[2].set_ylim(2,lim[1])
-    # lim = axes[3].get_ylim()
-    # axes[3].set_ylim(0,lim[1])
-    # axes[3].yaxis.tick_left()
-    # axes[3].yaxis.set_label_position("left")
-    # axes[2].yaxis.tick_right()
-    # axes[2].yaxis.set_label_position("right")
-    # # lim = axes[2].get_ylim()
-    # # axes[2].set_ylim(0,lim[1])
-    # fig.tight_layout()
-
-
-# if sys.argv[2] == 'all':
-#     vstrainmatchIDs, bstrainmatchIDs = networks.generate(run_id,combo_id,replicate,\
-#     conSim,conMatch,conTri,times,microbe_total,virus_total,\
-#     colorpalSpacers,imgTypes,PLOT_PATH,resolve)
-#     # Generate tree figures and treeID and colorID info
-#     vAbunds,vKeepTreeStrainsDF, vSpeciesColorDict, _, _, figV, axesV = \
-#     tree.speciesTreePlot(run_id,'virus', DBSIM_PATH,DBTREE_PATH,\
-#     treepalette,maxticksize,figxy,hratio,vabundthreshold,stacked,overlay)
-#     bAbunds,bKeepTreeStrainsDF, bSpeciesColorDict, _, _, figB, axesB = \
-#     tree.speciesTreePlot(run_id,'microbe', DBSIM_PATH,DBTREE_PATH,\
-#     treepalette,maxticksize,figxy,hratio,babundthreshold,stacked,overlay)
-#     stamps.treetimes(run_id, curSim,conTri,axesV,axesB,times,hyperAnalyze,\
-#     vAbunds,bAbunds,vKeepTreeStrainsDF,bKeepTreeStrainsDF)
-#     for imgType in treeImgTypes:
-#         if overlay:
-#             axesB.append(axesB[0].twinx())
-#             axesB[2].plot(virus_total['t'],virus_total['Viral Abundance'],linewidth=0,color='grey')
-#             axesB[2].fill_between(virus_total['t'],virus_total['Viral Abundance'], color='grey',alpha=0.6)
-#             lim = axesB[2].get_ylim()
-#             axesB[2].set_ylim(0,lim[1])
-#             figB.tight_layout()
-#             figB.savefig(os.path.join(PLOT_PATH,'microbe-clades-abundances-tree-time-slices_virus-overlay.{0}'\
-#                 .format(imgType)),dpi=resolve)
-#             axesV.append(axesV[0].twinx())
-#             axesV[2].plot(microbe_total['t'],microbe_total['Microbial Abundance'],linewidth=0,color='grey')
-#             axesV[2].fill_between(microbe_total['t'],microbe_total['Microbial Abundance'], color='grey',alpha=0.4)
-#             lim = axesV[2].get_ylim()
-#             axesV[2].set_ylim(0,lim[1])
-#             figV.tight_layout()
-#             figV.savefig(os.path.join(PLOT_PATH,'virus-clades-abundances-tree-time-slices_microbe-overlay.{0}'\
-#                 .format(imgType)),dpi=resolve)
-#         else:
-#             figB.tight_layout()
-#             figB.savefig(os.path.join(PLOT_PATH,'microbe-clades-abundances-tree-time-slices.{0}'\
-#                 .format(imgType)),dpi=resolve)
-#             figV.tight_layout()
-#             figV.savefig(os.path.join(PLOT_PATH,'virus-clades-abundances-tree-time-slices.{0}'\
-#                 .format(imgType)),dpi=resolve)
-
-
-# if sys.argv[2] == 'escape':
-#     bAbunds, bKeepTreeStrainsDF, bSpeciesColorDict, _, _, _, _  = \
-#     tree.speciesTreePlot(run_id,'microbe',DBSIM_PATH,DBTREE_PATH,\
-#     treepalette,maxticksize,figxy,hratio,babundthreshold,stacked,overlay)
-    # p = curSim.execute('SELECT viral_mutation_rate,viral_burst_size,microbe_carrying_capacity, \
-    #                     spacer_acquisition_prob, adsorption_rate, viral_decay_rate \
-    #                     FROM param_combos WHERE combo_id = {}'.format(combo_id)).fetchall()
-    # mu = p[0][0]
-    # beta = p[0][1]
-    # K = p[0][2]
-    # q = p[0][3]
-    # phi = p[0][4]
-    # d = p[0][5]
-#     tripartiteNets = pd.read_sql_query("SELECT t, bstrain_id, vstrain_id, time_specific_match_id\
-#         FROM bstrain_to_vstrain_matches WHERE match_length = 1", conMatch)
-#     spacerMatches = pd.read_sql_query("SELECT t, time_specific_match_id, spacer_id\
-#         FROM matches_spacers", conMatch)
-#     tripartiteNets = tripartiteNets.merge(spacerMatches,on=['t','time_specific_match_id'])\
-#                 .drop(columns=['time_specific_match_id'])
-#     microbe_stacked = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance \
-#                         WHERE run_id = {}".format(run_id), conSim)
-    # virus_stacked = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance \
-    #                     WHERE run_id = {}".format(run_id), conSim)
-#     spacerEscProb = tripartiteNets.merge(microbe_stacked,on=['t','bstrain_id'])\
-#                         .rename(columns={'abundance':'babundance'})\
-#                         .merge(virus_stacked,on=['t','vstrain_id'])\
-#                         .rename(columns={'abundance':'vabundance'})\
-#                         .merge(virus_total,on=['t'])\
-#                         .merge(microbe_total,on=['t'])\
-#                         .rename(columns={'Viral Abundance':'vtotal',\
-#                                     'Microbial Abundance':'btotal'})
-#     bsusceptible = pd.read_sql_query("SELECT t, bstrain_id, vstrain_id\
-#                     FROM bstrain_to_vstrain_0matches", conMatch)\
-#                     .merge(microbe_stacked,on=['t','bstrain_id'])\
-#                     .rename(columns={'abundance':'bsus'})\
-#                     .groupby(['t','vstrain_id']).agg(bsus=('bsus','sum'))\
-#                     .reset_index()
-#     bimmune = pd.read_sql_query("SELECT t, bstrain_id, vstrain_id\
-#                     FROM bstrain_to_vstrain_matches", conMatch)\
-#                     .merge(microbe_stacked,on=['t','bstrain_id'])\
-#                     .rename(columns={'abundance':'bim'})\
-#                     .groupby(['t','vstrain_id']).agg(bim=('bim','sum'))\
-#                     .reset_index()
-#     spacerEscProb = spacerEscProb.merge(bsusceptible,on=['t','vstrain_id'])\
-#                         .merge(bimmune,on=['t','vstrain_id'])
-#     bspacerAbunds = spacerEscProb[['t','vstrain_id','spacer_id','babundance']]\
-#                         .groupby(['t','vstrain_id','spacer_id'])\
-#                         .agg(babundance=('babundance','sum')).reset_index()
-#     spacerEscProb = spacerEscProb.drop(columns=['bstrain_id','babundance'])\
-#                         .merge(bspacerAbunds,on=['t','vstrain_id','spacer_id'])\
-#                         .drop_duplicates()
-#     matchLengths = spacerEscProb[['t','vstrain_id','spacer_id']]\
-#                     .drop_duplicates().groupby(['t','vstrain_id'])\
-#                     .agg(match_length=('spacer_id','size')).reset_index()
-#     spacerEscProb = spacerEscProb.merge(matchLengths,on=['t','vstrain_id'])
-#     spacerEscProb['fuel'] = np.array(spacerEscProb['bsus'])
-#     spacerEscProb['fuelFreq'] = np.array(spacerEscProb['bsus'])/K
-#     spacerEscProb['R0'] = ((1-q)*phi*np.array(spacerEscProb['bsus']))\
-#                             /(d + phi*np.array(spacerEscProb['bim']))
-#     spacerEscProb['disp'] = (np.array(spacerEscProb['babundance']))
-#     spacerEscProb['dispFreq'] = (np.array(spacerEscProb['babundance']))/K
-#     spacerEscProb['R1'] = ((1-q)*phi*np.array(spacerEscProb['babundance']))\
-#             /(d + \
-#             phi*(np.array(spacerEscProb['bim']) - np.array(spacerEscProb['babundance'])))
-#     maxCheck = spacerEscProb[['t','vstrain_id','spacer_id','babundance']]\
-#                             .drop_duplicates().groupby(['t','vstrain_id'])\
-#                             .agg(max=('babundance','max')).reset_index()
-#     maxCheck2 = spacerEscProb[['t','vstrain_id','spacer_id','babundance']]\
-#                             .drop_duplicates().merge(maxCheck,on=['t','vstrain_id'])
-#     max1 = list(np.array(maxCheck2['babundance']) != np.array(maxCheck2['max']))
-#     maxCheck2 = maxCheck2[max1]
-#     maxCheck2 = maxCheck2[['t','vstrain_id','spacer_id','babundance']]\
-#                             .drop_duplicates().groupby(['t','vstrain_id'])\
-#                             .agg(max=('babundance','max')).reset_index()
-#     # maxCheck2 = pd.concat([maxCheck, maxCheck2]).sort_values(by=['t','vstrain_id'])
-#     # maxCheck2 = maxCheck.copy()
-#     std = spacerEscProb[['t','vstrain_id','spacer_id','babundance']]\
-#                             .drop_duplicates().groupby(['t','vstrain_id'])\
-#                             .agg(std=('babundance','std')).reset_index()
-#     spacerEscProb = spacerEscProb.merge(maxCheck,on=['t','vstrain_id'])\
-#                     .merge(std,on=['t','vstrain_id'])
-#     spacerEscProb['R1max'] = ((1-q)*phi*beta*np.array(spacerEscProb['max']))\
-#         /(d + \
-#         phi*(np.array(spacerEscProb['bim']) - np.array(spacerEscProb['max'])))
-#     ##
-#     spacerEscProb['infectionProbs'] = \
-#         (np.array(spacerEscProb['vabundance'])/np.array(spacerEscProb['vtotal']))\
-#         *(np.array(spacerEscProb['bsus'])/np.array(spacerEscProb['btotal']))
-#     spacerEscProb['infectionProbs2'] = \
-#         np.array(spacerEscProb['infectionProbs'])\
-#                 *beta*mu*np.array(spacerEscProb['match_length'])
-#     norm = spacerEscProb.groupby(['t']).agg(norm=('infectionProbs','sum')).reset_index()
-#     spacerEscProb = spacerEscProb.merge(norm,on=['t'])
-#     norm = spacerEscProb[['t','vstrain_id','infectionProbs']].drop_duplicates()\
-#             .groupby(['t']).agg(norm1=('infectionProbs','sum')).reset_index()
-#     spacerEscProb = spacerEscProb.merge(norm,on=['t'])
-#     norm = spacerEscProb[['t','vstrain_id','infectionProbs2']].drop_duplicates()\
-#             .groupby(['t']).agg(norm2=('infectionProbs2','sum')).reset_index()
-#     spacerEscProb = spacerEscProb.merge(norm,on=['t'])
-#     spacerEscProb['infectionProbsNormed'] = np.array(spacerEscProb['infectionProbs'])\
-#                                             /np.array(spacerEscProb['norm'])
-#     spacerEscProb['infectionProbsNormed2'] = ((np.array(spacerEscProb['infectionProbs2'])\
-#             /np.array(spacerEscProb['norm2'])))/np.array(spacerEscProb['match_length'])
-#     spacerEscProb['infectionProbsNormed1'] = ((np.array(spacerEscProb['infectionProbs'])\
-#                                             /np.array(spacerEscProb['norm1'])))
-#     spacerEscProb = spacerEscProb.drop(columns=['norm','norm1','norm2'])
-#     #
-#     maxCheck2 = spacerEscProb[['t','vstrain_id','infectionProbsNormed','infectionProbsNormed1']]\
-#                 .drop_duplicates().merge(maxCheck2,on=['t','vstrain_id'])
-#     #
-#     spacerEscProb['expFuel'] = np.array(spacerEscProb['fuel'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed1'])
-#     spacerEscProb['expFuelFreq'] = np.array(spacerEscProb['fuelFreq'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed1'])
-#     spacerEscProb['expR0'] = np.array(spacerEscProb['R0'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed1'])
-#     spacerEscProb['expDisp'] = np.array(spacerEscProb['disp'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed'])
-#     spacerEscProb['expDisp2'] = np.array(spacerEscProb['disp'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed2'])
-#     spacerEscProb['expDispFreq'] = np.array(spacerEscProb['dispFreq'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed'])
-#     spacerEscProb['expDispFreq2'] = np.array(spacerEscProb['dispFreq'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed2'])
-#     spacerEscProb['expR1'] = np.array(spacerEscProb['R1'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed'])
-#     spacerEscProb['expR1_2'] = np.array(spacerEscProb['R1'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed2'])
-#     spacerEscProb['expFuel3'] = np.array(spacerEscProb['fuel'])*\
-#                                 (np.array(spacerEscProb['vabundance'])/\
-#                                 np.array(spacerEscProb['vtotal']))
-#     spacerEscProb['expFuelFreq3'] = np.array(spacerEscProb['fuelFreq'])*\
-#                                 (np.array(spacerEscProb['vabundance'])/\
-#                                 np.array(spacerEscProb['vtotal']))
-#     spacerEscProb['expR0_3'] = np.array(spacerEscProb['R0'])*\
-#                                 (np.array(spacerEscProb['vabundance'])/\
-#                                 np.array(spacerEscProb['vtotal']))
-#     spacerEscProb['expDisp3'] = np.array(spacerEscProb['disp'])*\
-#                                 (np.array(spacerEscProb['vabundance'])/\
-#                                 np.array(spacerEscProb['vtotal']))
-#     spacerEscProb['expDispFreq3'] = np.array(spacerEscProb['dispFreq'])*\
-#                                 (np.array(spacerEscProb['vabundance'])/\
-#                                 np.array(spacerEscProb['vtotal']))
-#     spacerEscProb['expR1_3'] = np.array(spacerEscProb['R1'])*\
-#                                 (np.array(spacerEscProb['vabundance'])/\
-#                                 np.array(spacerEscProb['vtotal']))
-#     spacerExp1 = spacerEscProb[['t','vstrain_id','expFuel']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expFuel','sum')).reset_index()
-#     spacerExp2 = spacerEscProb[['t','vstrain_id','expFuelFreq']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expFuelFreq','sum')).reset_index()
-#     spacerExp3 = spacerEscProb[['t','vstrain_id','expR0']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expR0','sum')).reset_index()
-#     spacerExp4 = spacerEscProb.groupby(['t']).agg(exp=('expDisp','sum')).reset_index()
-#     spacerExp5 = spacerEscProb.groupby(['t']).agg(exp=('expDispFreq','sum')).reset_index()
-#     spacerExp6 = spacerEscProb.groupby(['t']).agg(exp=('expR1','sum')).reset_index()
-#     spacerExp4_2 = spacerEscProb.groupby(['t']).agg(exp=('expDisp2','sum')).reset_index()
-#     spacerExp5_2 = spacerEscProb.groupby(['t']).agg(exp=('expDispFreq2','sum')).reset_index()
-#     spacerExp6_2 = spacerEscProb.groupby(['t']).agg(exp=('expR1_2','sum')).reset_index()
-#     spacerExp1_3 = spacerEscProb[['t','vstrain_id','expFuel3']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expFuel3','sum')).reset_index()
-#     spacerExp2_3 = spacerEscProb[['t','vstrain_id','expFuelFreq3']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expFuelFreq3','sum')).reset_index()
-#     spacerExp3_3 = spacerEscProb[['t','vstrain_id','expR0_3']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expR0_3','sum')).reset_index()
-#     spacerExp4_3 = spacerEscProb.groupby(['t']).agg(exp=('expDisp3','sum')).reset_index()
-#     spacerExp5_3 = spacerEscProb.groupby(['t']).agg(exp=('expDispFreq3','sum')).reset_index()
-#     spacerExp6_3 = spacerEscProb.groupby(['t']).agg(exp=('expR1_3','sum')).reset_index()
-#     spacerEscProb['expMatch'] = np.array(spacerEscProb['match_length'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed1'])
-#     spacerExp7 = spacerEscProb[['t','vstrain_id','expMatch']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expMatch','sum')).reset_index()
-#     spacerEscProb['expMax'] = np.array(spacerEscProb['max'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed1'])
-#     #
-#     norm =maxCheck2.groupby(['t']).agg(norm=('infectionProbsNormed','sum')).reset_index()
-#     maxCheck2 = maxCheck2.merge(norm,on=['t'])
-#     maxCheck2['infectionProbsNormed'] = ((np.array(maxCheck2['infectionProbsNormed'])\
-#                                             /np.array(maxCheck2['norm'])))
-#     maxCheck2['expMax'] = np.array(maxCheck2['max'])*\
-#                                 np.array(maxCheck2['infectionProbsNormed'])
-#     #
-#     spacerEscProb['expMaxvfreq'] = np.array(spacerEscProb['max'])*\
-#                                 (np.array(spacerEscProb['vabundance'])/\
-#                                 np.array(spacerEscProb['vtotal']))
-#     spacerExpMax = spacerEscProb[['t','vstrain_id','expMax']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expMax','sum')).reset_index()
-#     #
-#     spacerExpMax2 = maxCheck2[['t','vstrain_id','expMax']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expMax','sum')).reset_index()
-#     #
-#     spacerExpMaxvfreq = spacerEscProb[['t','vstrain_id','expMaxvfreq']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expMaxvfreq','sum')).reset_index()
-#     spacerEscProb['expR1Max'] = np.array(spacerEscProb['R1max'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed1'])
-#     spacerExpR1Max = spacerEscProb[['t','vstrain_id','expR1Max']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expR1Max','sum')).reset_index()
-#     spacerEscProb['expR1vfreq'] = np.array(spacerEscProb['R1'])*\
-#                                 (np.array(spacerEscProb['vabundance'])/\
-#                                 np.array(spacerEscProb['vtotal']))
-#     spacerExpR1vfreq = spacerEscProb[['t','vstrain_id','expR1vfreq']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expR1vfreq','sum')).reset_index()
-#     spacerExpR1vfreq2 = spacerEscProb[['t','vstrain_id','expR1vfreq','match_length']].copy()
-#     spacerExpR1vfreq2['expR1vfreq2'] = np.array(spacerExpR1vfreq2['expR1vfreq'])\
-#                                         /np.array(spacerExpR1vfreq2['match_length'])
-#     spacerExpR1vfreq2 = spacerExpR1vfreq2.groupby(['t'])\
-#                     .agg(exp=('expR1vfreq2','sum')).reset_index()
-#     spacerEscProb['expStd'] = np.array(spacerEscProb['std'])*\
-#                                 np.array(spacerEscProb['infectionProbsNormed1'])
-#     spacerExpStd = spacerEscProb[['t','vstrain_id','expStd']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expStd','sum')).reset_index()
-#     spacerEscProb['expStd2'] = np.array(spacerEscProb['std'])*\
-#                                 (np.array(spacerEscProb['vabundance'])/\
-#                                 np.array(spacerEscProb['vtotal']))
-#     spacerExpStd2 = spacerEscProb[['t','vstrain_id','expStd2']].drop_duplicates()\
-#                     .groupby(['t']).agg(exp=('expStd2','sum')).reset_index()
-
-#     # spacerDiv = spacerEscProb.groupby(['t','bmatch_id','babundance','btri'])\
-#     #             .agg(infectionProbsNormed2=('infectionProbsNormed2','sum')).reset_index()
-#     # spacerDiv['spacerExpDisp8'] = \
-#     #     np.exp(-1*np.array(spacerDiv['babundance'])/np.array(spacerDiv['btri'])*np.array(spacerDiv['infectionProbsNormed2'])\
-#     #     *np.log(np.array(spacerDiv['babundance'])/np.array(spacerDiv['btri'])*np.array(spacerDiv['infectionProbsNormed2'])))
-#     # spacerDiv['spacerExpDisp9'] = \
-#     #     np.exp(-1*np.array(spacerDiv['babundance'])/np.array(spacerDiv['btri'])\
-#     #     *np.log(np.array(spacerDiv['babundance'])/np.array(spacerDiv['btri'])))
-#     fig, ax = plt.subplots(2,sharex=True)
-#     axes = [ax[0], ax[0].twinx(), ax[1], ax[1].twinx()]
-#     microbe_stacked = bAbunds[bAbunds.t<=max(virus_total['t'])].pivot(index='t',columns='tree_bstrain_id',values='abundance')
-#     microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=bSpeciesColorDict,sort_columns=True)
-#     microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',sort_columns=True,linewidth=.1)
-#     axes[0].set_ylabel(ylabel ='Host Abundance',labelpad=15,fontsize=10)
-#     axes[0].set_xlabel(xlabel = 'Time t',fontsize=10)
-#     axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-#     axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
-#     axes[1].plot(virus_total['t'],virus_total['Viral Abundance'],linewidth=0,color='grey')
-#     axes[1].fill_between(virus_total['t'],virus_total['Viral Abundance'], color='grey',alpha=0.6)
-#     axes[1].set_ylabel(ylabel ='Viral Abundance',labelpad=15,fontsize=10)
-#     axes[0].margins(x=0)
-#     axes[1].margins(x=0)
-#     lim = axes[1].get_ylim()
-#     axes[1].set_ylim(0,lim[1])
-#     axes[2].fill_between(virus_total['t'],virus_total['Viral Abundance'], color='grey',alpha=0.6)
-#     axes[2].margins(x=0)
-#     axes[2].margins(x=0)
-#     axes[2].set_ylabel(ylabel ='Viral Abundance',labelpad=15,fontsize=10)
-#     axes[2].set_xlabel(xlabel = 'Time t',fontsize=7)
-#     axes[2].xaxis.set_minor_locator(ticker.MultipleLocator(25))
-#     # axes[3].plot(sorted(spacerEscProb['t'].unique()),np.array(spacerExpStd['exp']),\
-#     #                 color='darkorange',linewidth=1.5,label='R0 (infection)')
-#     axes[3].plot(sorted(spacerEscProb['t'].unique()),np.array(spacerExpR1Max['exp']),\
-#                     color='darkblue',linewidth=1.5,label='Tripartite Max R1 (infection)')
-#     axes[3].legend()
-#     axes[3].plot(sorted(spacerEscProb['t'].unique()),np.ones(len(spacerEscProb['t'].unique())),color='red',linewidth=1.0)
-#     axes[3].set_ylabel(ylabel ='Expected R',\
-#                 labelpad=15,fontsize=10)
-#     axes[3].set_xlabel(xlabel = 'Time t',fontsize=10)
-#     lim = axes[2].get_ylim()
-#     axes[2].set_ylim(2,lim[1])
-#     lim = axes[3].get_ylim()
-#     axes[3].set_ylim(0,lim[1])
-#     axes[3].yaxis.tick_left()
-#     axes[3].yaxis.set_label_position("left")
-#     axes[2].yaxis.tick_right()
-#     axes[2].yaxis.set_label_position("right")
-#     # lim = axes[2].get_ylim()
-#     # axes[2].set_ylim(0,lim[1])
-#     fig.tight_layout()

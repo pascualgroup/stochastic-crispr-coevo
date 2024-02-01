@@ -281,7 +281,7 @@ def speciesTreeDiv2Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
     print('Compiling stacked species abundances and tree plots')
     fig, ax = plt.subplots(1, sharex=True, figsize=[figxy[0],figxy[0]/4]) # collapse plot
     fig2, ax2 = plt.subplots(2, sharex=True, figsize=figxy,
-                           gridspec_kw={'height_ratios': hratio}) # tree diversity plot
+                           gridspec_kw={'height_ratios': hratio,'hspace':0}) # tree diversity plot
     axes = [ax, ax.twinx()] # collapse plot
     axes2 = [ax2[0], ax2[1]] # tree diversity plot
     for strainID in sorted(treeAbundances[tree_strain_id].unique()):
@@ -320,7 +320,7 @@ def speciesTreeDiv2Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
     species_stacked = species_stacked.pivot(
         index='t', columns=tree_strain_id, values='abundance')
     if species == 'virus':
-        axes2[1].set_ylabel(ylabel='Viral Strains', labelpad=15, fontsize=10)
+        axes2[1].set_ylabel(ylabel='Viral Phylogeny', labelpad=15, fontsize=10)
         ## collapse plot
         microbe_total = pd.read_sql_query("SELECT t, microbial_abundance FROM summary WHERE run_id = {}".format(run_id), conSim)\
             .rename(columns={'microbial_abundance': 'btotal'})
@@ -361,7 +361,7 @@ def speciesTreeDiv2Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
         axes2[3].set_ylabel(
             ylabel='Viral\n Shannon Diversity', labelpad=15, fontsize=10)
     if species == 'microbe':
-        axes2[1].set_ylabel(ylabel='Host Immune Strains',
+        axes2[1].set_ylabel(ylabel='Host Phylogeny',
                             labelpad=15, fontsize=10)
         ## collapse plot
         virus_total = pd.read_sql_query("SELECT t, viral_abundance FROM summary WHERE run_id = {}".format(run_id), conSim)\

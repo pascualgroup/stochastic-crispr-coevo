@@ -48,12 +48,12 @@ ROOT_RUNMANY_SCRIPT = joinpath(ROOT_PATH, "runmany.jl")
 cd(SCRIPT_PATH)
 
 # Number of replicates for each parameter combination
-const N_REPLICATES = 20
+const N_REPLICATES = 300
 
 # Number of SLURM jobs to generate
-const N_JOBS_MAX = 100
-const N_CORES_PER_JOB_MAX = 28 # Half a node, easier to get scheduled than a whole one
-const mem_per_cpu = 2000 # in MB 100MB = 1 GB
+const N_JOBS_MAX = 200
+const N_CORES_PER_JOB_MAX = 14 # Half a node, easier to get scheduled than a whole one
+const mem_per_cpu = 10000 # in MB 100MB = 1 GB
 
 db = SQLite.DB(joinpath(SCRIPT_PATH,"sweep_db.sqlite")) # the function of this database
 # is to log run and job ids of individual simulation directory names
@@ -149,7 +149,7 @@ function generate_runs(db::DB) # This function generates the directories
                 print(f, """
                 #!/bin/sh
                 cd `dirname \$0`
-                julia $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
+                /share/apps/julia/1.6.1/bin/julia $(ROOT_RUN_SCRIPT) parameters.json &> output.txt
                 """)
             end
             run(`chmod +x $(run_script)`) # Make run script executable
@@ -228,19 +228,19 @@ function generate_jobs(db::DB,numCombos::Int64)
         open(job_sbatch, "w") do f
             print(f, """
             #!/bin/sh
-            #SBATCH --account=pi-pascualmm
-            #SBATCH --partition=broadwl
+            #SBATCH --nodes=1
+            #SBATCH --ntasks-per-node=$(n_cores)
+            #SBATCH --cpus-per-task=1
             #SBATCH --job-name=$(job_id)crispr
-            #SBATCH --tasks=1
-            #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m
             #SBATCH --time=1-12:00:00
             #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
             #SBATCH --output=output.txt
-            #SBATCH --mail-user=armun@uchicago.edu
-            # Uncomment this to use the Midway-provided Julia:
-            module load julia
-            julia $(ROOT_RUNMANY_SCRIPT) $(n_cores) runs.txt
+            #SBATCH --mail-type=END,FAIL,REQUEUE
+            #SBATCH --mail-user=al8784@nyu.edu
+            module purge
+            module load julia/1.6.1
+            ~/julia/my-julia $(ROOT_RUNMANY_SCRIPT) $(n_cores) runs.txt
             """) # runs.txt is for parallel processing
         end
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)

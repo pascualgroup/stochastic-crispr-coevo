@@ -24,6 +24,12 @@ function initialize_database()
         )
     """)
     execute(db, """
+    CREATE TABLE bextinctions (
+        bstrain_id INTEGER,
+        t_extinction REAL
+    )
+    """)
+    execute(db, """
         CREATE TABLE bspacers (
             bstrain_id INTEGER,
             spacer_id INTEGER
@@ -36,7 +42,6 @@ function initialize_database()
             abundance INTEGER
         )
     """)
-
     execute(db, """
         CREATE TABLE vstrains (
             t_creation REAL,
@@ -44,6 +49,12 @@ function initialize_database()
             parent_vstrain_id INTEGER,
             infected_bstrain_id INTEGER
         )
+    """)
+    execute(db, """
+    CREATE TABLE vextinctions (
+        vstrain_id INTEGER,
+        t_extinction REAL
+    )
     """)
     execute(db, """
         CREATE TABLE vpspacers (

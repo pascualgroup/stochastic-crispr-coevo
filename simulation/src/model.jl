@@ -109,7 +109,7 @@ function do_next_event!(sim::Simulation, t_max::Float64)
                 @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
 
             # Time advances to value greater than current output time
-
+            sim.t = t_next
                 # Sample next top-level event proportional to event rate
 
                 @debug "event counts:" total=n_events, breakdown=sim.event_counts
@@ -122,29 +122,26 @@ function do_next_event!(sim::Simulation, t_max::Float64)
                 do_event!(event_id, sim, t_next)
                 update_rates!(sim)
                 @debug "end do_event()"
-
-            sim.t = t_next
 
                 @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
                 @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
         end
     else
-                @debug "event counts:" total=n_events, breakdown=sim.event_counts
-                @debug "event_rates:" sim.event_rates
+        # Time advances
+        sim.t = t_next
+        @debug "event counts:" total=n_events, breakdown=sim.event_counts
+        @debug "event_rates:" sim.event_rates
 
-                # Sample next top-level event proportional to event rate
-                event_id = sample(sim.rng, EVENTS, Weights(sim.event_rates, R))
-                sim.event_counts[event_id] += 1
+        # Sample next top-level event proportional to event rate
+        event_id = sample(sim.rng, EVENTS, Weights(sim.event_rates, R))
+        sim.event_counts[event_id] += 1
 
-                @debug "begin do_event()" event=event t=t_next
-                do_event!(event_id, sim, t_next)
-                update_rates!(sim)
-                @debug "end do_event()"
-
-            sim.t = t_next # Time advances
-
-                @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
-                @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
+        @debug "begin do_event()" event=event t=t_next
+        do_event!(event_id, sim, t_next)
+        update_rates!(sim)
+        @debug "end do_event()"
+        @debug "bstrains:" total_abund=state.bstrains.total_abundance abund=state.bstrains.abundance spacers=state.bstrains.spacers
+        @debug "vstrains:" total_abund=state.vstrains.total_abundance abund=state.vstrains.abundance pspacers=state.vstrains.spacers
     end
 end
 
