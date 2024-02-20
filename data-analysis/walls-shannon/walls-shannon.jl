@@ -22,16 +22,75 @@ if isfile(dbOutputPath)
 end
 
 dbSimPath = joinpath(SCRIPT_PATH,"..","..","simulation","sweep_db_gathered.sqlite") # cluster
+# dbSimPath = joinpath("/Volumes/Yadgah","avalanches","simulations", "comboID-1.sqlite") # cluster
 # dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
 # dbSimPath = joinpath("/Volumes/Yadgah","run_id1455_combo73_replicate15.sqlite") # local
 
-dbShanPath = joinpath(SCRIPT_PATH,"..","gathered-analyses","shannon","shannon.sqlite") # cluster
-# dbShanPath = joinpath("/Volumes/Yadgah/shannon.sqlite") # local
-# dbShanPath = joinpath("/Volumes/Yadgah","shannon_output.sqlite") # local
+# dbShanPath = joinpath(SCRIPT_PATH,"..","gathered-analyses","shannon","shannon.sqlite") # cluster
 ##
 
 dbSim = SQLite.DB(dbSimPath)
 dbOutput = SQLite.DB(dbOutputPath)
+
+
+function shannon(dbOutput)
+    execute(dbOutput, "CREATE TABLE shannon_diversity (t REAL, vshannon REAL, bshannon REAL)")
+    tmpPath = joinpath(ENV["SLURM_TMPDIR"], "shannon-$(run_id).sqlite")
+    # tmpPath = joinpath("/Volumes/Yadgah/test.sqlite") # local
+    println("this is the temp path: $(tmpPath)")
+    rm(tmpPath, force=true)
+    dbTemp = SQLite.DB(tmpPath)
+    # dbTemp = SQLite.DB()
+    execute(dbTemp, "CREATE TABLE summary (t REAL, microbial_abundance INTEGER, viral_abundance INTEGER)")
+    execute(dbTemp, "CREATE TABLE babundance (t REAL, bstrain_id INTEGER, abundance INTEGER)")
+    execute(dbTemp, "CREATE TABLE vabundance (t REAL, vstrain_id INTEGER, abundance INTEGER)")
+
+    execute(dbTemp, "BEGIN TRANSACTION")
+    execute(dbTemp, "ATTACH DATABASE '$(dbSimPath)' as dbSim")
+    execute(dbTemp, "INSERT INTO summary(t, microbial_abundance,viral_abundance) SELECT t, microbial_abundance,viral_abundance FROM dbSim.summary WHERE run_id = $(run_id);")
+    execute(dbTemp, "INSERT INTO babundance (t, bstrain_id, abundance) SELECT t, bstrain_id, abundance FROM dbSim.babundance WHERE run_id = $(run_id);")
+    execute(dbTemp, "INSERT INTO vabundance (t, vstrain_id, abundance) SELECT t, vstrain_id, abundance FROM dbSim.vabundance WHERE run_id = $(run_id);")
+    execute(dbTemp, "COMMIT")
+
+    execute(dbTemp, "BEGIN TRANSACTION")
+    execute(dbTemp, "CREATE INDEX summary_index ON summary (t,microbial_abundance,viral_abundance)")
+    execute(dbTemp, "CREATE INDEX bstrain_index ON babundance (t,bstrain_id)")
+    execute(dbTemp, "CREATE INDEX vstrain_index ON vabundance (t,vstrain_id)")
+    execute(dbTemp, "COMMIT")
+    # println("Processing shannon entropies of run $(run_id)")
+    execute(dbOutput, "BEGIN TRANSACTION")
+    for (time,) in execute(dbTemp, "SELECT DISTINCT t FROM summary")
+        #time = time + 400 # for testing
+        println("Computing shannon entropy at time $(time)")
+
+        (totAbunds,) = execute(dbTemp, "SELECT microbial_abundance,viral_abundance FROM summary WHERE t = ?", (time,))
+        btotal = totAbunds.microbial_abundance
+        vtotal = totAbunds.viral_abundance
+
+        bsubAbunds = [bsubAbunds.abundance for bsubAbunds in execute(dbTemp, "SELECT abundance FROM babundance WHERE t = ?", (time,))]
+        brelAbunds = bsubAbunds ./ btotal
+        brelAbunds = brelAbunds[brelAbunds.>=1e-200]
+
+        if btotal == 0
+            bshannon = 0
+        else
+            bshannon = exp(-1 * sum(brelAbunds .* (log.(brelAbunds))))
+        end
+
+        vsubAbunds = [vsubAbunds.abundance for vsubAbunds in execute(dbTemp, "SELECT abundance FROM vabundance WHERE t = ?", (time,))]
+        vrelAbunds = vsubAbunds ./ vtotal
+        vrelAbunds = vrelAbunds[vrelAbunds.>=1e-200]
+
+        if vtotal == 0
+            vshannon = 0
+        else
+            vshannon = exp(-1 * sum(vrelAbunds .* (log.(vrelAbunds))))
+        end
+
+        execute(dbOutput, "INSERT INTO shannon_diversity VALUES (?,?,?)", (time, vshannon, bshannon))
+    end
+    execute(dbOutput, "COMMIT")
+end
 
 # This function counts number of peaks, logs time series of peaks their respective durations
 function peakwallCount(uPercent,lPercent,shannonThreshold,dbOutput,dbSim)
@@ -64,28 +123,13 @@ function peakwallCount(uPercent,lPercent,shannonThreshold,dbOutput,dbSim)
     peak_number=Int64[], wall_number=Int64[], duration=Float64[])
     wallSeries = DataFrame(t=series.t, wall_presence=Array{Int64,1}(zeros(length(series.t))), bshannon = Array{Float64,1}(zeros(length(series.t))), vshannon = Array{Float64,1}(zeros(length(series.t))))
 
-    # Create temporary database that is a copy of the main database at the run_id value of the script's argument
-    #dbTemp = SQLite.DB("/Volumes/Yadgah/timeSeries$(run_id).sqlite") # local
-    dbTemp = SQLite.DB()
-    execute(dbTemp, "CREATE TABLE shannon_diversity (t REAL, vshannon REAL, bshannon REAL)")
-
-    execute(dbTemp, "BEGIN TRANSACTION")
-    execute(dbTemp,"ATTACH DATABASE '$(dbShanPath)' as dbShan")
-    execute(dbTemp,"INSERT INTO shannon_diversity(t, vshannon, bshannon) SELECT t, vshannon, bshannon FROM dbShan.shannon_diversity WHERE run_id = $(run_id);")
-    # execute(dbTemp,"INSERT INTO shannon_diversity(t, vshannon, bshannon) SELECT t, vshannon, bshannon FROM dbShan.shannon_diversity;")
-    execute(dbTemp, "COMMIT")
-
-    execute(dbTemp, "BEGIN TRANSACTION")
-    execute(dbTemp, "CREATE INDEX shannon_index ON shannon_diversity (t, vshannon, bshannon)")
-    execute(dbTemp, "COMMIT")
-
     peaks = 0
     walls = 0
     check = 0
     j1,j2,j3,j4 = 0,0,0,0
 
     for i in 1:length(coarseSeries)
-        println("Scanning through time series point $(i)")
+        # println("Scanning through time series point $(i)")
         if i == length(coarseSeries)
             return peaks, walls, peakSeries, peakDurations, wallSeries
         end
@@ -115,8 +159,8 @@ function peakwallCount(uPercent,lPercent,shannonThreshold,dbOutput,dbSim)
 
                 timeStmt = join(map(x -> string(" $(x)"), peakSeries.t[(j1):j4]),',')
                 # timeStmt = append!([string("t = $(peakSeries.t[j1])")], timeStmt)
-                bshannon = [shannon.bshannon for shannon in execute(dbTemp, "SELECT bshannon FROM shannon_diversity WHERE t in ($(timeStmt...)) ORDER BY t")]
-                vshannon = [shannon.vshannon for shannon in execute(dbTemp, "SELECT vshannon FROM shannon_diversity WHERE t in ($(timeStmt...)) ORDER BY t")]
+                bshannon = [shannon.bshannon for shannon in execute(dbOutput, "SELECT bshannon FROM shannon_diversity WHERE t in ($(timeStmt...)) ORDER BY t")]
+                vshannon = [shannon.vshannon for shannon in execute(dbOutput, "SELECT vshannon FROM shannon_diversity WHERE t in ($(timeStmt...)) ORDER BY t")]
 
                 if maximum(bshannon) >= shannonThreshold
                     walls = walls + 1
@@ -136,13 +180,15 @@ function peakwallCount(uPercent,lPercent,shannonThreshold,dbOutput,dbSim)
 #end
 end
 
-peaks, walls, peakSeries, peakDurations, wallSeries = peakwallCount(uPercent,lPercent,shannonThreshold,dbOutput,dbSim);
+shannon(dbOutput)
+peaks, walls, peakSeries, peakDurations, wallSeries = peakwallCount(uPercent, lPercent, shannonThreshold, dbOutput, dbSim);
+rm(tmpPath, force=true)
 
-count =  DataFrame(num_peaks = peaks, num_walls = walls)
+count = DataFrame(num_peaks=peaks, num_walls=walls)
 
-peakSeries |> SQLite.load!(dbOutput,"microbial_peak_series",ifnotexists=true)
-peakDurations |> SQLite.load!(dbOutput,"microbial_peakwall_durations",ifnotexists=true)
-count |> SQLite.load!(dbOutput,"microbial_peakwall_count",ifnotexists=true)
-wallSeries |> SQLite.load!(dbOutput,"microbial_wall_series",ifnotexists=true)
+peakSeries |> SQLite.load!(dbOutput, "microbial_peak_series", ifnotexists=true)
+peakDurations |> SQLite.load!(dbOutput, "microbial_peakwall_durations", ifnotexists=true)
+count |> SQLite.load!(dbOutput, "microbial_peakwall_count", ifnotexists=true)
+wallSeries |> SQLite.load!(dbOutput, "microbial_wall_series", ifnotexists=true)
 
 println("Complete!")

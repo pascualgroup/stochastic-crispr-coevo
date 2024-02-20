@@ -1,4 +1,55 @@
-def coEvoTreePlot(run_id,DBSIM_PATH,DBTREE_PATH,treepaletteV,treepaletteB,maxticksize,figxy,hratio,abundthresholdV,abundthresholdB):
+#!/usr/bin/env python3
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+import sqlite3
+import matplotlib.cm as cm
+from matplotlib.colors import Normalize
+import matplotlib.colors as mc
+from matplotlib.collections import LineCollection
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib.ticker as ticker
+
+resolve = 500
+imgType = "pdf"
+# graphImgTypes = ["pdf"]
+figxy = (15,10) # setting for tree abundance figure
+hratio1 = [1,3,1,3] # setting for tree abundance figure
+hratio2 = [1,1,3] # setting for tree abundance figure
+maxticksize = 100 # setting for abundances on individual branches of tree
+treepaletteB = 'turbo' # Color palette for tree: use contiguous color palette
+treepaletteV = 'bone'
+abundthresholdB  = 0 # this is %/100 of total population size
+abundthresholdV  = .05 # this is %/100 of total population size
+
+run = 'runID3297-c66-r47'
+
+SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__)) # cluster
+DBSIM_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','isolates',run,'{}.sqlite'.format(run))
+PLOT_PATH = os.path.join(SCRIPT_PATH)
+# external hard drive
+# dir = 'crispr-sweep-7-2-2022/isolates/runID3297-c66-r47'
+# DBTREE_PATH = os.path.join('/Volumes','Yadgah',dir,'trees_output.sqlite') 
+# PLOT_PATH = os.path.join('/Volumes','Yadgah')
+# DBSIM_PATH = os.path.join('/Volumes','Yadgah',dir,'{}.sqlite'.format(run))
+
+
+conSim = sqlite3.connect(DBSIM_PATH)
+curSim = conSim.cursor()
+run_id = curSim.execute('SELECT DISTINCT run_id FROM summary').fetchall()
+run_id = run_id[0][0]
+ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
+combo_id = ID[0][0]
+replicate = ID[0][1]
+conTree = sqlite3.connect(DBTREE_PATH)
+curTree = conTree.cursor()
+
+
+def coEvoTreePlot(run_id,DBSIM_PATH,DBTREE_PATH,treepaletteV,treepaletteB,maxticksize,figxy,hratio,abundthresholdV,abundthresholdB,imgType,resolve):
     conSim = sqlite3.connect(DBSIM_PATH)
     curSim = conSim.cursor()
     ID = curSim.execute(
@@ -149,7 +200,7 @@ def coEvoTreePlot(run_id,DBSIM_PATH,DBTREE_PATH,treepaletteV,treepaletteB,maxtic
         species_stacked = species_stacked.pivot(
             index='t', columns=tree_strain_id, values='abundance')
         species_stacked.plot.area(ax=axes[idx0], stacked=True, legend=False,
-                                linewidth=0, color=speciesColorDict, sort_columns=True)
+                                linewidth=0, color=speciesColorDict)
         # species_stacked.plot(
         #     stacked=True, ax=axes[idx0], legend=False, color='white', sort_columns=True, linewidth=.1)
         axes[idx0].set_ylabel(ylabel=abundanceTitle, labelpad=20, fontsize=20)
@@ -165,16 +216,11 @@ def coEvoTreePlot(run_id,DBSIM_PATH,DBTREE_PATH,treepaletteV,treepaletteB,maxtic
         axes[idx1].tick_params(axis='x', labelsize=20)
         axes[idx0].tick_params(axis='y', labelsize=20)
         axes[idx0].yaxis.get_offset_text().set_fontsize(20)
-    return fig, axes
+        fig.savefig(os.path.join(PLOT_PATH, 'host-virus-abundances-trees.{0}'.format(imgType)),dpi=resolve)
+        plt.close('all')
+    return
 
-
-fig.savefig(os.path.join('/Users/armun/Desktop/abundTree.pdf'),dpi=resolve)
-
-coEvoTreePlot2(3297,DBSIM_PATH,DBTREE_PATH,'viridis','turbo',100,(15,15*1.3),[1,1,3],vabundthreshold,babundthreshold)
-
-fig, axes = coEvoTreePlot2(3297,DBSIM_PATH,DBTREE_PATH,'bone','turbo',100,(15,15),[1,1,3],vabundthreshold,babundthreshold)
-
-def coEvoTreePlot2(run_id, DBSIM_PATH, DBTREE_PATH, treepaletteV, treepaletteB, maxticksize, figxy, hratio, abundthresholdV, abundthresholdB):
+def coEvoTreePlot2(run_id, DBSIM_PATH, DBTREE_PATH, treepaletteV, treepaletteB, maxticksize, figxy, hratio, abundthresholdV, abundthresholdB,imgType,resolve):
     conSim = sqlite3.connect(DBSIM_PATH)
     curSim = conSim.cursor()
     ID = curSim.execute(
@@ -336,7 +382,7 @@ def coEvoTreePlot2(run_id, DBSIM_PATH, DBTREE_PATH, treepaletteV, treepaletteB, 
         species_stacked = species_stacked.pivot(
             index='t', columns=tree_strain_id, values='abundance')
         species_stacked.plot.area(ax=axes[idx0], stacked=True, legend=False,
-                                  linewidth=0, color=speciesColorDict, sort_columns=True)
+                                  linewidth=0, color=speciesColorDict)
         axes[idx0].set_ylabel(ylabel=abundanceTitle, labelpad=20, fontsize=20)
         lim = axes[idx0].get_ylim()
         axes[idx0].set_ylim(0, lim[1])
@@ -346,4 +392,10 @@ def coEvoTreePlot2(run_id, DBSIM_PATH, DBTREE_PATH, treepaletteV, treepaletteB, 
         axes[idx0].tick_params(axis='x', labelsize=20)
         axes[idx0].tick_params(axis='y', labelsize=20)
         axes[idx0].yaxis.get_offset_text().set_fontsize(20)
-    return fig, axes
+        fig.savefig(os.path.join(PLOT_PATH, 'host-virus-abundances-just-viral-tree.{0}'.format(imgType)),dpi=resolve)
+        plt.close('all')
+    return
+
+
+coEvoTreePlot(run_id, DBSIM_PATH, DBTREE_PATH, treepaletteV, treepaletteB, maxticksize, figxy, hratio1, abundthresholdV, abundthresholdB, imgType, resolve)
+coEvoTreePlot2(run_id, DBSIM_PATH, DBTREE_PATH, treepaletteV, treepaletteB, maxticksize, figxy, hratio2,abundthresholdV, abundthresholdB, imgType, resolve)

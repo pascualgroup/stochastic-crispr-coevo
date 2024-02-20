@@ -17,6 +17,7 @@ dbOutputPath = joinpath("trees_output.sqlite") # cluster
 
 # dbSimPath = joinpath("/Volumes/Yadgah/sweep_db_gathered.sqlite") # local
 # dbSimPath = joinpath("/Volumes/Yadgah","run_id1455_combo73_replicate15.sqlite") # local
+# dbSimPath = joinpath("/Volumes/Yadgah", "sylvain-martin-collab/12_MOI3/isolates/runID4209-c15-r9/runID4209-c15-r9.sqlite") # local 
 # dbOutputPath = joinpath("/Volumes/Yadgah/trees_output.sqlite") # local
 
 ##

@@ -10,6 +10,10 @@ analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
+# ROOT_PATH = joinpath(SCRIPT_PATH)
+ROOT_PATH = joinpath("/scratch/cgsb/pascual/armun/crispr/avalanches/data-analysis")
+# dbSimPath = joinpath(SCRIPT_PATH, "..", "simulation", "sweep_db.sqlite")
+dbSimPath = joinpath("/Volumes/Yadgah/avalanches/sweep_db.sqlite")
 
 if analysisType == "peaks" && length(ARGS) < 2
     error("`peaks` analysis needs two arguments: upper threshold, lower threshold")
@@ -17,7 +21,7 @@ elseif analysisType == "walls-shannon" && length(ARGS) < 3
     error("`walls` analysis needs three arguments: upper percent threshold, lower percent threshold, diversity threshold")
 end
 
-if analysisType == "walls-shannon" && !isfile(joinpath(SCRIPT_PATH,"gathered-analyses","shannon","shannon.sqlite"))
+if analysisType == "walls-shannon" && !isfile(joinpath(SCRIPT_PATH,"shannon","shannon.sqlite"))
     error("`/shannon/shannon.sqlite` is missing; please analyze shannon first.")
 end
 
@@ -33,28 +37,29 @@ if analysisType == "match-diversity" && !isfile(joinpath(SCRIPT_PATH,"matches","
     error("`/matches/matches.sqlite` is missing; please analyze matches first.")
 end
 
-ROOT_RUN_SCRIPT = joinpath(SCRIPT_PATH,analysisDir,"$(analysisType).jl")
-ROOT_RUNMANY_SCRIPT = joinpath(SCRIPT_PATH,"src", "runmany.jl")
+ROOT_RUN_SCRIPT = joinpath(ROOT_PATH,analysisDir,"$(analysisType).jl")
+ROOT_RUNMANY_SCRIPT = joinpath(ROOT_PATH,"src", "runmany.jl")
 cd(SCRIPT_PATH)
 
 # Number of SLURM jobs to generate
-const N_JOBS_MAX = 100
-const N_CORES_PER_JOB_MAX = 28 # Half a node (14) is easier to get scheduled than a whole one
-const mem_per_cpu = 2000 # in MB 100MB = 1 GB
+const N_JOBS_MAX = 1000
+const N_PROCESSES = 15 # Half a node (14) is easier to get scheduled than a whole one
+const N_CORES_PER_JOB_MAX = 15
+const mem_per_cpu = 6000 # in MB 100MB = 1 GB
 
 function main()
     # Root run directory
-    if ispath(joinpath(SCRIPT_PATH,analysisDir,"runs"))
-        error("Please move or delete `/$(analysisType)/runs`.")
-    end
+    # if ispath(joinpath(SCRIPT_PATH,analysisDir,"runs"))
+    #     error("Please move or delete `/$(analysisType)/runs`.")
+    # end
 
-    if ispath(joinpath(SCRIPT_PATH,analysisDir,"jobs"))
-        error("Please move or delete `/$(analysisType)/jobs`.")
-    end
+    # if ispath(joinpath(SCRIPT_PATH,analysisDir,"jobs"))
+    #     error("Please move or delete `/$(analysisType)/jobs`.")
+    # end
 
-    if !ispath(joinpath(SCRIPT_PATH,"..","simulation","runs"))
-        error("`/../simulation/runs` is missing; please simulate time series first.")
-    end
+    # if !ispath(joinpath(SCRIPT_PATH,"..","simulation","runs"))
+    #     error("`/../simulation/runs` is missing; please simulate time series first.")
+    # end
 
     # Root job directory
     if !ispath(joinpath(SCRIPT_PATH,"..","simulation","jobs"))
@@ -62,7 +67,7 @@ function main()
     end
 
     # Connect to simulation data
-    dbSim = SQLite.DB(joinpath(SCRIPT_PATH,"..","simulation","sweep_db.sqlite"))
+    dbSim = SQLite.DB(dbSimPath)
 
     # Create little database that corresponds analysis runs to jobIDs for troubleshooting
     dbTempJobs = SQLite.DB(joinpath(analysisDir,"$(analysisType)jobs.sqlite"))
@@ -89,6 +94,9 @@ function generate_analysis_runs(dbSim::DB) # This function generates the directo
         #if !issubset(run_id,[1343, 1344, 1345])
             #continue
         #end
+        # if run_id % 2 != 0
+        #     continue
+        # end
         run_dir = joinpath(analysisDir,"runs", "c$(combo_id)", "r$(replicate)")
         @assert !ispath(run_dir)
         mkpath(run_dir)
@@ -102,13 +110,13 @@ function generate_analysis_runs(dbSim::DB) # This function generates the directo
             print(f, """
             #!/bin/sh
             cd `dirname \$0`
-            julia $(ROOT_RUN_SCRIPT) $(run_id) $(argString...) &> output.txt
+            /share/apps/julia/1.6.1/bin/julia $(ROOT_RUN_SCRIPT) $(run_id) $(argString...) &> output.txt
             """)
         end
         run(`chmod +x $(run_script)`) # Make run script executable
         run_count += 1
     end
-    return numSubmits = Int64(ceil(run_count/(N_JOBS_MAX*N_CORES_PER_JOB_MAX)))
+    return numSubmits = Int64(ceil(run_count/(N_JOBS_MAX*N_PROCESSES)))
 end
 
 function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
@@ -116,7 +124,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
     # Assign runs to jobs (round-robin)
     job_id = 1
-    n_cores_count = 0
+    n_cores = 0
 
     execute(dbTempJobs, "BEGIN TRANSACTION")
 
@@ -124,6 +132,9 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
         #if !issubset(run_id,[1343, 1344, 1345, 1455, 1550, 1160, 1657, 2950, 2954])
             #continue
         #end
+        # if run_id % 2 != 0
+        #     continue
+        # end
         execute(dbTempJobs, "INSERT INTO job_runs VALUES (?,?,?)", (job_id, run_id, run_dir))
         # Mod-increment job ID
         job_id = mod(job_id,N_JOBS_MAX*numSubmits) + 1
@@ -140,7 +151,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
     for (job_id,) in execute(dbTempJobs, "SELECT DISTINCT job_id FROM job_runs ORDER BY job_id")
 
-        job_dir = joinpath(SCRIPT_PATH,analysisDir,"jobs", "$(job_id)")
+        job_dir = joinpath(analysisDir,"jobs", "$(job_id)")
         @assert !ispath(job_dir)
         mkpath(job_dir)
 
@@ -153,16 +164,20 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
             (job_id,)
         )]
 
-        n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX)
-
-        if n_cores > n_cores_count
-            n_cores_count = n_cores
+        if N_CORES_PER_JOB_MAX == nothing
+            n_cores = min(length(run_dirs), N_PROCESSES)
+        else
+            n_cores = N_CORES_PER_JOB_MAX
         end
+
+        # if n_cores > n_cores_count
+        #     n_cores_count = n_cores
+        # end
 
         # Write out list of runs
         open(joinpath(job_dir, "runs.txt"), "w") do f
             for run_dir in run_dirs
-                run_script = joinpath(SCRIPT_PATH, analysisDir, run_dir, "run.sh")
+                run_script = joinpath(ROOT_PATH, analysisDir, run_dir, "run.sh")
                 println(f, run_script)
             end
         end
@@ -172,19 +187,19 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
         open(job_sbatch, "w") do f
             print(f, """
             #!/bin/sh
-            #SBATCH --account=pi-pascualmm
-            #SBATCH --partition=broadwl
+            #SBATCH --nodes=1
+            #SBATCH --ntasks-per-node=$(n_cores)
+            #SBATCH --cpus-per-task=1
             #SBATCH --job-name=$(job_id)$(analysisType)
-            #SBATCH --tasks=1
-            #SBATCH --cpus-per-task=$(n_cores)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m
-            #SBATCH --time=1-12:00:00
-            #SBATCH --chdir=$(joinpath(SCRIPT_PATH, job_dir))
+            #SBATCH --time=6:00:00
+            #SBATCH --chdir=$(joinpath(ROOT_PATH, job_dir))
             #SBATCH --output=output.txt
-            #SBATCH --mail-user=armun@uchicago.edu
-            # Uncomment this to use the Midway-provided Julia:
-            module load julia
-            julia $(ROOT_RUNMANY_SCRIPT) $(n_cores) runs.txt
+            #SBATCH --mail-type=END,FAIL,REQUEUE
+            #SBATCH --mail-user=al8784@nyu.edu
+            module purge
+            module load julia/1.6.1
+            ~/julia/my-julia $(ROOT_RUNMANY_SCRIPT) $(n_cores) runs.txt
             """) # runs.txt is for parallel processing
         end
         run(`chmod +x $(job_sbatch)`) # Make run script executable (for local testing)
@@ -201,8 +216,8 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
     @info "
     Sweep will be submitted via $(numSubmits) `analysis-submit-jobs.sh` script(s).
     Each `analysis_submit_jobs.sh` script submits $(N_JOBS_MAX) jobs.
-    Each job will use $(n_cores_count) cpus (cores) at most, where each cpu will use $(mem_per_cpu/1000)GB.
-    Each job therefore will use at most $(n_cores_count*mem_per_cpu/1000)GB of memory in total.
+    Each job will use $(n_cores) cpus (cores) at most, where each cpu will use $(mem_per_cpu/1000)GB.
+    Each job therefore will use at most $(n_cores*mem_per_cpu/1000)GB of memory in total.
     "
 end
 

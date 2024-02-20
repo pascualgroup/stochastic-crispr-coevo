@@ -12,6 +12,47 @@ import matplotlib.colors as mc
 from matplotlib.colors import rgb2hex
 import plotly.graph_objects as go
 
+run = 'runID3297-c66-r47'
+
+resolve = 500
+imgTypes = ["pdf"]
+figxy = (15,10) # setting for tree abundance figure
+colorpalSpacers = 'tab20b' # Color palette for spacer in networks: use discrete color palette
+sSpacing = 8
+vSpacing = 8
+bSpacing = 6
+
+SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__)) # cluster
+
+# SQLITE paths, beware of manipulating these. Directories are structured accordingly
+DBMATCH_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','isolates',run,'matches_output.sqlite') 
+DBTREE_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','isolates',run,'trees_output.sqlite') 
+DBTRI_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','isolates',run,'tripartite-networks_output.sqlite')
+DBSIM_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','isolates',run,'{}.sqlite'.format(run))
+PLOT_PATH = os.path.join(SCRIPT_PATH)
+# local
+dir = 'crispr-sweep-7-2-2022/isolates/runID3297-c66-r47'
+DBPROB_PATH = os.path.join('/Volumes','Yadgah',dir,'emergence-lambert-root_output.sqlite') # local
+DBMATCH_PATH = os.path.join('/Volumes','Yadgah',dir,'matches_output.sqlite') # local
+DBTRI_PATH = os.path.join('/Volumes','Yadgah',dir,'tripartite-networks_output.sqlite') # local
+DBSIM_PATH = os.path.join('/Volumes','Yadgah',dir,'{}.sqlite'.format(run))
+PLOT_PATH = os.path.join('/Volumes','Yadgah')
+
+
+conSim = sqlite3.connect(DBSIM_PATH)
+curSim = conSim.cursor()
+run_id = curSim.execute('SELECT DISTINCT run_id FROM summary').fetchall()
+run_id = run_id[0][0]
+ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
+combo_id = ID[0][0]
+replicate = ID[0][1]
+conMatch = sqlite3.connect(DBMATCH_PATH)
+curMatch = conMatch.cursor()
+conTri = sqlite3.connect(DBTRI_PATH)
+curTri = conTri.cursor()
+
+times = [275, 475, 750]
+html = False
 
 def tripartiteGraph(times, run_id, sSpacing, vSpacing, bSpacing, html, colorpalSpacers, imgTypes, DBSIM_PATH, DBMATCH_PATH, DBTRI_PATH, PLOT_PATH):
     conSim = sqlite3.connect(DBSIM_PATH)

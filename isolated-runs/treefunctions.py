@@ -331,7 +331,7 @@ def speciesTreeDiv2Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
         axes[0].fill_between(
             microbe_total['t'], microbe_total['btotal'], color='grey', alpha=0.75)
         species_stacked.plot(ax=axes[1], stacked=False, legend=False,
-                                linewidth=1.5, color=speciesColorDict, sort_columns=True)
+                                linewidth=1.5, color=speciesColorDict)
         axes[1].set_ylabel(ylabel='Viral Strain\nAbundances',
                             labelpad=30, fontsize=10, rotation=270)
         axes[0].set_ylabel(ylabel='Host\nAbundance', labelpad=15, fontsize=10)
@@ -344,9 +344,9 @@ def speciesTreeDiv2Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
         axes2[0].set_yticks([])
         axes2.append(axes2[0].twinx())
         species_stacked.plot.area(ax=axes2[2], stacked=True, legend=False,
-                                    linewidth=0, color=speciesColorDict, sort_columns=True, alpha=0.25)
+                                    linewidth=0, color=speciesColorDict, alpha=0.25)
         species_stacked.plot(stacked=True, ax=axes2[2], legend=False,
-                                color='white', sort_columns=True, linewidth=.1)
+                                color='white', linewidth=.1)
         axes2.append(axes2[0].twinx())
         # axes2[3].plot(speciesRichness['t'], speciesRichness['richness'],
         #                 color='darkred', linewidth=1.5)
@@ -375,16 +375,16 @@ def speciesTreeDiv2Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
             virus_total[(virus_total.t >= t0) & (virus_total.t <= tf)]['vtotal'], color='grey', alpha=0.75)
         speciesDF[(speciesDF.t>=t0)&(speciesDF.t<=tf)]\
             .pivot(index='t', columns=tree_strain_id, values='abundance').plot(ax=axes[0], stacked=False, legend=False,
-                             linewidth=1.5, color=speciesColorDict, sort_columns=True)
+                             linewidth=1.5, color=speciesColorDict)
         axes[0].set_ylabel(
             ylabel='Host Strain\nAbundances', labelpad=15, fontsize=10)
         axes[1].set_ylabel(ylabel='Viral\nAbundance',
                         labelpad=30, fontsize=10, rotation=270)
         ## tree diversity plot
         species_stacked.plot.area(ax=axes2[0], stacked=True, legend=False,
-                                  linewidth=0, color=speciesColorDict, sort_columns=True, alpha=0.25)
+                                  linewidth=0, color=speciesColorDict, alpha=0.25)
         species_stacked.plot(stacked=True, ax=axes2[0], legend=False,
-                             color='white', sort_columns=True, linewidth=.1)
+                             color='white', linewidth=.1)
         axes2[0].set_yticklabels([])
         axes2[0].set_yticks([])
         axes2.append(axes2[0].twinx())
@@ -605,7 +605,7 @@ def speciesTreeDiv3Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
         axes2[2].fill_between(
             microbe_total['t'], microbe_total['btotal'], color='grey', alpha=0.75)
         species_stacked.plot(ax=axes2[3], stacked=False, legend=False,
-                             linewidth=1.5, color=speciesColorDict, sort_columns=True)
+                             linewidth=1.5, color=speciesColorDict)
         axes2[3].set_ylabel(ylabel='Viral Strain\nAbundances',
                            labelpad=30, fontsize=10, rotation=270)
         axes2[2].set_ylabel(ylabel='Host\nAbundance', labelpad=15, fontsize=10)
@@ -618,9 +618,9 @@ def speciesTreeDiv3Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
         axes2[0].set_yticks([])
         axes2.append(axes2[0].twinx())
         species_stacked.plot.area(ax=axes2[2], stacked=True, legend=False,
-                                  linewidth=0, color=speciesColorDict, sort_columns=True, alpha=0.25)
+                                  linewidth=0, color=speciesColorDict, alpha=0.25)
         species_stacked.plot(stacked=True, ax=axes2[2], legend=False,
-                             color='white', sort_columns=True, linewidth=.1)
+                             color='white',linewidth=.1)
         axes2.append(axes2[0].twinx())
         # axes2[3].plot(speciesRichness['t'], speciesRichness['richness'],
         #                 color='darkred', linewidth=1.5)
@@ -645,16 +645,16 @@ def speciesTreeDiv3Plot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, m
         axes2[3].fill_between(virus_total['t'], virus_total['vtotal'], color='grey', alpha=0.75)
         speciesDF[(speciesDF.t>=t0)&(speciesDF.t<=tf)]\
             .pivot(index='t', columns=tree_strain_id, values='abundance').plot(ax=axes2[2], stacked=False, legend=False,
-                             linewidth=1.5, color=speciesColorDict, sort_columns=True)
+                             linewidth=1.5, color=speciesColorDict)
         axes2[2].set_ylabel(
             ylabel='Host Strain\nAbundances', labelpad=15, fontsize=10)
         axes2[3].set_ylabel(ylabel='Viral\nAbundance',
                            labelpad=30, fontsize=10, rotation=270)
         # tree diversity plot
         species_stacked.plot.area(ax=axes2[0], stacked=True, legend=False,
-                                  linewidth=0, color=speciesColorDict, sort_columns=True, alpha=0.25)
+                                  linewidth=0, color=speciesColorDict, alpha=0.25)
         species_stacked.plot(stacked=True, ax=axes2[0], legend=False,
-                             color='white', sort_columns=True, linewidth=.1)
+                             color='white',linewidth=.1)
         virus_total = pd.read_sql_query("SELECT t, viral_abundance FROM summary WHERE run_id = {}".format(run_id), conSim)\
             .rename(columns={'viral_abundance': 'vtotal'})
         virus_total = virus_total[virus_total.t <= max(species_stacked.index)]
@@ -876,15 +876,15 @@ def speciesTreeDivPlot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, ma
             axes[0].fill_between(
                 microbe_total['t'], microbe_total['btotal'], color='grey', alpha=0.6)
             species_stacked.plot.area(ax=axes[3], stacked=True, legend=False,
-                                      linewidth=0, color=speciesColorDict, sort_columns=True)
+                                      linewidth=0, color=speciesColorDict)
             species_stacked.plot(stacked=True, ax=axes[3], legend=False,
-                                 color='white', sort_columns=True, linewidth=.1)
+                                 color='white', linewidth=.1)
             axes[3].set_ylabel(ylabel=abundanceTitle,
                                labelpad=30, fontsize=10, rotation=270)
             species_stacked.plot.area(ax=axes[2], stacked=True, legend=False,
-                                      linewidth=0, color=speciesColorDict, sort_columns=True, alpha=0.25)
+                                      linewidth=0, color=speciesColorDict, alpha=0.25)
             species_stacked.plot(stacked=True, ax=axes[2], legend=False,
-                                 color='white', sort_columns=True, linewidth=.1)
+                                 color='white', linewidth=.1)
             axes.append(axes[2].twinx())
             axes.append(axes[2].twinx())
             axes[2].set_yticklabels([])
@@ -906,13 +906,13 @@ def speciesTreeDivPlot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, ma
             axes[0].fill_between(
                 microbe_total['t'], microbe_total['btotal'], color='grey', alpha=0.5)
             species_stacked.plot(ax=axes[3], stacked=False, legend=False,
-                                 linewidth=1.5, color=speciesColorDict, sort_columns=True)
+                                 linewidth=1.5, color=speciesColorDict)
             axes[3].set_ylabel(ylabel='Viral Strain\nAbundances',
                                labelpad=30, fontsize=10, rotation=270)
             species_stacked.plot.area(ax=axes[2], stacked=True, legend=False,
-                                      linewidth=0, color=speciesColorDict, sort_columns=True, alpha=0.25)
+                                      linewidth=0, color=speciesColorDict, alpha=0.25)
             species_stacked.plot(stacked=True, ax=axes[2], legend=False,
-                                 color='white', sort_columns=True, linewidth=.1)
+                                 color='white', linewidth=.1)
             axes.append(axes[2].twinx())
             axes.append(axes[2].twinx())
             axes[2].set_yticklabels([])
@@ -942,14 +942,14 @@ def speciesTreeDivPlot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, ma
             axes[3].fill_between(
                 virus_total['t'], virus_total['vtotal'], color='grey', alpha=0.75)
             species_stacked.plot.area(ax=axes[0], stacked=True, legend=False,
-                                      linewidth=0, color=speciesColorDict, sort_columns=True)
+                                      linewidth=0, color=speciesColorDict)
             species_stacked.plot(stacked=True, ax=axes[0], legend=False,
-                                 color='white', sort_columns=True, linewidth=.1)
+                                 color='white', linewidth=.1)
             axes[0].set_ylabel(ylabel=abundanceTitle, labelpad=15, fontsize=10)
             species_stacked.plot.area(ax=axes[2], stacked=True, legend=False,
-                                      linewidth=0, color=speciesColorDict, sort_columns=True, alpha=0.25)
+                                      linewidth=0, color=speciesColorDict, alpha=0.25)
             species_stacked.plot(stacked=True, ax=axes[2], legend=False,
-                                 color='white', sort_columns=True, linewidth=.1)
+                                 color='white', linewidth=.1)
             axes.append(axes[2].twinx())
             axes.append(axes[2].twinx())
             axes[2].set_yticklabels([])
@@ -971,13 +971,13 @@ def speciesTreeDivPlot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, ma
             axes[3].fill_between(
                 virus_total['t'], virus_total['vtotal'], color='grey', alpha=0.5)
             species_stacked.plot(ax=axes[0], stacked=False, legend=False,
-                                 linewidth=1.5, color=speciesColorDict, sort_columns=True)
+                                 linewidth=1.5, color=speciesColorDict)
             axes[0].set_ylabel(
                 ylabel='Host Strain\nAbundances', labelpad=15, fontsize=10)
             species_stacked.plot.area(ax=axes[2], stacked=True, legend=False,
-                                      linewidth=0, color=speciesColorDict, sort_columns=True, alpha=0.25)
+                                      linewidth=0, color=speciesColorDict, alpha=0.25)
             species_stacked.plot(stacked=True, ax=axes[2], legend=False,
-                                 color='white', sort_columns=True, linewidth=.1)
+                                 color='white', linewidth=.1)
             axes.append(axes[2].twinx())
             axes.append(axes[2].twinx())
             axes[2].set_yticklabels([])
@@ -999,13 +999,13 @@ def speciesTreeDivPlot(run_id, species, DBSIM_PATH, DBTREE_PATH, treepalette, ma
         axes[5].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
     if (not overlay) & (stacked):
         species_stacked.plot.area(ax=axes[0], stacked=True, legend=False,
-                                  linewidth=0, color=speciesColorDict, sort_columns=True)
+                                  linewidth=0, color=speciesColorDict)
         species_stacked.plot(
-            stacked=True, ax=axes[0], legend=False, color='white', sort_columns=True, linewidth=.1)
+            stacked=True, ax=axes[0], legend=False, color='white', linewidth=.1)
         axes[0].set_ylabel(ylabel=abundanceTitle, labelpad=15, fontsize=10)
     if (not overlay) & (not stacked):
         species_stacked.plot(ax=axes[0], stacked=False, legend=False,
-                             linewidth=1, color=speciesColorDict, sort_columns=True)
+                             linewidth=1, color=speciesColorDict)
         if species == 'virus':
             straintitle = 'Viral Strain\nAbundances'
         else:
@@ -1196,16 +1196,16 @@ def speciesTreePlot(run_id,species,DBSIM_PATH,DBTREE_PATH,treepalette,maxticksiz
             axes[0].plot(microbe_total['t'],microbe_total['btotal'],linewidth=0,color='grey')
             axes[0].fill_between(microbe_total['t'],microbe_total['btotal'], color='grey',alpha=0.6)
             species_stacked.plot.area(ax=axes[2], stacked=True, legend=False,
-                                      linewidth=0, color=speciesColorDict, sort_columns=True)
+                                      linewidth=0, color=speciesColorDict)
             species_stacked.plot(stacked=True, ax=axes[2], legend=False, \
-                                    color='white', sort_columns=True, linewidth=.1)
+                                    color='white', linewidth=.1)
             axes[2].set_ylabel(ylabel=abundanceTitle, labelpad=15, fontsize=10,rotation=270)
         else:
             axes.append(axes[0].twinx())
             axes[0].plot(microbe_total['t'],microbe_total['btotal'],linewidth=0,color='grey')
             axes[0].fill_between(microbe_total['t'],microbe_total['btotal'], color='grey',alpha=0.5)
             species_stacked.plot(ax=axes[2], stacked=False, legend=False,
-                                 linewidth=1.5, color=speciesColorDict, sort_columns=True)
+                                 linewidth=1.5, color=speciesColorDict)
             axes[2].set_ylabel(ylabel='Viral Strain\nAbundances', labelpad=30, fontsize=10,rotation=270)
         axes[0].set_ylabel(ylabel='Host\nAbundance', labelpad=15, fontsize=10)
         lim = axes[2].get_ylim()
@@ -1219,29 +1219,29 @@ def speciesTreePlot(run_id,species,DBSIM_PATH,DBTREE_PATH,treepalette,maxticksiz
             axes[2].plot(virus_total['t'],virus_total['vtotal'],linewidth=0,color='grey')
             axes[2].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.75)
             species_stacked.plot.area(ax=axes[0], stacked=True, legend=False,
-                                      linewidth=0, color=speciesColorDict, sort_columns=True)
+                                      linewidth=0, color=speciesColorDict)
             species_stacked.plot(stacked=True, ax=axes[0], legend=False, \
-                                    color='white', sort_columns=True, linewidth=.1)
+                                    color='white', linewidth=.1)
             axes[0].set_ylabel(ylabel=abundanceTitle, labelpad=15, fontsize=10)
         else:
             axes.append(axes[0].twinx())
             axes[2].plot(virus_total['t'],virus_total['vtotal'],linewidth=0,color='grey')
             axes[2].fill_between(virus_total['t'],virus_total['vtotal'], color='grey',alpha=0.5)
             species_stacked.plot(ax=axes[0], stacked=False, legend=False,
-                                  linewidth=1.5, color=speciesColorDict, sort_columns=True)
+                                  linewidth=1.5, color=speciesColorDict)
             axes[0].set_ylabel(ylabel='Host Strain\nAbundances', labelpad=15, fontsize=10)
         axes[2].set_ylabel(ylabel='Viral\nAbundance', labelpad=30, fontsize=10,rotation=270)
         lim = axes[2].get_ylim()
         axes[2].set_ylim(0, lim[1])
     if (not overlay) & (stacked):
         species_stacked.plot.area(ax=axes[0], stacked=True, legend=False,
-                                linewidth=0, color=speciesColorDict, sort_columns=True)
+                                linewidth=0, color=speciesColorDict)
         species_stacked.plot(
-            stacked=True, ax=axes[0], legend=False, color='white', sort_columns=True, linewidth=.1)
+            stacked=True, ax=axes[0], legend=False, color='white', linewidth=.1)
         axes[0].set_ylabel(ylabel=abundanceTitle, labelpad=15, fontsize=10)
     if (not overlay) & (not stacked):
         species_stacked.plot(ax=axes[0], stacked=False, legend=False,
-                                  linewidth=1, color=speciesColorDict, sort_columns=True)
+                                  linewidth=1, color=speciesColorDict)
         if species == 'virus':
             straintitle = 'Viral Strain\nAbundances'
         else:
@@ -1419,8 +1419,8 @@ def speciesCladeTreePlot(run_id,species,colorSep,DBSIM_PATH,DBCLADE_PATH,DBTREE_
     species_stacked.sort_values(by=['t',tree_strain_id])
     speciesDF = species_stacked.copy()
     species_stacked = species_stacked.pivot(index='t',columns=tree_strain_id,values='abundance')
-    species_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=speciesColorDict,sort_columns=True)
-    species_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',sort_columns=True,linewidth=.1)
+    species_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=speciesColorDict)
+    species_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',linewidth=.1)
     axes[0].set_ylabel(ylabel =abundanceTitle,labelpad=15,fontsize=15)
     axes[0].set_xlabel(xlabel = 'Time t',fontsize=15)
     axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
@@ -1432,119 +1432,3 @@ def speciesCladeTreePlot(run_id,species,colorSep,DBSIM_PATH,DBCLADE_PATH,DBTREE_
     keepTreeStrainsDF = keepTreeStrainsDF.replace({'new_tree_{}_id'.format(strain): newTreeOrder})
     return speciesDF, keepTreeStrainsDF, speciesColorDict, cladeColorDict, hlinecSpecies, vlinecSpecies, fig, axes
 
-
-# def susceptibleCladeTreePlot(run_id,DBSIM_PATH,DBCLADE_PATH,DBTREE_PATH,DBMATCH_PATH,colorpalClades,maxTickSizeMicrobe,figxy,hratio):
-#     conSim = sqlite3.connect(DBSIM_PATH)
-#     curSim = conSim.cursor()
-#     ID = curSim.execute('SELECT combo_id,replicate FROM runs WHERE run_id = {}'.format(run_id)).fetchall()
-#     combo_id = ID[0][0]
-#     replicate = ID[0][1]
-#     RUN_DIR = os.path.join('runID{0}-c{1}-r{2}'.format(run_id,combo_id,replicate))
-#     microbe_stacked = pd.read_sql_query("SELECT t,bstrain_id,abundance FROM babundance WHERE run_id = {}".format(run_id), conSim)
-#     virus_stacked = pd.read_sql_query("SELECT t FROM vabundance WHERE run_id = {}".format(run_id), conSim)
-#     microbe_stacked = microbe_stacked[microbe_stacked.t <= max(virus_stacked.t)]
-#     microbe_stacked = microbe_stacked.pivot(index='t',columns='bstrain_id',values='abundance')
-#     conClade = sqlite3.connect(DBCLADE_PATH)
-#     curClade = conClade.cursor()
-#     conTree = sqlite3.connect(DBTREE_PATH)
-#     curTree = conTree.cursor()
-#     conMatch = sqlite3.connect(DBMATCH_PATH)
-#     curMatch = conMatch.cursor()
-#     print('SQLite Query: clade data')
-#     microbeClades = pd.read_sql_query("SELECT DISTINCT clade_id, bstrain_id \
-#     FROM babundances", conClade)
-#     microbeCladeIDs = pd.read_sql_query("SELECT DISTINCT clade_id \
-#     FROM babundances", conClade)
-#     print('SQLite Query: tree data')
-#     bStrainTimes = pd.read_sql_query(
-#     "SELECT tree_bstrain_id, t_creation, t_extinction, tree_parent_bstrain_id \
-#     FROM tree_bstrain_creation_extinction", conTree)
-#     bstrain0vstrain = pd.read_sql_query(
-#     "SELECT t, bstrain_id, vstrain_id \
-#     FROM bstrain_to_vstrain_0matches", conMatch)
-#     vAbunds = pd.read_sql_query("SELECT t,vstrain_id,abundance FROM vabundance WHERE run_id = {}".format(run_id), conSim)
-#     bstrain0vstrain = bstrain0vstrain.merge(vAbunds,on=['t','vstrain_id'])\
-#     .groupby(['t','bstrain_id']).agg(abundance=('abundance','sum')).reset_index()
-#     bTreeAbundances = pd.read_sql_query("SELECT tree_bstrain_id,bstrain_id \
-#     FROM tree_bstrain_order \
-#     ORDER BY bstrain_id",conTree)
-#     bTreeAbundances = bstrain0vstrain.merge(bTreeAbundances,on=['bstrain_id']).drop(columns=['bstrain_id'])
-#     vTreeAbundances = pd.read_sql_query(
-#     "SELECT t \
-#     FROM tree_vabundance", conTree)
-#     if bTreeAbundances['t'][bTreeAbundances['t'].size-1] not in vTreeAbundances.t.values:
-#         bTreeAbundances = bTreeAbundances[bTreeAbundances.t != bTreeAbundances['t'][bTreeAbundances['t'].size-1]]
-#     Mcmap = cm.get_cmap('{}'.format(colorpalClades)) #usually cmap = 'turbo'
-#     # Get normalize function (takes data in range [vmin, vmax] -> [0, 1])
-#     Mnorm = Normalize(vmin=1, vmax=len(microbeCladeIDs))
-#     microbeColorDict = {}
-#     cladeColorDict = {}
-#     cladeDict = {}
-#     colorInd = 0
-#     for clade_id in microbeCladeIDs.values:
-#         # print(id[0])
-#         cladeColorDict[clade_id[0]] = colorInd
-#         cladeDict[clade_id[0]] = []
-#         colorInd += 1
-#     for strain in microbeClades.bstrain_id.values:
-#         clade = microbeClades[microbeClades['bstrain_id']==strain]['clade_id'].values[0]
-#         cladeDict[clade] = np.append(cladeDict[clade],strain)
-#     columnOrder = []
-#     for clade_id in microbeCladeIDs.values[::-1]:
-#         columnOrder = np.append(columnOrder,cladeDict[clade_id[0]])
-#     columnOrder = columnOrder.astype(int)
-#     microbe_stacked = microbe_stacked[columnOrder]
-#     for strain in microbe_stacked.columns.values:
-#         clade = microbeClades[microbeClades['bstrain_id']==strain]['clade_id'].values[0]
-#         microbeColorDict[strain] = Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade]]
-#     print('Compiling stacked microbe clade abundances and tree plots')
-#     fig, ax = plt.subplots(2,sharex=True, figsize=figxy, gridspec_kw={'height_ratios': hratio})
-#     fig.suptitle('Strain Abundances (run{0}-c{1}-r{2})'.format(run_id,combo_id,replicate))
-#     axes = [ax[0], ax[1]]
-#     microbe_stacked.plot.area(ax = axes[0],stacked=True,legend=False, linewidth=0,color=microbeColorDict,sort_columns=True)
-#     microbe_stacked.plot(stacked=True, ax=axes[0], legend=False, color='black',sort_columns=True,linewidth=.1)
-#     axes[0].set_ylabel(ylabel ='Microbial Strain Abundances',labelpad=15,fontsize=7)
-#     axes[0].set_xlabel(xlabel = 'Time t',fontsize=7)
-#     axes[0].ticklabel_format(axis = 'y',style='sci',scilimits=(0,0))
-#     axes[0].xaxis.set_minor_locator(ticker.MultipleLocator(25))
-#     lim = axes[0].get_ylim()
-#     axes[0].set_ylim(0,lim[1])
-#     axes[0].set_xlim(0,np.max(bTreeAbundances.t.values))
-#     axes[1].set_xlabel(xlabel = 'Time t',fontsize=7)
-#     axes[1].set_ylim(0,np.max(bStrainTimes.tree_bstrain_id)+1)
-#     axes[0].set_xlim(0,np.max(bTreeAbundances.t.values))
-#     axes[1].xaxis.set_minor_locator(ticker.MultipleLocator(25))
-#     axes[1].set_yticks([])
-#     hlinecMicrobe = []
-#     vlinecMicrobe = []
-#     hcolorsMicrobe = []
-#     vcolorsMicrobe = []
-#     maxAbundanceMicrobe = np.max(bTreeAbundances.abundance.values)
-#     markerIncMicrobe = maxTickSizeMicrobe/maxAbundanceMicrobe
-#     markerColorsMicrobe = []
-#     for clade_id in np.unique(microbeClades.clade_id):
-#         strainsOfClade = curClade.execute("SELECT DISTINCT bstrain_id FROM babundances \
-#         WHERE clade_id = {}".format(clade_id))
-#         strainsOfClade = [i[0] for i in strainsOfClade.fetchall()]
-#         treeStrainsOfClade = curTree.execute("SELECT DISTINCT tree_bstrain_id FROM tree_bstrain_order \
-#         WHERE bstrain_id in ({}) ORDER BY tree_bstrain_id".format(', '.join(map(str,strainsOfClade))))
-#         treeStrainsOfClade = [i[0] for i in treeStrainsOfClade.fetchall()]
-#         axes[1].scatter(bTreeAbundances[bTreeAbundances['tree_bstrain_id'].isin(treeStrainsOfClade)]['t'],
-#         bTreeAbundances[bTreeAbundances['tree_bstrain_id'].isin(treeStrainsOfClade)]['tree_bstrain_id'],
-#         lw=.8,
-#         s=bTreeAbundances[bTreeAbundances['tree_bstrain_id'].isin(treeStrainsOfClade)]['abundance'].values*markerIncMicrobe,
-#         c = np.array([Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade_id]]]),marker='|')
-#         for strain in treeStrainsOfClade:
-#             tCreate = bStrainTimes[bStrainTimes.tree_bstrain_id == strain].t_creation.values[0]
-#             tExtinct = bStrainTimes[bStrainTimes.tree_bstrain_id == strain].t_extinction.values[0]
-#             parent = bStrainTimes[bStrainTimes.tree_bstrain_id == strain].tree_parent_bstrain_id.values[0]
-#             hlinecMicrobe.append([[tCreate, strain],[tExtinct, strain]])
-#             vlinecMicrobe.append([[tCreate, parent],[tCreate, strain]])
-#             hcolorsMicrobe.append(Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade_id]])
-#             vcolorsMicrobe.append(Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade_id]])
-#             markerColorsMicrobe.append(Mcmap(Mnorm(np.arange(1, len(microbeCladeIDs)+1, 1)))[cladeColorDict[clade_id]])
-#     strainLineages = LineCollection(hlinecMicrobe, linestyles='solid', colors=hcolorsMicrobe,linewidths=(0.35))
-#     creationLines = LineCollection(vlinecMicrobe, linestyles='solid', colors=vcolorsMicrobe, linewidths=(0.35))
-#     axes[1].add_collection(strainLineages)
-#     axes[1].add_collection(creationLines)
-#     return fig, axes
