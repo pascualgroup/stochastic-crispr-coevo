@@ -49,7 +49,7 @@ There are four events:
 4. Contact: `const CONTACT = 4`
 4. Bacterial immigration: `const MICROBIAL_IMMIGRATION = 5`
 
-### Contact Events
+### Contact Event
 
 1. Randomly select a bacterial strain and a viral strain proportional to population size
 2. If immune, infect with probability p_crispr_failure_prob
@@ -81,12 +81,6 @@ python /isolated-runs/analyses-figures.py host-strain-collapses
 Run the following
 ```sh
 python /isolated-runs/analyses-figures.py protospacer-div
-```
-
-### Tripartite graphs in Figure 3
-Run the following
-```sh
-python /isolated-runs/triartitegraph.py
 ```
 
 ### Tripartite graphs in Figure 3
