@@ -79,5 +79,4 @@ function remove_strain!(strains, index)
 
     swap_with_end_and_remove!(strains.ids, index)
     swap_with_end_and_remove!(strains.abundance, index)
-    swap_with_end_and_remove!(strains.traits, index)
 end
