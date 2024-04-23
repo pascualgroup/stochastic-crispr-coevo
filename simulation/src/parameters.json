@@ -1,11 +1,7 @@
 {
   "n_particles_per_vstrain": 100,
   "rng_seed": 1332359469795506934,
-  "n_protospacers": [
-    15,
-    20,
-    25
-  ],
+  "n_protospacers": 15,
   "n_bstrains": 1,
   "viral_mutation_rate": 1.04e-6,
   "n_spacers_max": 10,
