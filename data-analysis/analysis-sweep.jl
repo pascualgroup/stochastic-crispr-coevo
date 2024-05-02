@@ -10,32 +10,32 @@ analysisType = ARGS[1]
 analysisDir = "$(analysisType)"
 
 SCRIPT_PATH = abspath(dirname(PROGRAM_FILE))
-# ROOT_PATH = joinpath(SCRIPT_PATH)
-ROOT_PATH = joinpath("/scratch/cgsb/pascual/armun/crispr/avalanches/data-analysis")
-# dbSimPath = joinpath(SCRIPT_PATH, "..", "simulation", "sweep_db.sqlite")
-dbSimPath = joinpath("/Volumes/Yadgah/avalanches/sweep_db.sqlite")
+ROOT_PATH = joinpath(SCRIPT_PATH)
+# ROOT_PATH = joinpath("/scratch/cgsb/pascual/armun/crispr/vary-fitness/15_MOI3/data-analysis")
+dbSimPath = joinpath(SCRIPT_PATH, "..", "simulation", "sweep_db.sqlite")
+# dbSimPath = joinpath("/Volumes/Yadgah/15_MOI3/sweep_db.sqlite")
 
-if analysisType == "peaks" && length(ARGS) < 2
-    error("`peaks` analysis needs two arguments: upper threshold, lower threshold")
-elseif analysisType == "walls-shannon" && length(ARGS) < 3
-    error("`walls` analysis needs three arguments: upper percent threshold, lower percent threshold, diversity threshold")
-end
+# if analysisType == "peaks" && length(ARGS) < 2
+#     error("`peaks` analysis needs two arguments: upper threshold, lower threshold")
+# elseif analysisType == "walls-shannon" && length(ARGS) < 3
+#     error("`walls` analysis needs three arguments: upper percent threshold, lower percent threshold, diversity threshold")
+# end
 
-if analysisType == "walls-shannon" && !isfile(joinpath(SCRIPT_PATH,"shannon","shannon.sqlite"))
-    error("`/shannon/shannon.sqlite` is missing; please analyze shannon first.")
-end
+# if analysisType == "walls-shannon" && !isfile(joinpath(SCRIPT_PATH,"shannon","shannon.sqlite"))
+#     error("`/shannon/shannon.sqlite` is missing; please analyze shannon first.")
+# end
 
-if analysisType == "walls-shannon" && parse(Float64,ARGS[2]) <= parse(Float64,ARGS[3])
-    error("upper percent threshold must be greater than lower percent threshold")
-end
+# if analysisType == "walls-shannon" && parse(Float64,ARGS[2]) <= parse(Float64,ARGS[3])
+#     error("upper percent threshold must be greater than lower percent threshold")
+# end
 
-if analysisType == "walls-shannon" && parse(Float64,ARGS[2]) > 100
-    error("upper percent cannot be greater than 100%")
-end
+# if analysisType == "walls-shannon" && parse(Float64,ARGS[2]) > 100
+#     error("upper percent cannot be greater than 100%")
+# end
 
-if analysisType == "match-diversity" && !isfile(joinpath(SCRIPT_PATH,"matches","matches.sqlite"))
-    error("`/matches/matches.sqlite` is missing; please analyze matches first.")
-end
+# if analysisType == "match-diversity" && !isfile(joinpath(SCRIPT_PATH,"matches","matches.sqlite"))
+#     error("`/matches/matches.sqlite` is missing; please analyze matches first.")
+# end
 
 ROOT_RUN_SCRIPT = joinpath(ROOT_PATH,analysisDir,"$(analysisType).jl")
 ROOT_RUNMANY_SCRIPT = joinpath(ROOT_PATH,"src", "runmany.jl")
@@ -124,7 +124,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
 
     # Assign runs to jobs (round-robin)
     job_id = 1
-    n_cores = 0
+    # n_cores_count = 0
 
     execute(dbTempJobs, "BEGIN TRANSACTION")
 
@@ -164,10 +164,10 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
             (job_id,)
         )]
 
-        if N_CORES_PER_JOB_MAX == nothing
+        if N_CORES_PER_JOB_MAX === nothing
             n_cores = min(length(run_dirs), N_PROCESSES)
         else
-            n_cores = N_CORES_PER_JOB_MAX
+            n_cores = min(length(run_dirs), N_CORES_PER_JOB_MAX)
         end
 
         # if n_cores > n_cores_count
@@ -192,7 +192,7 @@ function generate_analysis_jobs(dbSim::DB,dbTempJobs::DB,numSubmits::Int64)
             #SBATCH --cpus-per-task=1
             #SBATCH --job-name=$(job_id)$(analysisType)
             #SBATCH --mem-per-cpu=$(mem_per_cpu)m
-            #SBATCH --time=6:00:00
+            #SBATCH --time=1-12:00:00
             #SBATCH --chdir=$(joinpath(ROOT_PATH, job_dir))
             #SBATCH --output=output.txt
             #SBATCH --mail-type=END,FAIL,REQUEUE
