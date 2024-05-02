@@ -29,8 +29,6 @@
     "Number of initial protospacers per virus strain"
     n_protospacers::Union{UInt64, Nothing}
 
-    #InitializationParameters() = new()
-
     "Maximum number of spacers in a bacterial strain"
     n_spacers_max::Union{UInt64, Nothing}
 
@@ -82,6 +80,50 @@ mutable struct Strains
     #abundance_file::IOStream
 end
 
+
+function init_params(d_symb::Dict{Symbol,Any})
+    Params(;
+        t_final = d_symb[:t_final][1],
+
+        t_output = d_symb[:t_output][1],
+
+        rng_seed = d_symb[:rng_seed][1],
+
+        enable_output = d_symb[:enable_output][1],
+
+        n_bstrains = d_symb[:n_bstrains][1],
+
+        n_hosts_per_bstrain = d_symb[:n_hosts_per_bstrain][1],
+
+        n_vstrains = d_symb[:n_vstrains][1],
+
+        n_particles_per_vstrain = d_symb[:n_particles_per_vstrain][1],
+
+        n_protospacers = d_symb[:n_protospacers][1],
+
+        n_spacers_max = d_symb[:n_spacers_max][1],
+
+        crispr_failure_prob = d_symb[:crispr_failure_prob][1],
+
+        spacer_acquisition_prob = d_symb[:spacer_acquisition_prob][1],
+
+        microbe_growth_rate = d_symb[:spacer_acquisition_prob][1],
+
+        microbe_carrying_capacity = d_symb[:microbe_carrying_capacity][1],
+
+        viral_burst_size = d_symb[:viral_burst_size][1],
+
+        adsorption_rate = d_symb[:adsorption_rate][1],
+
+        viral_decay_rate = d_symb[:viral_decay_rate][1],
+
+        viral_mutation_rate = d_symb[:viral_mutation_rate][1],
+
+        microbe_death_rate = d_symb[:microbe_death_rate][1],
+
+        microbe_immigration_rate = d_symb[:microbe_immigration_rate][1],
+    )
+end
 
 function make_bstrains(n_strains, n_hosts_per_strain)
     Strains(
