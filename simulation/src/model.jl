@@ -155,9 +155,6 @@ end
 
 ### EVENT DISPATCH ###
 
-# This used to be done using Val/multiple dispatch,
-# but this is easier to understand for Julia newbies.
-
 function get_rate(event_id, sim::Simulation)
     if event_id == MICROBIAL_GROWTH
         get_rate_microbial_growth(sim)
@@ -198,27 +195,13 @@ function get_rate_microbial_growth(sim::Simulation)
     p = sim.params
     s = sim.state
 
-    # Birth rate has a truncated logistic form:
-    # B(N) = b0 * N * (1 - N / C) [N < C]
-    # B(N) = 0 [N >= C]
-
-    # To match the Childs model, we need the birth rate at N = 0 to
-    # offset the death rate to yield a total growth rate of r:
-
     r = p.microbe_growth_rate
     d = p.microbe_death_rate
     b0 = r + d
 
-    # And we need the birth rate at N = K * V to similarly equal d:
-    #
-    # b0 * (1 - KV/C) = d
-    # =>
-    # C = KV / (1 - d / b0)
-
     KV = p.microbe_carrying_capacity
     C = KV / (1 - d / b0)
 
-    # Assumes total_abundance is correct
     N = s.bstrains.total_abundance
 
     # Birth rate is truncated to be nonnegative:
@@ -265,7 +248,6 @@ function do_event_microbial_death!(sim::Simulation, t::Float64)
     N = s.bstrains.total_abundance
 
     # Choose a strain proportional to abundance.
-    # This is OK since per-capita death rate is the same across all strains.
     strain_index = sample_linear_integer_weights(rng, N_vec, N)
 
     # Update abundance and total abundance
@@ -336,7 +318,6 @@ function do_event_viral_decay!(sim::Simulation, t::Float64)
     V = s.vstrains.total_abundance
 
     # Choose a strain proportional to abundance.
-    # This is OK since per-capita death rate is the same across all strains.
     strain_index = sample_linear_integer_weights(rng, V_vec, V)
 
     # Update abundance and total abundance
@@ -452,10 +433,6 @@ function infect!(sim::Simulation, t::Float64, iB, jV)
     old_pspacers = s.vstrains.spacers[jV]
     n_pspacers = length(old_pspacers)
 
-    # Just adjust viral population upward with the burst size
-    #s.vstrains.abundance[jV] += beta    This is redundant considering the code below
-    #s.vstrains.total_abundance += beta
-
     # Perform mutations
     mu = p.viral_mutation_rate
 
@@ -503,7 +480,7 @@ function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
 
         new_spacers = if length(old_spacers) == p.n_spacers_max
             old_spacers[2:length(old_spacers)]        ### This removes thes first locus
-        else                                          ### of the CRISPR cassette. Is this what original C code was?
+        else                                          ### of the CRISPR cassette.
             copy(old_spacers)
         end
 
@@ -527,8 +504,6 @@ function acquire_spacer!(sim::Simulation, t::Float64, iB, jV)
             push!(s.bstrains.spacers, new_spacers)
 
             if p.enable_output
-                ############ write_strain(s.bstrains.strain_file, t, id, s.bstrains.ids[iB], s.vstrains.ids[jV])
-                ############ write_spacers(s.bstrains.spacers_file, id, new_spacers)
                 write_strain(sim, "bstrains", id, s.bstrains.ids[iB], s.vstrains.ids[jV])
                 write_spacers(sim, "bspacers", id, new_spacers)
             end
@@ -550,10 +525,6 @@ function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
     s = sim.state
     rng = sim.rng
 
-    #s.vstrains.abundance[virus_id] -= 1 #This is redundant considering
-    #s.vstrains.total_abundance -= 1    #how contact already removes one and only
-                                        #adds beta - n_with_mut
-
     old_pspacers = s.vstrains.spacers[virus_id]
     new_pspacers = copy(old_pspacers)
     for locus = mut_loci
@@ -571,8 +542,6 @@ function mutate_virus!(sim, virus_id, mut_loci, contact_b_id)
     push!(s.vstrains.spacers, new_pspacers)
 
     if p.enable_output
-        ############ write_strain(s.vstrains.strain_file, sim.t, id, s.vstrains.ids[virus_id], contact_b_id)
-        ############ write_spacers(s.vstrains.spacers_file, id, new_pspacers)
         write_strain(sim, "vstrains", id, s.vstrains.ids[virus_id], s.bstrains.ids[contact_b_id])
         write_spacers(sim, "vpspacers", id, new_pspacers)
     end
