@@ -3,7 +3,18 @@
   "rng_seed": 1,
   "n_protospacers": 15,
   "n_bstrains": 1,
-  "viral_mutation_rate": 8.0e-7,
+  "viral_mutation_rate": [
+    4.0e-8,
+    2.4e-7,
+    4.4e-7,
+    6.4e-7,
+    8.4e-7,
+    1.04e-6,
+    1.24e-6,
+    1.44e-6,
+    1.64e-6,
+    1.84e-6
+  ],
   "n_spacers_max": 10,
   "n_hosts_per_bstrain": 100,
   "t_output": 1.0,
@@ -22,22 +33,13 @@
     2.8e-5
   ],
   "microbe_immigration_rate": 0.0,
-  "microbe_death_rate": 0.0,
-  "microbe_carrying_capacity": [
-    316228.0,
-    395285.0,
-    474342.0,
-    553399.0,
-    632456.0,
-    711513.0,
-    790570.0,
-    869627.0,
-    948684.0,
-    1027741.0,
-    1106798.0,
-    1185855.0,
-    1264912.0
+  "microbe_death_rate": [
+    0.0,
+    0.025,
+    0.05,
+    0.075
   ],
+  "microbe_carrying_capacity": 316228.0,
   "microbe_growth_rate": 1.0,
   "crispr_failure_prob": 0.0,
   "enable_output": true,

@@ -15,9 +15,9 @@ from scipy.interpolate import griddata
 from scipy.interpolate import interp1d
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__)) 
-PLOT_PATH = os.path.abspath(os.path.dirname(__file__)) 
-# PLOT_PATH = os.path.join('/Volumes/Yadgah')
+
+
+PLOT_PATH = os.path.join('/Volumes/Yadgah')
 resolve = 500
 
 for sweepDate in ['7-2-2022','24-2-2022']:
@@ -38,21 +38,18 @@ for sweepDate in ['7-2-2022','24-2-2022']:
         yaxis = 'viral_burst_size'
         yvar = 'beta'
         yaxlabel = r'$\beta$'
-    DBWALLS_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','{}'.format(sweepDate),'mean-walls-shannon.sqlite') 
-    DBEXTMEAN_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','{}'.format(sweepDate),'mean-extinctions.sqlite')
-    DBEXT_PATH =  os.path.join(SCRIPT_PATH,'..','generated-data','{}'.format(sweepDate),'extinctions.sqlite')
-    # DBWALLS_PATH = os.path.join('/Volumes/Yadgah/crispr-sweep-{0}/mean-walls-shannon.sqlite'.format(sweepDate))
-    # DBEXTMEAN_PATH = os.path.join('/Volumes/Yadgah/crispr-sweep-{0}/mean-extinctions.sqlite'.format(sweepDate))
-    # DBEXT_PATH = os.path.join('/Volumes/Yadgah/crispr-sweep-{0}/extinctions.sqlite'.format(sweepDate))
+    DBWALLS_PATH = os.path.join('/Volumes/Yadgah/crispr-sweep-{0}/mean-walls-shannon.sqlite'.format(sweepDate))
+    DBEXTMEAN_PATH = os.path.join('/Volumes/Yadgah/crispr-sweep-{0}/mean-extinctions.sqlite'.format(sweepDate))
+    DBEXT_PATH = os.path.join('/Volumes/Yadgah/crispr-sweep-{0}/extinctions.sqlite'.format(sweepDate))
 
     conWalls = sqlite3.connect(DBWALLS_PATH)
     curWalls = conWalls.cursor()
     print('SQLite Query: mean microbial wall occurences per parameter combination')
     wallOccurrences = pd.read_sql_query("SELECT wall_occurrence, combo_id FROM microbial_wall_statistics ORDER BY combo_id", conWalls)
     numWalls = pd.read_sql_query("SELECT expected_num_walls, combo_id FROM microbial_wall_statistics ORDER BY combo_id", conWalls)
-    meanWallDurations = pd.read_sql_query("SELECT num_walls, mean_wallduration, num_replicates, total_replicates_of_combo, combo_id \
+    meanWallDurations = pd.read_sql_query("SELECT num_walls, mean_wallduration, num_replicates, total_replicates, combo_id \
     FROM microbial_mean_walldurations ORDER BY combo_id", conWalls)
-    meanWallDurations['mean_wallduration'] = meanWallDurations['mean_wallduration'] * (meanWallDurations['num_replicates']/meanWallDurations['total_replicates_of_combo'])
+    meanWallDurations['mean_wallduration'] = meanWallDurations['mean_wallduration'] * (meanWallDurations['num_replicates']/meanWallDurations['total_replicates'])
     meanWallDurations = meanWallDurations.groupby(['combo_id']).agg(mean_wallduration=('mean_wallduration', 'sum')).reset_index()
 
 
@@ -143,8 +140,8 @@ for sweepDate in ['7-2-2022','24-2-2022']:
     cax = divider.append_axes("right", size="2%", pad=0.2)
     cbar = fig.colorbar(im, cax)
     cbar.ax.tick_params(labelsize=20)
-    ax.set_xlabel(xaxlabel, labelpad = 20, fontsize = 25)
-    ax.set_ylabel(yaxlabel, labelpad = 20, fontsize = 25)
+    ax.set_xlabel('{}'.format(xaxlabel), labelpad = 20, fontsize = 25)
+    ax.set_ylabel('{}'.format(yaxlabel), labelpad = 20, fontsize = 25)
     ax.tick_params(axis='x', labelsize= 20)
     ax.tick_params(axis='y', labelsize= 20)
     text = ax.xaxis.get_offset_text() # Get the text object
@@ -294,13 +291,9 @@ for sweepDate in ['7-2-2022','24-2-2022']:
 ########################################################################
 # spacer acqusition probability q vs. maximal adsorption ratio phi*K/d #
 ########################################################################
-
-DBWALLS_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','21-6-2023','mean-walls-shannon.sqlite') 
-DBEXTMEAN_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','21-6-2023','mean-extinctions.sqlite')
-DBEXT_PATH =  os.path.join(SCRIPT_PATH,'..','generated-data','21-6-2023','extinctions.sqlite')
-# DBWALLS_PATH = os.path.join('/Volumes/Yadgah/vary-q-K/mean-walls-shannon.sqlite')
-# DBEXTMEAN_PATH = os.path.join('/Volumes/Yadgah/vary-q-K/mean-extinctions.sqlite')
-# DBEXT_PATH = os.path.join('/Volumes/Yadgah/vary-q-K/extinctions.sqlite')
+DBWALLS_PATH = os.path.join('/Volumes/Yadgah/vary-q-K/mean-walls-shannon.sqlite')
+DBEXTMEAN_PATH = os.path.join('/Volumes/Yadgah/vary-q-K/mean-extinctions.sqlite')
+DBEXT_PATH = os.path.join('/Volumes/Yadgah/vary-q-K/extinctions.sqlite')
 xaxis = 'spacer_acquisition_prob'
 xvar = 'q'
 xaxlabel = 'q'
@@ -314,9 +307,9 @@ curWalls = conWalls.cursor()
 print('SQLite Query: mean microbial wall occurences per parameter combination')
 wallOccurrences = pd.read_sql_query("SELECT wall_occurrence, combo_id FROM microbial_wall_statistics ORDER BY combo_id", conWalls)
 numWalls = pd.read_sql_query("SELECT expected_num_walls, combo_id FROM microbial_wall_statistics ORDER BY combo_id", conWalls)
-meanWallDurations = pd.read_sql_query("SELECT num_walls, mean_wallduration, num_replicates, total_replicates_of_combo, combo_id \
+meanWallDurations = pd.read_sql_query("SELECT num_walls, mean_wallduration, num_replicates, total_replicates, combo_id \
 FROM microbial_mean_walldurations ORDER BY combo_id", conWalls)
-meanWallDurations['mean_wallduration'] = meanWallDurations['mean_wallduration'] * (meanWallDurations['num_replicates']/meanWallDurations['total_replicates_of_combo'])
+meanWallDurations['mean_wallduration'] = meanWallDurations['mean_wallduration'] * (meanWallDurations['num_replicates']/meanWallDurations['total_replicates'])
 meanWallDurations = meanWallDurations.groupby(['combo_id']).agg(mean_wallduration=('mean_wallduration', 'sum')).reset_index()
 
 
@@ -547,14 +540,9 @@ plt.close('all')
 ########################################################################
 #### spacer acqusition probability q vs. viral repertoire size g #######
 ########################################################################
-
-
-DBWALLS_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','17-5-2023','mean-walls-shannon.sqlite')
-DBEXTMEAN_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','17-5-2023','mean-extinctions.sqlite')
-DBEXT_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','17-5-2023','extinctions.sqlite')
-# DBWALLS_PATH = os.path.join('/Volumes/Yadgah/g-sweep/11-6-2023/mean-walls-shannon.sqlite')
-# DBEXTMEAN_PATH = os.path.join('/Volumes/Yadgah/g-sweep/11-6-2023/mean-extinctions.sqlite')
-# DBEXT_PATH = os.path.join('/Volumes/Yadgah/g-sweep/11-6-2023/extinctions.sqlite')
+DBWALLS_PATH = os.path.join('/Volumes/Yadgah/g-sweep/17-5-2023/mean-walls-shannon.sqlite')
+DBEXTMEAN_PATH = os.path.join('/Volumes/Yadgah/g-sweep/17-5-2023/mean-extinctions.sqlite')
+DBEXT_PATH = os.path.join('/Volumes/Yadgah/g-sweep/17-5-2023/extinctions.sqlite')
 conWalls = sqlite3.connect(DBWALLS_PATH)
 curWalls = conWalls.cursor()
 conMExt = sqlite3.connect(DBEXTMEAN_PATH)
@@ -594,11 +582,11 @@ wallOccurrences = pd.read_sql_query("SELECT wall_occurrence, combo_id FROM micro
                                     WHERE combo_id in ({0}) ORDER BY combo_id".format(', '.join(map(str, comboSpace['combo_id']))), conWalls)
 numWalls = pd.read_sql_query("SELECT expected_num_walls, combo_id FROM microbial_wall_statistics \
                              WHERE combo_id in ({0}) ORDER BY combo_id".format(', '.join(map(str, comboSpace['combo_id']))), conWalls)
-meanWallDurations = pd.read_sql_query("SELECT num_walls, mean_wallduration, num_replicates, total_replicates_of_combo, combo_id \
+meanWallDurations = pd.read_sql_query("SELECT num_walls, mean_wallduration, num_replicates, total_replicates, combo_id \
                                         FROM microbial_mean_walldurations \
                                         WHERE combo_id in ({0}) \
                                         ORDER BY combo_id".format(', '.join(map(str, comboSpace['combo_id']))), conWalls)
-meanWallDurations['mean_wallduration'] = meanWallDurations['mean_wallduration'] * (meanWallDurations['num_replicates']/meanWallDurations['total_replicates_of_combo'])
+meanWallDurations['mean_wallduration'] = meanWallDurations['mean_wallduration'] * (meanWallDurations['num_replicates']/meanWallDurations['total_replicates'])
 meanWallDurations = meanWallDurations.groupby(['combo_id']).agg(mean_wallduration=('mean_wallduration', 'sum')).reset_index()
 #######
 #######
@@ -648,14 +636,10 @@ simEndTimes = simEndTimes.groupby(['combo_id']).agg(
 
 
 
-
-DBWALLS_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','25-5-2023','mean-walls-shannon.sqlite')
-DBEXTMEAN_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','25-5-2023','mean-extinctions.sqlite')
-DBEXT_PATH = os.path.join(SCRIPT_PATH,'..','generated-data','25-5-2023','extinctions.sqlite')
 # externa hard drive
-# DBWALLS_PATH = os.path.join('/Volumes/Yadgah/g-sweep/25-5-2023/gathered-analyses/walls-shannon/mean-walls-shannon.sqlite')
-# DBEXTMEAN_PATH = os.path.join('/Volumes/Yadgah/g-sweep/25-5-2023/gathered-analyses/extinctions/mean-extinctions.sqlite')
-# DBEXT_PATH = os.path.join('/Volumes/Yadgah/g-sweep/25-5-2023/gathered-analyses/extinctions/extinctions.sqlite')
+DBWALLS_PATH = os.path.join('/Volumes/Yadgah/g-sweep/25-5-2023/mean-walls-shannon.sqlite')
+DBEXTMEAN_PATH = os.path.join('/Volumes/Yadgah/g-sweep/25-5-2023/mean-extinctions.sqlite')
+DBEXT_PATH = os.path.join('/Volumes/Yadgah/g-sweep/25-5-2023/extinctions.sqlite')
 conWalls = sqlite3.connect(DBWALLS_PATH)
 curWalls = conWalls.cursor()
 conMExt = sqlite3.connect(DBEXTMEAN_PATH)
@@ -674,13 +658,13 @@ wallOccurrences2 = pd.read_sql_query("SELECT wall_occurrence, combo_id FROM micr
                                     WHERE combo_id in ({0}) ORDER BY combo_id".format(', '.join(map(str, comboSpace2['combo_id']))), conWalls)
 numWalls2 = pd.read_sql_query("SELECT expected_num_walls, combo_id FROM microbial_wall_statistics \
                              WHERE combo_id in ({0}) ORDER BY combo_id".format(', '.join(map(str, comboSpace2['combo_id']))), conWalls)
-meanWallDurations2 = pd.read_sql_query("SELECT num_walls, mean_wallduration, num_replicates, total_replicates_of_combo, combo_id \
+meanWallDurations2 = pd.read_sql_query("SELECT num_walls, mean_wallduration, num_replicates, total_replicates, combo_id \
                                         FROM microbial_mean_walldurations \
                                         WHERE combo_id in ({0}) \
                                         ORDER BY combo_id".format(', '.join(map(str, comboSpace2['combo_id']))), conWalls)
 meanWallDurations2['mean_wallduration'] = meanWallDurations2['mean_wallduration'] * \
     (meanWallDurations2['num_replicates'] /
-     meanWallDurations2['total_replicates_of_combo'])
+     meanWallDurations2['total_replicates'])
 meanWallDurations2 = meanWallDurations2.groupby(['combo_id']).agg(
     mean_wallduration=('mean_wallduration', 'sum')).reset_index()
 #######

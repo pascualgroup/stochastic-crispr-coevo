@@ -1,6 +1,6 @@
 {
   "n_particles_per_vstrain": 100,
-  "rng_seed": 1332359469795506934,
+  "rng_seed": 7335514222811253156,
   "n_protospacers": 15,
   "n_bstrains": 1,
   "viral_mutation_rate": 1.04e-6,
@@ -9,7 +9,7 @@
   "t_output": 1.0,
   "viral_decay_rate": 0.1,
   "adsorption_rate": 1.0e-7,
-  "spacer_acquisition_prob": 1.9e-5,
+  "spacer_acquisition_prob": 2.2e-5,
   "microbe_immigration_rate": 0.0,
   "microbe_death_rate": 0.0,
   "microbe_carrying_capacity": 316228.0,
